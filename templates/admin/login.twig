@@ -1,0 +1,22 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('login.admin_title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <div class="max-w-sm mx-auto mt-10 sm:mt-20">
+        <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
+            <h1 class="text-xl font-bold mb-6">{{ t('login.admin_title') }}</h1>
+            <form method="post" action="/admin/login" class="space-y-4">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <div>
+                    <label for="password" class="block text-sm font-medium mb-1">{{ t('login.password') }}</label>
+                    <input type="password" id="password" name="password" required autofocus autocomplete="current-password"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                    {{ t('login.submit') }}
+                </button>
+            </form>
+        </div>
+    </div>
+{% endblock %}

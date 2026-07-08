@@ -1,0 +1,11 @@
+/.env
+/vendor/
+/node_modules/
+/logs/*
+!/logs/.gitkeep
+/public/assets/*
+!/public/assets/.gitkeep
+.phpunit.result.cache
+.phpunit.cache/
+npm-debug.log*
+/var/

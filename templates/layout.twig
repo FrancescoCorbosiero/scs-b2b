@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script defer src="/assets/alpine.min.js"></script>
+    <script defer src="/assets/app.js"></script>
+</head>
+<body class="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col">
+
+{% set in_admin = current_path starts with '/admin' %}
+
+{% if in_admin and is_admin_authed %}
+    <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <a href="/admin" class="font-bold text-base tracking-tight">SCS B2B <span class="text-amber-400">Admin</span></a>
+            <nav class="flex items-center gap-1">
+                <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin' ? 'bg-neutral-700' }}">{{ t('admin.dashboard') }}</a>
+                <a href="/admin/richieste" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste' ? 'bg-neutral-700' }}">{{ t('admin.orders') }}</a>
+                <a href="/admin/sync" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/sync' ? 'bg-neutral-700' }}">{{ t('admin.sync') }}</a>
+                <a href="/admin/recommended" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/recommended' ? 'bg-neutral-700' }}">{{ t('admin.recommended') }}</a>
+            </nav>
+            <form method="post" action="/admin/logout" class="ml-auto">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button type="submit" class="px-3 py-1.5 rounded-md bg-neutral-700 hover:bg-neutral-600">{{ t('nav.logout') }}</button>
+            </form>
+        </div>
+    </header>
+{% elseif is_catalog_authed and not in_admin %}
+    <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow" x-data="{ open: false }">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+            <a href="/" class="font-bold text-lg tracking-tight shrink-0">SCS <span class="text-amber-400">B2B</span></a>
+
+            <nav class="hidden md:flex items-center gap-1 text-sm">
+                <a href="/" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/' ? 'bg-neutral-700' }}">{{ t('nav.catalog') }}</a>
+                <a href="/carrello" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/carrello' ? 'bg-neutral-700' }}">
+                    {{ t('nav.cart') }}
+                    <span data-cart-badge class="ml-1 inline-flex items-center justify-center min-w-[1.35rem] h-5 px-1 rounded-full bg-amber-400 text-neutral-900 text-xs font-bold {{ cart_count == 0 ? 'hidden' }}">{{ cart_count }}</span>
+                </a>
+                <a href="/contatti" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/contatti' ? 'bg-neutral-700' }}">{{ t('nav.contacts') }}</a>
+            </nav>
+
+            <div class="ml-auto flex items-center gap-2">
+                <form method="post" action="/piano" class="flex items-center gap-2 text-sm">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <input type="hidden" name="redirect" value="{{ current_uri }}">
+                    <label for="plan-select" class="sr-only">{{ t('nav.plan_label') }}</label>
+                    <select id="plan-select" name="plan" data-autosubmit
+                            class="rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7 focus:ring-amber-400 focus:border-amber-400">
+                        {% for p in ['base', 'pro', 'max'] %}
+                            <option value="{{ p }}" {{ plan == p ? 'selected' }}>{{ t('nav.plan_label') }}: {{ t('plan.' ~ p) }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <form method="post" action="/logout" class="hidden md:block">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <button type="submit" class="px-3 py-1.5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm">{{ t('nav.logout') }}</button>
+                </form>
+                <button type="button" class="md:hidden p-2 rounded-md hover:bg-neutral-700" @click="open = !open" aria-label="Menu">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+        </div>
+        <nav class="md:hidden border-t border-neutral-700 px-4 py-3 space-y-1 text-sm" x-show="open" x-cloak>
+            <a href="/" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.catalog') }}</a>
+            <a href="/carrello" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.cart') }} ({{ cart_count }})</a>
+            <a href="/contatti" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.contacts') }}</a>
+            <form method="post" action="/logout">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button type="submit" class="w-full text-left px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.logout') }}</button>
+            </form>
+        </nav>
+    </header>
+{% endif %}
+
+<main id="content" class="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
+    {% for flash in flashes %}
+        <div class="mb-4 rounded-lg px-4 py-3 text-sm border {{ flash.type == 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800' }}">
+            {{ flash.message }}
+        </div>
+    {% endfor %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="border-t border-neutral-200 bg-white">
+    <div class="max-w-7xl mx-auto px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+        <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_included') }}</p>
+        <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <rect width="200" height="200" fill="#f5f5f5"/>
+  <path d="M40 130 C55 100 70 95 85 105 C100 115 115 110 125 95 C140 100 155 115 160 130 L160 140 C160 145 155 148 148 148 L52 148 C45 148 40 145 40 140 Z" fill="#d4d4d4"/>
+  <path d="M40 132 L160 132 L160 140 C160 145 155 148 148 148 L52 148 C45 148 40 145 40 140 Z" fill="#a3a3a3"/>
+  <text x="100" y="172" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#a3a3a3">Immagine non disponibile</text>
+</svg>
