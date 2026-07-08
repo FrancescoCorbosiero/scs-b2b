@@ -6,6 +6,8 @@ RUN apk add --no-cache icu-libs libzip freetype libjpeg-turbo libpng \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip gd opcache \
     && apk del .build-deps
 
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
 COPY php.ini /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /var/www/html
