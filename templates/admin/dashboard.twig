@@ -1,0 +1,34 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('admin.dashboard') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{{ t('admin.dashboard') }}</h1>
+
+    <div class="grid sm:grid-cols-2 gap-4 mb-8 max-w-3xl">
+        <div class="bg-white rounded-xl border border-neutral-200 p-5">
+            <p class="text-sm text-neutral-500">{{ t('admin.orders_total') }}</p>
+            <p class="text-3xl font-black">{{ orders_total }}</p>
+        </div>
+        <div class="bg-white rounded-xl border border-neutral-200 p-5">
+            <p class="text-sm text-neutral-500">{{ t('admin.last_sync') }}</p>
+            {% if last_sync %}
+                <p class="font-semibold {{ last_sync.status == 'ok' ? 'text-emerald-600' : 'text-red-600' }}">
+                    {{ last_sync.status|upper }} — {{ last_sync.started_at }}
+                </p>
+                <p class="text-xs text-neutral-500 mt-1">
+                    {{ t('admin.rows_read') }}: {{ last_sync.rows_read }} ·
+                    {{ t('admin.created') }}: {{ last_sync.products_created }} ·
+                    {{ t('admin.updated') }}: {{ last_sync.products_updated }} ·
+                    {{ t('admin.deactivated') }}: {{ last_sync.products_deactivated }}
+                </p>
+            {% else %}
+                <p class="text-neutral-400">{{ t('admin.sync_never') }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <h2 class="font-bold text-lg mb-3">{{ t('admin.orders') }}</h2>
+    {% include 'admin/_orders_table.twig' with { orders: recent_orders } %}
+    <a href="/admin/richieste" class="inline-block mt-4 text-sm underline text-neutral-600 hover:text-neutral-900">{{ t('admin.orders') }} →</a>
+{% endblock %}

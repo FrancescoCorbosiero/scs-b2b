@@ -1,0 +1,38 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('admin.recommended') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{{ t('admin.recommended') }}</h1>
+
+    <div class="max-w-xl space-y-5">
+        <form method="get" action="/admin/recommended" class="bg-white rounded-xl border border-neutral-200 p-5 flex gap-3">
+            <input type="search" name="sku" value="{{ sku }}" placeholder="{{ t('admin.recommended_search') }}…" required
+                   class="flex-1 rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500 font-mono">
+            <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 py-2 font-semibold hover:bg-neutral-700">{{ t('admin.recommended_search') }}</button>
+        </form>
+
+        {% if not_found %}
+            <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">{{ t('admin.order_not_found') }}</div>
+        {% elseif product %}
+            <div class="bg-white rounded-xl border border-neutral-200 p-5 flex items-center gap-4">
+                <img src="{{ product.image_url ?: '/placeholder.svg' }}" alt="" data-fallback="/placeholder.svg" class="w-16 h-16 rounded-lg object-contain bg-neutral-50">
+                <div class="min-w-0">
+                    <p class="font-mono text-xs text-neutral-500">{{ product.sku }} · {{ product.brand }}</p>
+                    <p class="font-semibold">{{ product.name }}</p>
+                    <p class="text-xs mt-1 {{ product.is_recommended ? 'text-amber-600 font-bold' : 'text-neutral-400' }}">
+                        {{ product.is_recommended ? t('admin.recommended_set') : t('admin.recommended_unset') }}
+                    </p>
+                </div>
+                <form method="post" action="/admin/recommended" class="ml-auto shrink-0">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <input type="hidden" name="sku" value="{{ product.sku }}">
+                    <input type="hidden" name="recommended" value="{{ product.is_recommended ? '0' : '1' }}">
+                    <button type="submit" class="rounded-lg px-4 py-2 font-semibold {{ product.is_recommended ? 'border border-neutral-300 hover:bg-neutral-50' : 'bg-amber-400 text-neutral-900 hover:bg-amber-300' }}">
+                        {{ product.is_recommended ? 'Rimuovi flag' : 'Imposta Recommended' }}
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

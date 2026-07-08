@@ -1,0 +1,158 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('catalog.title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <h1 class="text-2xl font-bold">{{ t('catalog.title') }}</h1>
+        <span class="text-sm text-neutral-500">{{ t('catalog.results', {n: total}) }}</span>
+        <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
+           class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            {{ t('catalog.export') }}
+        </a>
+    </div>
+
+    {# ── Toolbar filtri: stato su query string → URL condivisibili ── #}
+    <div x-data="{ filtersOpen: false }" class="mb-6">
+        <button type="button" @click="filtersOpen = !filtersOpen"
+                class="md:hidden mb-3 inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
+            {{ t('catalog.toggle_filters') }}
+        </button>
+
+        <form method="get" action="/" class="bg-white rounded-xl border border-neutral-200 p-4 md:block" :class="filtersOpen ? 'block' : 'hidden'">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div class="sm:col-span-2">
+                    <label for="f-q" class="sr-only">{{ t('catalog.search_placeholder') }}</label>
+                    <input type="search" id="f-q" name="q" value="{{ filters.q }}" placeholder="{{ t('catalog.search_placeholder') }}"
+                           data-debounce-submit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="f-brand" class="sr-only">{{ t('catalog.filter_brand') }}</label>
+                    <select id="f-brand" name="brand" data-autosubmit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        <option value="">{{ t('catalog.brand_any') }}</option>
+                        {% for brand in brands %}
+                            <option value="{{ brand }}" {{ filters.brand == brand ? 'selected' }}>{{ brand }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="f-avail" class="sr-only">{{ t('catalog.filter_availability') }}</label>
+                    <select id="f-avail" name="disponibilita" data-autosubmit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        <option value="">{{ t('catalog.filter_availability') }}: {{ t('catalog.availability_any') }}</option>
+                        {% for a in ['alta', 'media', 'bassa'] %}
+                            <option value="{{ a }}" {{ filters.availability == a ? 'selected' }}>{{ t('catalog.filter_availability') }}: {{ t('catalog.availability_' ~ a) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" placeholder="{{ t('catalog.filter_price_min') }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500" inputmode="numeric">
+                    <span class="text-neutral-400">–</span>
+                    <input type="number" name="prezzo_max" value="{{ filters.price_max }}" min="0" step="1" placeholder="{{ t('catalog.filter_price_max') }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500" inputmode="numeric">
+                </div>
+                <div>
+                    <label for="f-sort" class="sr-only">{{ t('catalog.sort_label') }}</label>
+                    <select id="f-sort" name="ordina" data-autosubmit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        {% for s in sorts %}
+                            <option value="{{ s }}" {{ filters.sort == s ? 'selected' }}>{{ t('catalog.sort_label') }}: {{ t('catalog.sort_' ~ s) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <label class="flex items-center gap-2 text-neutral-700">
+                    <input type="checkbox" name="recommended" value="1" {{ filters.recommended ? 'checked' }} data-autosubmit
+                           class="rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+                    {{ t('catalog.filter_recommended') }}
+                </label>
+                {# toggle EU/US: POST separato che persiste in sessione #}
+                <div class="flex items-center gap-1" id="size-toggle">
+                    <span class="text-neutral-500 mr-1">{{ t('catalog.sizes_label') }}:</span>
+                    {% for sys in ['eu', 'us'] %}
+                        <button type="submit" form="size-system-form" name="size_system" value="{{ sys }}"
+                                class="px-3 py-1 rounded-md border text-xs font-semibold {{ size_system == sys ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50' }}">
+                            {{ t('catalog.size_' ~ sys) }}
+                        </button>
+                    {% endfor %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 py-2 font-semibold hover:bg-neutral-700">{{ t('catalog.apply_filters') }}</button>
+                    <a href="/" class="text-neutral-500 hover:text-neutral-700 underline">{{ t('catalog.reset_filters') }}</a>
+                </div>
+            </div>
+        </form>
+        <form id="size-system-form" method="post" action="/taglie">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="redirect" value="{{ current_uri }}">
+        </form>
+    </div>
+
+    {% if items is empty %}
+        <div class="bg-white rounded-xl border border-neutral-200 p-10 text-center text-neutral-500">
+            {{ t('catalog.no_results') }}
+        </div>
+    {% else %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {% for item in items %}
+                {% set sizes = sizes_by_product[item.id] ?? [] %}
+                <article class="bg-white rounded-xl border border-neutral-200 overflow-hidden flex flex-col">
+                    <div class="relative aspect-square bg-neutral-50">
+                        {% if item.is_recommended %}
+                            <span class="absolute top-2 left-2 z-10 rounded-full bg-amber-400 text-neutral-900 text-xs font-bold px-2.5 py-1">{{ t('catalog.recommended_badge') }}</span>
+                        {% endif %}
+                        <img src="{{ item.image_url ?: '/placeholder.svg' }}" alt="{{ item.name }}" loading="lazy" data-fallback="/placeholder.svg"
+                             class="absolute inset-0 w-full h-full object-contain p-4">
+                    </div>
+                    <div class="p-4 flex flex-col gap-2 flex-1">
+                        <div class="flex items-center gap-2 text-xs text-neutral-500">
+                            <span class="font-mono font-semibold text-neutral-700">{{ item.sku }}</span>
+                            <button type="button" data-copy="{{ item.sku }}" title="{{ t('catalog.copy_sku') }}"
+                                    class="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
+                            </button>
+                            <span class="ml-auto">{{ item.brand }}</span>
+                        </div>
+                        <h2 class="font-semibold leading-snug">{{ item.name }}</h2>
+                        <p class="text-xs text-neutral-500">{{ t('catalog.total_availability', {n: item.total_quantity}) }}</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            {% for size in sizes|slice(0, 8) %}
+                                {% set label = size_system == 'us' and size.size_us ? size.size_us : size.size_eu %}
+                                <span class="rounded-md border px-1.5 py-0.5 text-xs {{ size.quantity > 0 ? 'border-neutral-200 bg-neutral-50 text-neutral-700' : 'border-neutral-100 bg-white text-neutral-300 line-through' }}">
+                                    {{ label }} · {{ size.quantity }}
+                                </span>
+                            {% endfor %}
+                            {% if sizes|length > 8 %}
+                                <span class="rounded-md px-1.5 py-0.5 text-xs text-neutral-400">+{{ sizes|length - 8 }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-auto pt-2 flex items-center justify-between gap-2">
+                            <p class="font-bold text-lg">{{ t('catalog.price_from', {price: item.price_from|eur}) }}</p>
+                            <form method="post" action="/carrello/aggiungi">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                <input type="hidden" name="sku" value="{{ item.sku }}">
+                                <input type="hidden" name="redirect" value="{{ current_uri }}">
+                                <button type="submit" class="rounded-lg bg-neutral-900 text-white text-sm font-semibold px-3 py-2 hover:bg-neutral-700">
+                                    {{ t('catalog.add_to_cart') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+
+        {% if total_pages > 1 %}
+            <nav class="mt-8 flex items-center justify-center gap-2 text-sm">
+                {% set base = '/?' ~ (query_string ? query_string ~ '&' : '') %}
+                {% if page > 1 %}
+                    <a href="{{ base }}page={{ page - 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
+                {% endif %}
+                <span class="text-neutral-500 px-2">{{ t('catalog.page_of', {page: page, total: total_pages}) }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ base }}page={{ page + 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% endif %}
+{% endblock %}

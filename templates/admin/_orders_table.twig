@@ -1,0 +1,35 @@
+<div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="bg-neutral-50 text-neutral-500 text-left">
+                <th class="px-4 py-2.5 font-medium">#</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.customer') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.plan') }}</th>
+                <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.items') }}</th>
+                <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.total') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.emails') }}</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-neutral-100">
+            {% for order in orders %}
+                <tr class="hover:bg-neutral-50">
+                    <td class="px-4 py-2.5"><a href="/admin/richieste/{{ order.id }}" class="font-semibold underline">#{{ order.id }}</a></td>
+                    <td class="px-4 py-2.5 whitespace-nowrap">{{ order.created_at }}</td>
+                    <td class="px-4 py-2.5">
+                        {{ order.customer_name }}{% if order.company %} <span class="text-neutral-400">({{ order.company }})</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 uppercase font-semibold text-xs">{{ order.plan }}</td>
+                    <td class="px-4 py-2.5 text-right">{{ order.total_items }}</td>
+                    <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{{ order.total_amount|eur }}</td>
+                    <td class="px-4 py-2.5 text-xs whitespace-nowrap">
+                        <span class="{{ order.email_admin_sent ? 'text-emerald-600' : 'text-red-600' }}">{{ t('admin.email_admin') }}: {{ order.email_admin_sent ? t('admin.email_sent') : t('admin.email_failed') }}</span><br>
+                        <span class="{{ order.email_customer_sent ? 'text-emerald-600' : 'text-red-600' }}">{{ t('admin.email_customer') }}: {{ order.email_customer_sent ? t('admin.email_sent') : t('admin.email_failed') }}</span>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

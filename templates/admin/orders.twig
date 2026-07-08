@@ -1,0 +1,21 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('admin.orders') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-6">{{ t('admin.orders') }} <span class="text-neutral-400 font-normal text-lg">({{ total }})</span></h1>
+
+    {% include 'admin/_orders_table.twig' with { orders: orders } %}
+
+    {% if total_pages > 1 %}
+        <nav class="mt-6 flex items-center justify-center gap-2 text-sm">
+            {% if page > 1 %}
+                <a href="/admin/richieste?page={{ page - 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
+            {% endif %}
+            <span class="text-neutral-500 px-2">{{ t('catalog.page_of', {page: page, total: total_pages}) }}</span>
+            {% if page < total_pages %}
+                <a href="/admin/richieste?page={{ page + 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+{% endblock %}

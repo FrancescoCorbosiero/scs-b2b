@@ -1,0 +1,43 @@
+{# Email cliente: riepilogo SENZA costi fornitore né margini (il dato non arriva proprio qui). #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
+    <h1 style="font-size: 20px;">Richiesta ordine ricevuta #{{ order.id }}</h1>
+    <p>Ciao {{ order.customer_name }},</p>
+    <p>abbiamo ricevuto la tua richiesta d'ordine. Ti ricontatteremo al più presto per confermare
+       disponibilità e dettagli. <strong>Nessun pagamento è dovuto ora.</strong></p>
+
+    <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
+        <thead>
+            <tr style="background: #f5f5f5;">
+                <th align="left">SKU</th>
+                <th align="left">Prodotto</th>
+                <th align="left">Taglia EU</th>
+                <th align="left">Taglia US</th>
+                <th align="right">Qty</th>
+                <th align="right">Prezzo unit.</th>
+                <th align="right">Subtotale</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in order.lines %}
+                <tr>
+                    <td>{{ line.sku }}</td>
+                    <td>{{ line.name }}</td>
+                    <td>{{ line.size_eu }}</td>
+                    <td>{{ line.size_us }}</td>
+                    <td align="right">{{ line.qty }}</td>
+                    <td align="right">{{ line.unit_price|eur }}</td>
+                    <td align="right"><strong>{{ line.subtotal|eur }}</strong></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="font-size: 15px; margin-top: 14px;">
+        <strong>Totale pezzi:</strong> {{ order.total_items }}<br>
+        <strong>Totale (IVA inclusa):</strong> {{ order.total_amount|eur }}
+    </p>
+
+    <p style="color: #525252; font-size: 13px; margin-top: 18px;">
+        Per qualsiasi domanda: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}
+    </p>
+</div>
