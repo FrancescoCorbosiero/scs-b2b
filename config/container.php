@@ -26,7 +26,11 @@ return [
         $config = $c->get(Config::class);
         $logger = new Logger('app');
         $level = $config->isProduction() ? Level::Info : Level::Debug;
-        $logger->pushHandler(new StreamHandler($config->rootPath() . '/logs/app.log', $level));
+        // se logs/ non è scrivibile (permessi del bind mount) si logga su
+        // stderr: finisce in `docker compose logs php` invece di rompere l'app
+        $logsDir = $config->rootPath() . '/logs';
+        $target = is_dir($logsDir) && is_writable($logsDir) ? $logsDir . '/app.log' : 'php://stderr';
+        $logger->pushHandler(new StreamHandler($target, $level));
 
         return $logger;
     },
@@ -38,10 +42,22 @@ return [
     Environment::class => static function (ContainerInterface $c): Environment {
         $config = $c->get(Config::class);
         $loader = new FilesystemLoader($config->rootPath() . '/templates');
+        // cache solo se la directory è creabile/scrivibile: un bind mount con
+        // permessi sbagliati non deve buttare giù il sito con un 500
+        $cache = false;
+        if ($config->isProduction()) {
+            $cacheDir = $config->rootPath() . '/var/cache/twig';
+            if (!is_dir($cacheDir)) {
+                @mkdir($cacheDir, 0775, true);
+            }
+            if (is_dir($cacheDir) && is_writable($cacheDir)) {
+                $cache = $cacheDir;
+            }
+        }
         $twig = new Environment($loader, [
             'autoescape' => 'html',
             'strict_variables' => false,
-            'cache' => $config->isProduction() ? $config->rootPath() . '/var/cache/twig' : false,
+            'cache' => $cache,
         ]);
         $twig->addExtension(new TwigExtension($c->get(Lang::class)));
 
