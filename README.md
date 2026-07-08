@@ -20,6 +20,8 @@ PHP 8.3 · Slim 4 + PHP-DI · Twig · PDO/MySQL 8 · Tailwind CSS + Alpine.js
 cp .env.example .env
 php bin/hash-password.php "password-catalogo"   # → CATALOG_PASSWORD_HASH nel .env
 php bin/hash-password.php "password-admin"      # → ADMIN_PASSWORD_HASH nel .env
+# ⚠ nel .env racchiudi gli hash tra APICI SINGOLI ('$argon2id$...'):
+#   contengono "$" e Docker Compose altrimenti li interpola mutilandoli
 
 npm ci && npm run build                          # asset in public/assets/
 
