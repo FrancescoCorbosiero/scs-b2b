@@ -1,0 +1,55 @@
+{# Email amministratore: tabella ordine completa. offer_price e margine SOLO se show_cost. #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 720px;">
+    <h1 style="font-size: 20px;">Nuova richiesta d'ordine #{{ order.id }}</h1>
+    <p style="margin: 4px 0;"><strong>Data:</strong> {{ order.created_at }}</p>
+    <p style="margin: 4px 0;"><strong>Cliente:</strong> {{ order.customer_name }}{% if order.company %} — {{ order.company }}{% endif %}</p>
+    <p style="margin: 4px 0;"><strong>Email:</strong> {{ order.email }} · <strong>Telefono:</strong> {{ order.phone }}</p>
+    {% if order.notes %}<p style="margin: 4px 0;"><strong>Note:</strong> {{ order.notes }}</p>{% endif %}
+    <p style="margin: 4px 0;"><strong>Piano selezionato:</strong> {{ order.plan|upper }}</p>
+
+    <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
+        <thead>
+            <tr style="background: #f5f5f5;">
+                <th align="left">SKU</th>
+                <th align="left">Prodotto</th>
+                <th align="left">Taglia EU</th>
+                <th align="left">Taglia US</th>
+                <th align="left">Barcode</th>
+                <th align="right">Qty</th>
+                <th align="right">Prezzo unit.</th>
+                <th align="right">Subtotale</th>
+                {% if show_cost %}
+                    <th align="right">Costo unit.</th>
+                    <th align="right">Margine riga</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in order.lines %}
+                <tr>
+                    <td>{{ line.sku }}</td>
+                    <td>{{ line.name }}</td>
+                    <td>{{ line.size_eu }}</td>
+                    <td>{{ line.size_us }}</td>
+                    <td>{{ line.barcode }}</td>
+                    <td align="right">{{ line.qty }}</td>
+                    <td align="right">{{ line.unit_price|eur }}</td>
+                    <td align="right"><strong>{{ line.subtotal|eur }}</strong></td>
+                    {% if show_cost %}
+                        <td align="right">{{ line.offer_price is defined and line.offer_price ? line.offer_price|eur : '—' }}</td>
+                        <td align="right">
+                            {% if line.offer_price is defined and line.offer_price %}
+                                {{ ((line.unit_price - line.offer_price) * line.qty)|eur }}
+                            {% else %}—{% endif %}
+                        </td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="font-size: 15px; margin-top: 14px;">
+        <strong>Totale pezzi:</strong> {{ order.total_items }}<br>
+        <strong>Totale ({{ order.plan|upper }}, IVA inclusa):</strong> {{ order.total_amount|eur }}
+    </p>
+</div>

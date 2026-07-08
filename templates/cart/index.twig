@@ -1,0 +1,120 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('cart.title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-4">{{ t('cart.title') }}</h1>
+
+    {% if cart.products is empty %}
+        <div class="bg-white rounded-xl border border-neutral-200 p-10 text-center text-neutral-500">
+            <p class="mb-4">{{ t('cart.empty') }}</p>
+            <a href="/" class="inline-block rounded-lg bg-neutral-900 text-white px-5 py-2.5 font-semibold hover:bg-neutral-700">{{ t('cart.go_catalog') }}</a>
+        </div>
+    {% else %}
+        <div class="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+            <div class="lg:col-span-2 space-y-5">
+                {% for product in cart.products %}
+                    <section id="{{ product.sku }}" class="bg-white rounded-xl border border-neutral-200 overflow-hidden" data-cart-product="{{ product.sku }}">
+                        <header class="flex items-center gap-3 p-4 border-b border-neutral-100">
+                            <img src="{{ product.image_url ?: '/placeholder.svg' }}" alt="" data-fallback="/placeholder.svg"
+                                 class="w-14 h-14 rounded-lg object-contain bg-neutral-50 shrink-0">
+                            <div class="min-w-0">
+                                <p class="text-xs font-mono text-neutral-500">{{ product.sku }} · {{ product.brand }}</p>
+                                <h2 class="font-semibold truncate">{{ product.name }}</h2>
+                            </div>
+                            <div class="ml-auto flex items-center gap-2 shrink-0">
+                                <form method="post" action="/carrello/prendi-tutto">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                    <input type="hidden" name="sku" value="{{ product.sku }}">
+                                    <button type="submit" class="rounded-md border border-neutral-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-neutral-50">{{ t('cart.take_all') }}</button>
+                                </form>
+                                <form method="post" action="/carrello/svuota">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                    <input type="hidden" name="sku" value="{{ product.sku }}">
+                                    <button type="submit" class="rounded-md border border-neutral-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-neutral-50">{{ t('cart.clear_product') }}</button>
+                                </form>
+                                <form method="post" action="/carrello/rimuovi">
+                                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                    <input type="hidden" name="sku" value="{{ product.sku }}">
+                                    <button type="submit" class="rounded-md border border-red-200 text-red-600 px-2.5 py-1.5 text-xs font-semibold hover:bg-red-50">{{ t('cart.remove') }}</button>
+                                </form>
+                            </div>
+                        </header>
+
+                        {# tabella taglie trasposta: PREZZO / STOCK / ORDINA #}
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-center">
+                                <thead>
+                                    <tr class="bg-neutral-50 text-neutral-500">
+                                        <th class="sticky left-0 bg-neutral-50 px-3 py-2 text-left font-medium">{{ t('cart.size') }}</th>
+                                        {% for size in product.sizes %}
+                                            <th class="px-2 py-2 font-semibold text-neutral-700 whitespace-nowrap">
+                                                {{ size_system == 'us' and size.size_us ? size.size_us : size.size_eu }}
+                                            </th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-t border-neutral-100">
+                                        <th class="sticky left-0 bg-white px-3 py-2 text-left font-medium text-neutral-500">{{ t('cart.price') }}</th>
+                                        {% for size in product.sizes %}
+                                            <td class="px-2 py-2 whitespace-nowrap">{{ size.price|eur }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="border-t border-neutral-100">
+                                        <th class="sticky left-0 bg-white px-3 py-2 text-left font-medium text-neutral-500">{{ t('cart.stock') }}</th>
+                                        {% for size in product.sizes %}
+                                            <td class="px-2 py-2 font-semibold {{ size.quantity_stock <= 5 ? 'text-red-600' }}">{{ size.quantity_stock }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    <tr class="border-t border-neutral-100">
+                                        <th class="sticky left-0 bg-white px-3 py-2 text-left font-medium text-neutral-500">{{ t('cart.order_qty') }}</th>
+                                        {% for size in product.sizes %}
+                                            <td class="px-1.5 py-2">
+                                                <input type="number" value="{{ size.qty }}" min="0" max="{{ size.quantity_stock }}"
+                                                       {{ size.quantity_stock == 0 ? 'disabled' }}
+                                                       data-cart-qty data-sku="{{ product.sku }}" data-size="{{ size.size_eu }}"
+                                                       class="w-16 rounded-md border-neutral-300 text-center text-sm focus:border-amber-500 focus:ring-amber-500 disabled:bg-neutral-100 disabled:text-neutral-300"
+                                                       inputmode="numeric">
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <footer class="px-4 py-3 border-t border-neutral-100 text-right text-sm">
+                            {{ t('cart.product_subtotal') }}:
+                            <strong data-product-total>{{ product.product_total|eur }}</strong>
+                        </footer>
+                    </section>
+                {% endfor %}
+            </div>
+
+            {# riepilogo sticky #}
+            <aside class="mt-6 lg:mt-0 lg:sticky lg:top-20">
+                <div class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+                    <h2 class="font-bold text-lg">{{ t('cart.summary') }}</h2>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-neutral-500">{{ t('cart.total_items') }}</span>
+                        <strong data-summary-items>{{ cart.total_items }}</strong>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-neutral-500">{{ t('cart.total_amount', {plan: t('plan.' ~ plan)}) }}</span>
+                        <strong class="text-lg" data-summary-total>{{ cart.total_amount|eur }}</strong>
+                    </div>
+                    <div class="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2 text-xs text-neutral-600">
+                        {{ t('cart.minimum_notice', {min: min_order_items}) }}
+                        <span data-minimum-warning class="{{ meets_minimum ? 'hidden' }} block mt-1 text-amber-700 font-medium">
+                            {{ t('cart.below_minimum', {n: max(0, min_order_items - cart.total_items)}) }}
+                        </span>
+                    </div>
+                    <a href="/richiesta-ordine" data-proceed
+                       class="block text-center rounded-lg px-4 py-2.5 font-semibold {{ meets_minimum ? 'bg-neutral-900 text-white hover:bg-neutral-700' : 'bg-neutral-200 text-neutral-400 pointer-events-none' }}">
+                        {{ t('cart.proceed') }}
+                    </a>
+                </div>
+            </aside>
+        </div>
+    {% endif %}
+{% endblock %}

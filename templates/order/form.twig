@@ -1,0 +1,75 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('order.title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-4">{{ t('order.title') }}</h1>
+
+    <div class="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+        <form method="post" action="/richiesta-ordine" class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-5 sm:p-6 space-y-4">
+            <p class="text-sm text-neutral-500">{{ t('order.intro') }}</p>
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            {# honeypot antispam: invisibile agli utenti, i bot lo compilano #}
+            <div class="hidden" aria-hidden="true">
+                <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="o-name" class="block text-sm font-medium mb-1">{{ t('order.name') }}</label>
+                    <input type="text" id="o-name" name="customer_name" required maxlength="128" value="{{ old.customer_name ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="o-company" class="block text-sm font-medium mb-1">{{ t('order.company') }}</label>
+                    <input type="text" id="o-company" name="company" maxlength="128" value="{{ old.company ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="o-email" class="block text-sm font-medium mb-1">{{ t('order.email') }}</label>
+                    <input type="email" id="o-email" name="email" required maxlength="255" value="{{ old.email ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="o-phone" class="block text-sm font-medium mb-1">{{ t('order.phone') }}</label>
+                    <input type="tel" id="o-phone" name="phone" required maxlength="32" value="{{ old.phone ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+            </div>
+            <div>
+                <label for="o-notes" class="block text-sm font-medium mb-1">{{ t('order.notes') }}</label>
+                <textarea id="o-notes" name="notes" rows="4" maxlength="2000"
+                          class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">{{ old.notes ?? '' }}</textarea>
+            </div>
+            <button type="submit" class="rounded-lg bg-neutral-900 text-white px-6 py-2.5 font-semibold hover:bg-neutral-700">
+                {{ t('order.submit') }}
+            </button>
+        </form>
+
+        <aside class="mt-6 lg:mt-0">
+            <div class="bg-white rounded-xl border border-neutral-200 p-5">
+                <h2 class="font-bold mb-3">{{ t('order.summary_title') }}</h2>
+                <ul class="divide-y divide-neutral-100 text-sm">
+                    {% for product in cart.products %}
+                        {% for size in product.sizes %}
+                            {% if size.qty > 0 %}
+                                <li class="py-2 flex justify-between gap-2">
+                                    <span class="min-w-0">
+                                        <span class="font-mono text-xs text-neutral-500">{{ product.sku }}</span>
+                                        {{ t('cart.size') }} {{ size_system == 'us' and size.size_us ? size.size_us : size.size_eu }} × {{ size.qty }}
+                                    </span>
+                                    <span class="font-medium whitespace-nowrap">{{ size.row_total|eur }}</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+                <div class="border-t border-neutral-200 mt-2 pt-3 flex justify-between font-bold">
+                    <span>{{ t('cart.total_amount', {plan: t('plan.' ~ plan)}) }}</span>
+                    <span>{{ cart.total_amount|eur }}</span>
+                </div>
+                <p class="text-xs text-neutral-400 mt-2">{{ t('cart.total_items') }}: {{ cart.total_items }}</p>
+            </div>
+        </aside>
+    </div>
+{% endblock %}
