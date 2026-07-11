@@ -111,9 +111,17 @@ SMTP senza dipendenze AWS nel codice. Setup una tantum nella console SES:
    verifica, non vanno proxati). Aggiungi/aggiorna anche il record SPF
    (`TXT`: `v=spf1 include:amazonses.com ~all`). Il `MAIL_FROM_ADDRESS`
    (`noreply@shoesclothingstore.com`) deve appartenere al dominio verificato.
-3. **Credenziali SMTP**: SES → *SMTP settings* → *Create SMTP credentials*.
-   ⚠ Sono uno username/password dedicati (derivati da IAM), NON l'access
-   key: usa esattamente quelli mostrati alla creazione.
+3. **Credenziali SMTP** — due strade equivalenti:
+   - *Console*: SES → *SMTP settings* → *Create SMTP credentials* e usa la
+     coppia mostrata alla creazione; oppure
+   - *Key+secret IAM* (se preferisci il flusso classico): crea un utente
+     IAM con policy `ses:SendRawEmail`, poi:
+     - `SMTP_USER` = l'**Access Key ID** così com'è
+     - `SMTP_PASSWORD` = derivata dal Secret con
+       `php bin/ses-smtp-password.php <regione> "<secret-access-key>"`
+     ⚠ Il Secret Access Key "nudo" NON funziona come password SMTP: va
+     sempre convertito (la derivazione è legata alla regione: se cambi
+     regione, rigenera la password).
 4. **Uscita dalla sandbox**: SES → *Account dashboard* → *Request
    production access*. In sandbox si può spedire SOLO verso indirizzi
    verificati: l'email di riepilogo ai clienti fallirebbe (la richiesta
