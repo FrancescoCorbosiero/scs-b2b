@@ -36,7 +36,15 @@ final class OrderMailer
         $subject = sprintf('Nuova richiesta ordine #%d — %s (%d pezzi)',
             (int) ($order['id'] ?? 0), (string) ($order['customer_name'] ?? ''), (int) ($order['total_items'] ?? 0));
 
-        $this->send($this->config->str('ADMIN_EMAIL', 'info@shoesclothingstore.com'), $subject, $html);
+        // Reply-To = cliente: rispondendo dalla casella admin si scrive
+        // direttamente a lui (il From resta il mittente verificato, es. SES)
+        $replyTo = $order['email'] ?? null;
+        $this->send(
+            $this->config->str('ADMIN_EMAIL', 'info@shoesclothingstore.com'),
+            $subject,
+            $html,
+            is_string($replyTo) && $replyTo !== '' ? $replyTo : null,
+        );
     }
 
     /** @param array<string, mixed> $order */
@@ -81,7 +89,7 @@ final class OrderMailer
         return $order;
     }
 
-    private function send(string $to, string $subject, string $html): void
+    private function send(string $to, string $subject, string $html, ?string $replyTo = null): void
     {
         $host = $this->config->str('SMTP_HOST');
         if ($host === '') {
@@ -111,6 +119,9 @@ final class OrderMailer
             $this->config->str('MAIL_FROM_NAME', 'SHOES & CLOTHING RESELLING'),
         );
         $mailer->addAddress($to);
+        if ($replyTo !== null) {
+            $mailer->addReplyTo($replyTo);
+        }
         $mailer->isHTML(true);
         $mailer->Subject = $subject;
         $mailer->Body = $html;

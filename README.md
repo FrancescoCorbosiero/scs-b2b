@@ -98,6 +98,43 @@ docker network inspect caddy | grep Subnet
 Senza questa configurazione tutti i client sembrerebbero l'IP di Caddy e il
 lockout del login diventerebbe globale.
 
+## Email via AWS SES
+
+L'app parla SMTP standard (PHPMailer), quindi SES si usa dal suo endpoint
+SMTP senza dipendenze AWS nel codice. Setup una tantum nella console SES:
+
+1. **Regione**: scegline una europea (es. `eu-south-1` Milano o
+   `eu-central-1` Francoforte) e restaci per tutti i passi.
+2. **Identità verificata**: SES → Identities → *Create identity* →
+   dominio `shoesclothingstore.com` con **DKIM Easy** → aggiungi i 3 CNAME
+   proposti nel DNS (Cloudflare, con nuvoletta **grigia**: sono record di
+   verifica, non vanno proxati). Aggiungi/aggiorna anche il record SPF
+   (`TXT`: `v=spf1 include:amazonses.com ~all`). Il `MAIL_FROM_ADDRESS`
+   (`noreply@shoesclothingstore.com`) deve appartenere al dominio verificato.
+3. **Credenziali SMTP**: SES → *SMTP settings* → *Create SMTP credentials*.
+   ⚠ Sono uno username/password dedicati (derivati da IAM), NON l'access
+   key: usa esattamente quelli mostrati alla creazione.
+4. **Uscita dalla sandbox**: SES → *Account dashboard* → *Request
+   production access*. In sandbox si può spedire SOLO verso indirizzi
+   verificati: l'email di riepilogo ai clienti fallirebbe (la richiesta
+   d'ordine resta comunque salvata a DB, flag `email_customer_sent=0`).
+
+Poi nel `.env` (e `docker compose restart php cron`):
+
+```dotenv
+SMTP_HOST=email-smtp.eu-south-1.amazonaws.com
+SMTP_PORT=587
+SMTP_USER=<SES SMTP username>
+SMTP_PASSWORD='<SES SMTP password>'   # apici singoli se contiene "$"
+SMTP_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@shoesclothingstore.com
+```
+
+Nota: l'email admin ha `Reply-To` impostato al cliente, quindi da
+`info@shoesclothingstore.com` puoi rispondere direttamente alla richiesta.
+Test rapido dopo la configurazione: invia una richiesta d'ordine di prova
+e verifica in `/admin/richieste` che entrambi i flag email siano "inviata".
+
 ## Rotazione password e token
 
 1. **Password catalogo/admin**: `php bin/hash-password.php "nuova-password"`,
