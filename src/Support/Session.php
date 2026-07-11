@@ -134,7 +134,8 @@ final class Session
         }
         $clean = [];
         foreach ($cart as $sku => $sizes) {
-            if (!is_string($sku) || !is_array($sizes)) {
+            // gli SKU numerici diventano chiavi int in PHP: si accettano e ricastano
+            if (!is_array($sizes)) {
                 continue;
             }
             $cleanSizes = [];
@@ -143,7 +144,7 @@ final class Session
                     $cleanSizes[(string) $size] = $qty;
                 }
             }
-            $clean[$sku] = $cleanSizes;
+            $clean[(string) $sku] = $cleanSizes;
         }
 
         return $clean;

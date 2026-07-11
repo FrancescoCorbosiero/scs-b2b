@@ -154,6 +154,37 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame($before, $this->dumpCatalog(), 'Feed vuoto → catalogo invariato (mai svuotarlo)');
     }
 
+    /**
+     * Il feed reale contiene SKU interamente numerici: PHP converte le chiavi
+     * array numeriche in int, e il sync deve ricastarle a stringa (regressione
+     * del primo sync live: TypeError su findIdBySku).
+     */
+    public function testNumericSkusSurviveGrouping(): void
+    {
+        file_put_contents($this->workDir . '/feed.json', json_encode([
+            ['sku' => '394215', 'product_name' => 'SKU numerico', 'brand_name' => 'Nike',
+             'size_eu' => '42', 'size_us' => 8.5, 'barcode' => 4067907638411,
+             'offer_price' => 50, 'available_quantity' => 3],
+            ['sku' => 394216, 'product_name' => 'SKU numerico int nel JSON', 'brand_name' => 'Nike',
+             'size_eu' => '43', 'offer_price' => 60, 'available_quantity' => 1],
+        ]));
+
+        $result = $this->serviceFor($this->workDir . '/feed.json')->run();
+
+        self::assertSame('ok', $result['status'], (string) $result['message']);
+        self::assertSame(2, $result['products_created']);
+        $stmt = $this->pdo->query("SELECT sku, name FROM products ORDER BY sku");
+        $rows = $stmt === false ? [] : $stmt->fetchAll();
+        self::assertSame('394215', (string) $rows[0]['sku']);
+        self::assertSame('394216', (string) $rows[1]['sku']);
+
+        // i campi numerici del JSON (size_us, barcode) diventano stringhe
+        $size = $this->pdo->query("SELECT size_us, barcode FROM product_sizes LIMIT 1");
+        $sizeRow = $size === false ? [] : $size->fetch();
+        self::assertSame('8.5', (string) $sizeRow['size_us']);
+        self::assertSame('4067907638411', (string) $sizeRow['barcode']);
+    }
+
     public function testRepriceRecalculatesFromStoredOfferPrice(): void
     {
         $this->serviceFor($this->realFixture())->run();

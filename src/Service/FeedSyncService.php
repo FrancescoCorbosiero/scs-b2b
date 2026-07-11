@@ -81,6 +81,8 @@ final class FeedSyncService
             $seenIds = [];
             $this->pdo->beginTransaction();
             foreach ($grouped as $sku => $product) {
+                // gli SKU numerici diventano chiavi int in PHP: si ricasta
+                $sku = (string) $sku;
                 $prices = [];
                 $sizes = [];
                 $totalQuantity = 0;

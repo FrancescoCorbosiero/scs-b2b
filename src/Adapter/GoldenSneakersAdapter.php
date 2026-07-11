@@ -228,6 +228,10 @@ final class GoldenSneakersAdapter
     private function requireString(array $raw, string $key, int $index, int $maxLength): string
     {
         $value = $raw[$key] ?? null;
+        // il feed reale può mandare valori numerici (SKU/barcode/taglie): si castano
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
         if (!is_string($value) || trim($value) === '') {
             throw new FeedException("Riga {$index}: campo {$key} mancante o vuoto");
         }
@@ -243,6 +247,9 @@ final class GoldenSneakersAdapter
     private function optionalString(array $raw, string $key, int $maxLength): string
     {
         $value = $raw[$key] ?? '';
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
         if (!is_string($value)) {
             return '';
         }
