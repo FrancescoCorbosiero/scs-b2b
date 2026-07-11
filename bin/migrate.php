@@ -54,11 +54,13 @@ foreach ($files as $file) {
     }
     echo "Applico {$name}... ";
     $sql = (string) file_get_contents($file);
-    // split naive sugli ";" a fine riga: sufficiente per i nostri DDL
+    // via le righe di commento (a blocchi interi mangerebbero il primo CREATE TABLE),
+    // poi split naive sugli ";" a fine riga: sufficiente per i nostri DDL
+    $sql = (string) preg_replace('/^\s*--.*$/m', '', $sql);
     $statements = preg_split('/;\s*(?:\r?\n|$)/', $sql) ?: [];
     foreach ($statements as $statement) {
         $statement = trim($statement);
-        if ($statement !== '' && !str_starts_with($statement, '--')) {
+        if ($statement !== '') {
             $pdo->exec($statement);
         }
     }
