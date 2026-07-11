@@ -61,6 +61,8 @@ git clone <repo> && cd scs-b2b
 cp .env.example .env               # compilare TUTTO (hash, DB, SMTP, token feed)
 npm ci && npm run build            # asset compilati prima del deploy
 
+mkdir -p var logs && sudo chown -R 82:82 var logs   # scrivibili da www-data (uid 82 su alpine)
+
 docker network inspect caddy >/dev/null   # la network esterna deve esistere
 docker compose up -d --build
 docker compose exec php composer install --no-dev --optimize-autoloader
