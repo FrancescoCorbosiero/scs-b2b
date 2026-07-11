@@ -90,6 +90,29 @@ final class CartServiceTest extends TestCase
         self::assertSame(1, $cart->totalItems(), 'Il carrello viene ridotto allo stock reale');
     }
 
+    /**
+     * SKU interamente numerico: in sessione la chiave array diventa int,
+     * ma il flusso carrello deve continuare a funzionare (regressione).
+     */
+    public function testNumericSkuFlow(): void
+    {
+        $pdo = TestDb::create();
+        TestDb::seedProduct($pdo, '394215', 'SKU numerico', 'Nike', [
+            ['size_eu' => '42', 'quantity' => 5, 'price_base' => '100.00'],
+        ]);
+        $config = new Config(['MIN_ORDER_ITEMS' => '5']);
+        $cart = new CartService(new Session($config), new ProductRepository($pdo), $config);
+
+        self::assertTrue($cart->addProduct('394215'));
+        self::assertSame(5, $cart->setQuantity('394215', '42', 9));
+
+        $detail = $cart->detail('base');
+        self::assertCount(1, $detail['products']);
+        self::assertSame('394215', $detail['products'][0]['sku']);
+        self::assertSame('500.00', $detail['total_amount']);
+        self::assertSame([], $cart->revalidate());
+    }
+
     public function testDetailNeverExposesOfferPrice(): void
     {
         $this->cart->takeAll('NK1001');

@@ -125,6 +125,7 @@ final class CartService
         $totalItems = 0;
 
         foreach ($cart as $sku => $quantities) {
+            $sku = (string) $sku; // chiavi array numeriche → int in PHP
             $product = $this->products->findActiveBySku($sku);
             if ($product === null) {
                 // prodotto sparito dal catalogo: rimosso dal carrello
@@ -187,6 +188,7 @@ final class CartService
         $adjustments = [];
         $cart = $this->session->cart();
         foreach ($cart as $sku => $quantities) {
+            $sku = (string) $sku; // chiavi array numeriche → int in PHP
             $stock = $this->stockFor($sku);
             foreach ($quantities as $sizeEu => $qty) {
                 $available = $stock[$sizeEu] ?? 0;
