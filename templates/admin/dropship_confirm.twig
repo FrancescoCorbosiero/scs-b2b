@@ -1,0 +1,53 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('dropship.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="/admin/richieste/{{ order.id }}/dropship" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('admin.back') }}</a>
+    <h1 class="text-2xl font-bold mt-2 mb-1">{{ t('dropship.card_title') }} — {{ t('admin.order_detail') }} #{{ order.id }}</h1>
+    <p class="text-sm font-semibold text-neutral-500 mb-4">{{ t('dropship.step3_title') }}</p>
+
+    <div class="max-w-xl mx-auto mt-6">
+        {% if is_simulation %}
+            <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-sky-50 border-sky-200 text-sky-900">
+                <strong>{{ t('dropship.simulation_badge') }}</strong> — {{ t('dropship.simulation_banner') }}
+            </div>
+        {% else %}
+            <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-red-50 border-red-300 text-red-900 font-semibold">
+                {{ t('dropship.live_banner') }}
+            </div>
+        {% endif %}
+
+        <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
+            <p class="text-sm text-neutral-600 mb-4">{{ t('dropship.step3_intro') }}</p>
+
+            <div class="text-sm bg-neutral-50 rounded-lg p-4 mb-5 space-y-1">
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.items') }}</span><strong>{{ draft.lines|reduce((sum, l) => sum + l.qty, 0) }}</strong></div>
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('dropship.wholesale_total') }}</span><strong>{{ draft.wholesale_total|eur }}</strong></div>
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('dropship.address_title') }}</span>
+                    <span class="text-right">{{ draft.payload.delivery_address.name }}, {{ draft.payload.delivery_address.city }} ({{ draft.payload.delivery_address.country_code }})</span></div>
+            </div>
+
+            <form method="post" action="/admin/richieste/{{ order.id }}/dropship/invia"
+                  x-data="{ phrase: '' }" class="space-y-4">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <input type="hidden" name="_draft_token" value="{{ draft.token }}">
+                <div>
+                    <label for="ds-phrase" class="block text-sm font-medium mb-1">
+                        {{ t('dropship.phrase_label', {phrase: phrase}) }}
+                    </label>
+                    <input type="text" id="ds-phrase" name="confirmation_phrase" x-model="phrase"
+                           autocomplete="off" autofocus placeholder="{{ t('dropship.phrase_placeholder') }}"
+                           class="w-full rounded-lg border-neutral-300 font-mono tracking-wide focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <button type="submit" :disabled="phrase.trim().toUpperCase() !== '{{ phrase }}'"
+                        class="w-full rounded-lg {{ is_simulation ? 'bg-sky-700 hover:bg-sky-600' : 'bg-red-700 hover:bg-red-600' }} text-white font-semibold py-2.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                    {{ t(is_simulation ? 'dropship.send_button_simulated' : 'dropship.send_button') }}
+                </button>
+            </form>
+        </div>
+        <a href="/admin/richieste/{{ order.id }}" class="block text-center text-sm underline text-neutral-500 hover:text-neutral-900 mt-4">
+            {{ t('dropship.cancel') }}
+        </a>
+    </div>
+{% endblock %}

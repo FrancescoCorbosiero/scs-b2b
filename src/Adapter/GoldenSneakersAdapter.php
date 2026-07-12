@@ -35,7 +35,7 @@ final class GoldenSneakersAdapter
      *
      * @return list<array{sku: string, name: string, brand: string, size_mapper: string,
      *   size_eu: string, size_us: string, barcode: string, offer_price: string,
-     *   quantity: int, image_url: string|null}>
+     *   quantity: int, image_url: string|null, supplier_size_id: int|null}>
      */
     public function fetch(): array
     {
@@ -168,7 +168,7 @@ final class GoldenSneakersAdapter
      * @param array<mixed> $raw
      * @return array{sku: string, name: string, brand: string, size_mapper: string,
      *   size_eu: string, size_us: string, barcode: string, offer_price: string,
-     *   quantity: int, image_url: string|null}
+     *   quantity: int, image_url: string|null, supplier_size_id: int|null}
      */
     private function normalizeRow(array $raw, int $index): array
     {
@@ -192,6 +192,18 @@ final class GoldenSneakersAdapter
         }
         $quantity = max(0, (int) $quantity);
 
+        // "id" del feed = riga SKU+taglia presso il fornitore: è il size_id
+        // dell'API ordini dropship (docs/09). Opzionale per retrocompatibilità.
+        $supplierSizeId = $raw['id'] ?? null;
+        if (!is_int($supplierSizeId) && !(is_string($supplierSizeId) && ctype_digit($supplierSizeId))) {
+            $supplierSizeId = null;
+        } else {
+            $supplierSizeId = (int) $supplierSizeId;
+            if ($supplierSizeId <= 0) {
+                $supplierSizeId = null;
+            }
+        }
+
         return [
             'sku' => $sku,
             'name' => $name,
@@ -203,6 +215,7 @@ final class GoldenSneakersAdapter
             'offer_price' => number_format($offerFloat, 2, '.', ''),
             'quantity' => $quantity,
             'image_url' => $this->imageUrl($raw),
+            'supplier_size_id' => $supplierSizeId,
         ];
     }
 

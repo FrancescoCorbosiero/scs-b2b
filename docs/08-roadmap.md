@@ -28,6 +28,13 @@ e resilienza a SMTP giù verificata.
 /admin (richieste, sync log, sync now, flag recommended), pagina contatti,
 error pages, README di deploy, hardening finale, revisione mobile.
 
+**M6 — Ordini dropship GoldenSneakers (anteprima in corso, vedi docs/09)**
+Flusso /admin con tripla conferma per creare l'ordine direttamente presso il
+fornitore. Oggi SOLO simulazione (`DROPSHIP_MODE=simulation`, nessuna chiamata
+HTTP); la modalità live richiede la checklist in docs/09.
+✔ Done (anteprima) quando: flusso a 3 step funzionante end-to-end in
+simulazione, payload conforme all'API, `supplier_size_id` popolato dal sync.
+
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
 1. **Percentuali dei 3 piani**: Base / Pro / Max = ? / ? / ? %
