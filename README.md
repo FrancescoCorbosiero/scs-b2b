@@ -135,6 +135,15 @@ Nota: l'email admin ha `Reply-To` impostato al cliente, quindi da
 Test rapido dopo la configurazione: invia una richiesta d'ordine di prova
 e verifica in `/admin/richieste` che entrambi i flag email siano "inviata".
 
+## Logo
+
+Il logo è servito da **`public/logo.png`** (usato grande nelle pagine di login
+e piccolo nell'header, con ridimensionamento responsive). Il file committato è
+un segnaposto: sostituirlo caricando il logo reale **con lo stesso percorso e
+nome file** (`public/logo.png`, formato PNG, meglio se con sfondo trasparente e
+orientamento orizzontale ~3:1 — il segnaposto è 900×260). Nessun'altra modifica
+è necessaria; eventualmente svuotare la cache del browser per vederlo subito.
+
 ## Rotazione password e token
 
 1. **Password catalogo/admin**: `php bin/hash-password.php "nuova-password"`,

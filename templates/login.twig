@@ -3,7 +3,8 @@
 {% block title %}{{ t('login.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    <div class="max-w-sm mx-auto mt-10 sm:mt-20">
+    <div class="max-w-sm mx-auto mt-10 sm:mt-16">
+        <img src="/logo.png" alt="{{ company_name }}" class="mx-auto mb-8 w-56 sm:w-72 max-w-full h-auto">
         <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
             <h1 class="text-xl font-bold mb-1">{{ t('login.title') }}</h1>
             <p class="text-sm text-neutral-500 mb-6">{{ t('login.intro') }}</p>

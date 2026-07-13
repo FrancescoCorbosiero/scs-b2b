@@ -16,7 +16,10 @@
 {% if in_admin and is_admin_authed %}
     <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow">
         <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            <a href="/admin" class="font-bold text-base tracking-tight">SCS B2B <span class="text-amber-400">Admin</span></a>
+            <a href="/admin" class="flex items-center gap-2 shrink-0">
+                <img src="/logo.png" alt="{{ company_name }}" class="h-7 sm:h-8 w-auto">
+                <span class="font-bold text-base tracking-tight text-amber-400">Admin</span>
+            </a>
             <nav class="flex items-center gap-1">
                 <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin' ? 'bg-neutral-700' }}">{{ t('admin.dashboard') }}</a>
                 <a href="/admin/richieste" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste' ? 'bg-neutral-700' }}">{{ t('admin.orders') }}</a>
@@ -32,7 +35,9 @@
 {% elseif is_catalog_authed and not in_admin %}
     <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow" x-data="{ open: false }">
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-            <a href="/" class="font-bold text-lg tracking-tight shrink-0">SCS <span class="text-amber-400">B2B</span></a>
+            <a href="/" class="shrink-0">
+                <img src="/logo.png" alt="{{ company_name }}" class="h-8 sm:h-9 w-auto">
+            </a>
 
             <nav class="hidden md:flex items-center gap-1 text-sm">
                 <a href="/" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/' ? 'bg-neutral-700' }}">{{ t('nav.catalog') }}</a>
