@@ -58,6 +58,9 @@ return [
             'autoescape' => 'html',
             'strict_variables' => false,
             'cache' => $cache,
+            // ricompila quando il sorgente .twig cambia: senza, dopo un deploy
+            // la cache in var/cache/twig continua a servire i template vecchi
+            'auto_reload' => true,
         ]);
         $twig->addExtension(new TwigExtension($c->get(Lang::class)));
 
