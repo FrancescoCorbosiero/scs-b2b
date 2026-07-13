@@ -111,6 +111,27 @@ try {
             $exitCode = 1;
         }
     }
+
+    // ultimi tentativi (anche riusciti): se un login "riuscito" riporta comunque
+    // al form, il problema è la sessione/cookie, non la password
+    echo "── Ultimi 10 tentativi (✓ riuscito / ✗ fallito) ──\n";
+    $recent = $pdo->query(
+        'SELECT scope, ip_address, attempted_at, success
+         FROM login_attempts ORDER BY id DESC LIMIT 10'
+    );
+    $recentRows = $recent === false ? [] : $recent->fetchAll();
+    if ($recentRows === []) {
+        echo "  · Nessun tentativo registrato.\n";
+    }
+    foreach ($recentRows as $row) {
+        printf(
+            "  %s %s scope=%s ip=%s\n",
+            ((int) $row['success']) === 1 ? '✓' : '✗',
+            (string) $row['attempted_at'],
+            (string) $row['scope'],
+            (string) $row['ip_address'],
+        );
+    }
 } catch (Throwable $e) {
     echo "  · Database non raggiungibile ({$e->getMessage()}): controllo lockout saltato.\n";
 }
