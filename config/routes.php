@@ -6,6 +6,7 @@ use App\Controller\AdminController;
 use App\Controller\CartController;
 use App\Controller\CatalogController;
 use App\Controller\ContactController;
+use App\Controller\DropshipController;
 use App\Controller\LoginController;
 use App\Controller\OrderController;
 use App\Controller\PreferenceController;
@@ -50,6 +51,15 @@ return static function (App $app): void {
         $group->get('', [AdminController::class, 'dashboard']);
         $group->get('/richieste', [AdminController::class, 'orders']);
         $group->get('/richieste/{id:[0-9]+}', [AdminController::class, 'orderDetail']);
+
+        // ordine dropship GoldenSneakers: 3 step di conferma (docs/09)
+        $group->get('/richieste/{id:[0-9]+}/dropship', [DropshipController::class, 'prepare']);
+        $group->post('/richieste/{id:[0-9]+}/dropship/riepilogo', [DropshipController::class, 'review']);
+        $group->post('/richieste/{id:[0-9]+}/dropship/conferma', [DropshipController::class, 'confirm']);
+        $group->post('/richieste/{id:[0-9]+}/dropship/invia', [DropshipController::class, 'send']);
+        $group->get('/dropship/{id:[0-9]+}', [DropshipController::class, 'detail']);
+        $group->post('/dropship/{id:[0-9]+}/aggiorna', [DropshipController::class, 'refresh']);
+
         $group->get('/sync', [AdminController::class, 'syncLogs']);
         $group->post('/sync/run', [AdminController::class, 'syncRun']);
         $group->get('/recommended', [AdminController::class, 'recommended']);

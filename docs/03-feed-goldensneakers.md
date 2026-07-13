@@ -24,7 +24,7 @@ Il token non va mai committato né loggato.
 
 | Campo feed | Tipo | Uso |
 |---|---|---|
-| `id` | int | id riga fornitore (utile per debug, non chiave nostra) |
+| `id` | int | id riga fornitore per SKU+taglia — salvato in `product_sizes.supplier_size_id`: è il `size_id` dell'API ordini dropship (vedi `09-order-dropship.md`) |
 | `sku` | string | **chiave di raggruppamento prodotto** (es. `JS3801`) |
 | `product_name` | string | nome prodotto |
 | `brand_name` | string | brand (per filtro) |

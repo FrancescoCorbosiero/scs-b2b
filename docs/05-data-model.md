@@ -22,6 +22,7 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `quantity` INT
 - `offer_price` DECIMAL(10,2) — **riservato**
 - `price_base`, `price_pro`, `price_max` DECIMAL(10,2) — precalcolati a sync
+- `supplier_size_id` INT NULL — `id` riga del feed: `size_id` per l'API dropship (docs/09)
 - Unique: (`product_id`, `size_eu`)
 
 ## `order_requests`
@@ -42,6 +43,18 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 ## `login_attempts` (rate limiting)
 - `id`, `ip_address`, `scope` ENUM('catalog','admin'), `attempted_at`, `success` TINYINT
 - Query di lockout: >5 tentativi falliti / 15 min per (ip, scope)
+
+## `dropship_orders` (anteprima — docs/09)
+- `id` PK, `order_request_id` FK NULL (ON DELETE SET NULL), `created_at`, `updated_at`
+- `mode` VARCHAR ('simulation'|'live') — in anteprima sempre 'simulation'
+- `status` VARCHAR — stati fornitore: UNCONFIRMED, TO_SHIP, ENDED, CANCELED,
+  WAITING_FOR_INVOICE
+- `vendor_order_id`, `dropship_package_id` INT NULL — id restituiti dall'API
+- `total_price` DECIMAL(10,2) NULL — stima a costo fornitore (il totale reale
+  lo calcola l'API), `currency` VARCHAR default 'EUR'
+- `request_payload` TEXT — payload JSON esatto per l'API
+- `lines_snapshot` TEXT — righe per la vista admin (sku, taglia, qty, costo)
+- `response_payload` TEXT NULL, `tracking_numbers` TEXT NULL (JSON)
 
 ## `markup_rules` (opzionale, v2)
 Override percentuale per brand e piano. In v1 bastano i tre valori globali in `.env`;

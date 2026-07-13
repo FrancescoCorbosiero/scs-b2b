@@ -48,6 +48,7 @@ final class TestDb
             price_base NUMERIC NOT NULL,
             price_pro NUMERIC NOT NULL,
             price_max NUMERIC NOT NULL,
+            supplier_size_id INTEGER NULL,
             UNIQUE (product_id, size_eu)
         )');
 
@@ -87,6 +88,23 @@ final class TestDb
             scope TEXT NOT NULL,
             attempted_at TEXT NOT NULL,
             success INTEGER NOT NULL DEFAULT 0
+        )');
+
+        $pdo->exec('CREATE TABLE dropship_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_request_id INTEGER NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            status TEXT NOT NULL,
+            vendor_order_id INTEGER NULL,
+            dropship_package_id INTEGER NULL,
+            total_price NUMERIC NULL,
+            currency TEXT NOT NULL DEFAULT "EUR",
+            request_payload TEXT NOT NULL,
+            lines_snapshot TEXT NULL,
+            response_payload TEXT NULL,
+            tracking_numbers TEXT NULL
         )');
 
         return $pdo;

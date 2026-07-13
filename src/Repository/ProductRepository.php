@@ -74,7 +74,8 @@ final class ProductRepository
      * Sostituisce integralmente le taglie di un prodotto (il feed è la fonte di verità).
      *
      * @param list<array{size_eu: string, size_us: string, barcode: string, quantity: int,
-     *   offer_price: string, price_base: string, price_pro: string, price_max: string}> $sizes
+     *   offer_price: string, price_base: string, price_pro: string, price_max: string,
+     *   supplier_size_id?: int|null}> $sizes
      */
     public function replaceSizes(int $productId, array $sizes): void
     {
@@ -83,13 +84,14 @@ final class ProductRepository
 
         $insert = $this->pdo->prepare(
             'INSERT INTO product_sizes (product_id, size_eu, size_us, barcode, quantity, offer_price,
-                price_base, price_pro, price_max)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                price_base, price_pro, price_max, supplier_size_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($sizes as $size) {
             $insert->execute([
                 $productId, $size['size_eu'], $size['size_us'], $size['barcode'], $size['quantity'],
                 $size['offer_price'], $size['price_base'], $size['price_pro'], $size['price_max'],
+                $size['supplier_size_id'] ?? null,
             ]);
         }
     }
@@ -183,6 +185,39 @@ final class ProductRepository
         $map = [];
         foreach ($stmt->fetchAll() as $row) {
             $map[(string) $row['sku']][(string) $row['size_eu']] = ['offer_price' => (string) $row['offer_price']];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Dati per costruire gli item dell'ordine dropship (docs/09). SOLO USO
+     * INTERNO: include offer_price ed è richiamato esclusivamente da /admin.
+     *
+     * @param list<string> $skus
+     * @return array<string, array<string, array{supplier_size_id: int|null, size_us: string,
+     *   quantity: int, offer_price: string}>> sku => size_eu => dati
+     */
+    public function dropshipDataForSkuSizes(array $skus): array
+    {
+        if ($skus === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($skus), '?'));
+        $stmt = $this->pdo->prepare(
+            "SELECT p.sku, s.size_eu, s.size_us, s.quantity, s.offer_price, s.supplier_size_id
+             FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
+             WHERE p.is_active = 1 AND p.sku IN ({$placeholders})"
+        );
+        $stmt->execute(array_values($skus));
+        $map = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $map[(string) $row['sku']][(string) $row['size_eu']] = [
+                'supplier_size_id' => $row['supplier_size_id'] !== null ? (int) $row['supplier_size_id'] : null,
+                'size_us' => (string) $row['size_us'],
+                'quantity' => (int) $row['quantity'],
+                'offer_price' => (string) $row['offer_price'],
+            ];
         }
 
         return $map;

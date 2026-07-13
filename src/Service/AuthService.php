@@ -39,7 +39,15 @@ final class AuthService
             return false;
         }
 
-        $hash = $this->config->str($scope === self::SCOPE_ADMIN ? 'ADMIN_PASSWORD_HASH' : 'CATALOG_PASSWORD_HASH');
+        $hashKey = $scope === self::SCOPE_ADMIN ? 'ADMIN_PASSWORD_HASH' : 'CATALOG_PASSWORD_HASH';
+        $hash = $this->config->str($hashKey);
+        if ($hash === '') {
+            $this->logger->error("{$hashKey} non configurato: ogni login {$scope} fallirà. Genera l'hash con bin/hash-password.php e mettilo in .env tra apici singoli.");
+        } elseif (password_get_info($hash)['algo'] === null) {
+            // hash presente ma non riconosciuto: caso tipico, valore in .env senza
+            // apici singoli → Docker Compose interpola i segmenti "$..." e lo mutila
+            $this->logger->error("{$hashKey} malformato (algoritmo non riconosciuto): probabile interpolazione di \"$\" da parte di Docker Compose. Racchiudi l'hash tra apici singoli in .env e riavvia i container. Diagnosi: php bin/check-auth.php");
+        }
         $ok = $hash !== '' && $password !== '' && password_verify($password, $hash);
         $this->attempts->record($ip, $scope, $ok);
 

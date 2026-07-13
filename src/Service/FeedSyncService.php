@@ -98,6 +98,7 @@ final class FeedSyncService
                         'price_base' => $prices['base'],
                         'price_pro' => $prices['pro'],
                         'price_max' => $prices['max'],
+                        'supplier_size_id' => $size['supplier_size_id'],
                     ];
                     $totalQuantity += $size['quantity'];
                     foreach (['base', 'pro', 'max'] as $plan) {
@@ -182,10 +183,10 @@ final class FeedSyncService
      *
      * @param list<array{sku: string, name: string, brand: string, size_mapper: string,
      *   size_eu: string, size_us: string, barcode: string, offer_price: string,
-     *   quantity: int, image_url: string|null}> $rows
+     *   quantity: int, image_url: string|null, supplier_size_id: int|null}> $rows
      * @return array<string, array{name: string, brand: string, size_mapper: string,
      *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
-     *   barcode: string, offer_price: string, quantity: int}>}>
+     *   barcode: string, offer_price: string, quantity: int, supplier_size_id: int|null}>}>
      */
     private function groupBySku(array $rows): array
     {
@@ -211,6 +212,7 @@ final class FeedSyncService
                 'barcode' => $row['barcode'],
                 'offer_price' => $row['offer_price'],
                 'quantity' => $row['quantity'],
+                'supplier_size_id' => $row['supplier_size_id'],
             ];
         }
 
@@ -220,7 +222,7 @@ final class FeedSyncService
 
         /** @var array<string, array{name: string, brand: string, size_mapper: string,
          *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
-         *   barcode: string, offer_price: string, quantity: int}>}> $grouped */
+         *   barcode: string, offer_price: string, quantity: int, supplier_size_id: int|null}>}> $grouped */
         return $grouped;
     }
 

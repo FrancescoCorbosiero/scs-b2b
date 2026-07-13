@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Repository\DropshipOrderRepository;
 use App\Repository\OrderRequestRepository;
 use App\Repository\ProductRepository;
 use App\Repository\SyncLogRepository;
 use App\Service\AuthService;
+use App\Service\DropshipOrderService;
 use App\Service\FeedSyncService;
 use App\Support\ClientIp;
 use App\Support\Http;
@@ -29,6 +31,8 @@ final class AdminController
         private readonly SyncLogRepository $syncLogs,
         private readonly ProductRepository $products,
         private readonly FeedSyncService $feedSync,
+        private readonly DropshipOrderRepository $dropshipOrders,
+        private readonly DropshipOrderService $dropship,
     ) {
     }
 
@@ -121,6 +125,11 @@ final class AdminController
             'lines' => $lines,
             'total_cost' => number_format($totalCost, 2, '.', ''),
             'margin' => number_format((float) ($order['total_amount'] ?? 0) - $totalCost, 2, '.', ''),
+            'dropship_enabled' => $this->dropship->isEnabled(),
+            'dropship_is_simulation' => $this->dropship->isSimulation(),
+            'dropship_orders' => $this->dropship->isEnabled()
+                ? $this->dropshipOrders->findByOrderRequest((int) $order['id'])
+                : [],
         ]);
     }
 

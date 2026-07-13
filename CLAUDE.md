@@ -19,6 +19,7 @@ Leggi i file in `docs/` in ordine numerico PRIMA di scrivere codice:
 | `docs/06-features.md` | Pagine e funzionalità dettagliate |
 | `docs/07-security.md` | Auth, sessioni, hardening |
 | `docs/08-roadmap.md` | Milestone di sviluppo + domande aperte |
+| `docs/09-order-dropship.md` | Ordini dropship GoldenSneakers (anteprima, solo simulazione) |
 
 Fixture reale del feed: `fixtures/goldensneakers-sample.json`.
 Variabili d'ambiente: `.env.example` (documentato riga per riga).

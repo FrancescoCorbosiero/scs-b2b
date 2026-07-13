@@ -1,0 +1,138 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('dropship.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="/admin/richieste/{{ order.id }}" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('admin.back') }}</a>
+    <h1 class="text-2xl font-bold mt-2 mb-1">{{ t('dropship.card_title') }} — {{ t('admin.order_detail') }} #{{ order.id }}</h1>
+    <p class="text-sm font-semibold text-neutral-500 mb-4">{{ t('dropship.step1_title') }}</p>
+
+    {% if is_simulation %}
+        <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-sky-50 border-sky-200 text-sky-900">
+            <strong>{{ t('dropship.simulation_badge') }}</strong> — {{ t('dropship.simulation_banner') }}
+        </div>
+    {% else %}
+        <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-red-50 border-red-300 text-red-900 font-semibold">
+            {{ t('dropship.live_banner') }}
+        </div>
+    {% endif %}
+
+    {% if existing is not empty %}
+        <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-amber-50 border-amber-200 text-amber-900">
+            {{ t('dropship.existing_warning') }}
+            {% for ds in existing %}
+                <a class="underline font-semibold" href="/admin/dropship/{{ ds.id }}">#{{ ds.id }} ({{ t('dropship.status.' ~ ds.status) }}{{ ds.mode == 'simulation' ? ' · ' ~ t('dropship.simulation_badge') }})</a>{{ not loop.last ? ',' }}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <p class="text-sm text-neutral-600 mb-5 max-w-3xl">{{ t('dropship.step1_intro') }}</p>
+
+    <form method="post" action="/admin/richieste/{{ order.id }}/dropship/riepilogo" class="grid lg:grid-cols-3 gap-5 items-start">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+        <div class="lg:col-span-2 space-y-5">
+            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                <div class="px-5 pt-4">
+                    <h2 class="font-semibold">{{ t('dropship.items_title') }}</h2>
+                    <p class="text-xs text-neutral-500 mt-1">{{ t('dropship.items_intro') }}</p>
+                </div>
+                <table class="w-full text-sm mt-3">
+                    <thead>
+                        <tr class="bg-neutral-50 text-neutral-500 text-left">
+                            <th class="px-3 py-2.5 font-medium">SKU</th>
+                            <th class="px-3 py-2.5 font-medium">Prodotto</th>
+                            <th class="px-3 py-2.5 font-medium">EU/US</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_size_id') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_stock') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_requested') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('admin.cost') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_qty') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        {% for line in draft.lines %}
+                            <tr class="{{ not line.orderable ? 'opacity-60 bg-red-50/40' }}">
+                                <td class="px-3 py-2 font-mono text-xs">{{ line.sku }}</td>
+                                <td class="px-3 py-2">
+                                    {{ line.name }}
+                                    {% if line.issue %}
+                                        <p class="text-xs text-red-600 mt-0.5">{{ line.issue }}</p>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ line.size_eu }}{% if line.size_us %} / {{ line.size_us }}{% endif %}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ line.supplier_size_id ?? '—' }}</td>
+                                <td class="px-3 py-2 text-right">{{ line.stock }}</td>
+                                <td class="px-3 py-2 text-right">{{ line.requested }}</td>
+                                <td class="px-3 py-2 text-right text-neutral-500 whitespace-nowrap">{{ line.offer_price|eur }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <input type="number" name="qty[{{ loop.index0 }}]" min="0" max="{{ line.stock }}"
+                                           value="{{ line.orderable ? line.qty : 0 }}" {{ not line.orderable ? 'disabled' }}
+                                           class="w-20 rounded-md border-neutral-300 text-right text-sm focus:border-amber-500 focus:ring-amber-500">
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <aside class="space-y-4">
+            <div class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+                <h2 class="font-semibold">{{ t('dropship.address_title') }}</h2>
+                <div>
+                    <label for="ds-name" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_name') }}</label>
+                    <input type="text" id="ds-name" name="name" required maxlength="128" value="{{ draft.address.name }}"
+                           class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="ds-street" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_street') }}</label>
+                    <input type="text" id="ds-street" name="street" required maxlength="255" value="{{ draft.address.street }}"
+                           class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="ds-city" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_city') }}</label>
+                        <input type="text" id="ds-city" name="city" required maxlength="128" value="{{ draft.address.city }}"
+                               class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label for="ds-zip" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_zip') }}</label>
+                        <input type="text" id="ds-zip" name="zip_code" required maxlength="16" value="{{ draft.address.zip_code }}"
+                               class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="ds-country" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_country') }}</label>
+                        <input type="text" id="ds-country" name="country_code" required maxlength="2" pattern="[A-Za-z]{2}"
+                               value="{{ draft.address.country_code }}"
+                               class="w-full rounded-lg border-neutral-300 text-sm uppercase focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label for="ds-phone" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_phone') }}</label>
+                        <input type="text" id="ds-phone" name="phone" required maxlength="32" value="{{ draft.address.phone }}"
+                               class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                </div>
+                <div>
+                    <label for="ds-email" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_email') }}</label>
+                    <input type="email" id="ds-email" name="email" required maxlength="255" value="{{ draft.address.email }}"
+                           class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <label class="flex items-start gap-2 text-xs text-neutral-600 pt-1">
+                    <input type="checkbox" name="client_provides_shipping_label" value="1"
+                           class="mt-0.5 rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+                    {{ t('dropship.shipping_label') }}
+                </label>
+            </div>
+
+            <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                {{ t('dropship.continue_review') }}
+            </button>
+            <a href="/admin/richieste/{{ order.id }}" class="block text-center text-sm underline text-neutral-500 hover:text-neutral-900">
+                {{ t('dropship.cancel') }}
+            </a>
+        </aside>
+    </form>
+{% endblock %}
