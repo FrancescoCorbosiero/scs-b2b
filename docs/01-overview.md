@@ -38,15 +38,16 @@ non la grafica.
 - Pagamenti, checkout, gestione ordini oltre alla ricezione della richiesta.
 - Account utente individuali, wishlist persistenti cross-device.
 - CRUD prodotti: il catalogo arriva SOLO dal feed GoldenSneakers.
-- Multi-lingua (UI solo in italiano, ma stringhe centralizzate per un futuro EN).
 - Qualsiasi modifica al sito WordPress principale.
+
+(La UI è multi-lingua IT/EN dalla milestone M7 — vedi docs/08.)
 
 ## Recapiti aziendali (usare questi valori come default in config)
 
 - Ragione sociale: SHOES & CLOTHING RESELLING OFFICIAL STORE
 - Email pubblica: shoes.clothing_reselling@yahoo.com
-- Telefono: +39 380 477 8879
-- WhatsApp: +39 329 772 0691 (link `https://wa.me/393297720691`)
+- Telefono: +39 392 772 0691
+- WhatsApp: +39 392 772 0691 (link `https://wa.me/393927720691`)
 - Sede: Via Paolo Ricci 12/a, 76121 Barletta (BT)
 - P.IVA: 091460600729
 - Email amministrativa (riceve gli ordini, non mostrata pubblicamente):

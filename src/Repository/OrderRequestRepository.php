@@ -8,24 +8,31 @@ use PDO;
 
 final class OrderRequestRepository
 {
+    public const STATUSES = ['pending', 'confirmed', 'cancelled'];
+
     public function __construct(private readonly PDO $pdo)
     {
     }
 
     /**
+     * La richiesta nasce 'pending' e SENZA numero ricevuta: entrambi arrivano
+     * con la conferma admin (pagamento ricevuto), vedi docs/06.
+     *
      * @param array{customer_name: string, company: string|null, email: string, phone: string,
+     *   address_street: string|null, address_city: string|null, address_zip: string|null,
      *   notes: string|null, locale: string, country_code: string, vat_number: string|null,
      *   vat_scheme: string, vat_rate: string, vat_amount: string, total_gross: string,
-     *   receipt_number: string|null, total_items: int, total_amount: string,
+     *   total_items: int, total_amount: string,
      *   cart_snapshot: string, ip_address: string, user_agent: string|null} $data
      */
     public function insert(array $data): int
     {
         $stmt = $this->pdo->prepare(
-            'INSERT INTO order_requests (created_at, customer_name, company, email, phone, notes,
-                locale, country_code, vat_number, vat_scheme, vat_rate, vat_amount, total_gross, receipt_number,
+            'INSERT INTO order_requests (created_at, customer_name, company, email, phone,
+                address_street, address_city, address_zip, notes, status,
+                locale, country_code, vat_number, vat_scheme, vat_rate, vat_amount, total_gross,
                 total_items, total_amount, cart_snapshot, email_admin_sent, email_customer_sent, ip_address, user_agent)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
         );
         $stmt->execute([
             date('Y-m-d H:i:s'),
@@ -33,6 +40,9 @@ final class OrderRequestRepository
             $data['company'],
             $data['email'],
             $data['phone'],
+            $data['address_street'],
+            $data['address_city'],
+            $data['address_zip'],
             $data['notes'],
             $data['locale'],
             $data['country_code'],
@@ -41,7 +51,6 @@ final class OrderRequestRepository
             $data['vat_rate'],
             $data['vat_amount'],
             $data['total_gross'],
-            $data['receipt_number'],
             $data['total_items'],
             $data['total_amount'],
             $data['cart_snapshot'],
@@ -50,6 +59,40 @@ final class OrderRequestRepository
         ]);
 
         return (int) $this->pdo->lastInsertId();
+    }
+
+    /** Conferma (pagamento ricevuto): registra stato, timestamp e numero ricevuta. */
+    public function markConfirmed(int $id, string $receiptNumber): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE order_requests SET status = 'confirmed', confirmed_at = ?, receipt_number = ?
+             WHERE id = ? AND status = 'pending'"
+        );
+        $stmt->execute([date('Y-m-d H:i:s'), $receiptNumber, $id]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function markCancelled(int $id): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "UPDATE order_requests SET status = 'cancelled', cancelled_at = ? WHERE id = ? AND status = 'pending'"
+        );
+        $stmt->execute([date('Y-m-d H:i:s'), $id]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    /** @return array<string, int> status => conteggio */
+    public function countByStatus(): array
+    {
+        $stmt = $this->pdo->query('SELECT status, COUNT(*) AS n FROM order_requests GROUP BY status');
+        $counts = ['pending' => 0, 'confirmed' => 0, 'cancelled' => 0];
+        foreach ($stmt === false ? [] : $stmt->fetchAll() as $row) {
+            $counts[(string) $row['status']] = (int) $row['n'];
+        }
+
+        return $counts;
     }
 
     public function markEmailSent(int $id, string $which): void
@@ -69,19 +112,29 @@ final class OrderRequestRepository
     }
 
     /** @return array{items: list<array<string, mixed>>, total: int} */
-    public function paginate(int $page, int $perPage = 20): array
+    public function paginate(int $page, int $perPage = 20, ?string $status = null): array
     {
-        $total = (int) ($this->pdo->query('SELECT COUNT(*) FROM order_requests')?->fetchColumn() ?: 0);
+        $where = '';
+        $params = [];
+        if ($status !== null && in_array($status, self::STATUSES, true)) {
+            $where = 'WHERE status = ?';
+            $params[] = $status;
+        }
+        $count = $this->pdo->prepare("SELECT COUNT(*) FROM order_requests {$where}");
+        $count->execute($params);
+        $total = (int) $count->fetchColumn();
+
         $perPage = max(1, min(100, $perPage));
         $offset = max(0, ($page - 1) * $perPage);
-        $stmt = $this->pdo->query(
-            "SELECT id, created_at, customer_name, company, email, phone, country_code, vat_scheme,
+        $stmt = $this->pdo->prepare(
+            "SELECT id, created_at, customer_name, company, email, phone, status, country_code, vat_scheme,
                     receipt_number, total_items, total_amount, vat_amount, total_gross,
                     email_admin_sent, email_customer_sent
-             FROM order_requests ORDER BY id DESC LIMIT {$perPage} OFFSET {$offset}"
+             FROM order_requests {$where} ORDER BY id DESC LIMIT {$perPage} OFFSET {$offset}"
         );
+        $stmt->execute($params);
         /** @var list<array<string, mixed>> $items */
-        $items = $stmt === false ? [] : $stmt->fetchAll();
+        $items = $stmt->fetchAll();
 
         return ['items' => $items, 'total' => $total];
     }

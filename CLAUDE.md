@@ -3,9 +3,13 @@
 Piattaforma catalogo sneakers B2B in sola lettura, protetta da password condivisa,
 valida in tutta Europa (UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
 Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
-compongono un carrello e inviano una **richiesta d'ordine via email** con ricevuta
-pro-forma PDF — non esiste checkout/pagamento. Il VAT si calcola alla richiesta
-in base al paese di residenza (reverse charge per B2B UE con P.IVA).
+compongono un carrello e inviano una **richiesta d'ordine** che riceve subito le
+istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
+**confermato dall'admin all'arrivo del pagamento**, momento in cui parte l'email
+di conferma con la ricevuta pro-forma PDF. Il VAT si calcola alla richiesta in
+base al paese di residenza (reverse charge per B2B UE con P.IVA). Con
+`AUTO_DROPSHIP_ON_REQUEST=1` la richiesta crea subito l'ordine dropship presso
+GoldenSneakers (docs/09) per bloccare lo stock prima del bonifico.
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).
 
 ## Come usare questa documentazione

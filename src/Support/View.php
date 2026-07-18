@@ -54,6 +54,13 @@ final class View
                 'vat' => $this->config->str('CONTACT_VAT'),
                 'main_site' => $this->config->str('MAIN_SITE_URL'),
             ],
+            // bonifico bancario: unico canale di pagamento (docs/06)
+            'bank' => [
+                'holder' => $this->config->str('BANK_ACCOUNT_HOLDER'),
+                'name' => $this->config->str('BANK_NAME'),
+                'iban' => $this->config->str('BANK_IBAN'),
+                'bic' => $this->config->str('BANK_BIC'),
+            ],
         ];
         $response->getBody()->write($this->twig->render($template, array_merge($globals, $data)));
 

@@ -5,7 +5,7 @@
 {% block content %}
     <h1 class="text-2xl font-bold mb-4">{{ t('order.title') }}</h1>
 
-    <div class="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+    <div class="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start" x-data="{ payOpen: false }">
         <form method="post" action="/richiesta-ordine" class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-5 sm:p-6 space-y-4">
             <p class="text-sm text-neutral-500">{{ t('order.intro') }}</p>
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -35,6 +35,22 @@
                     <input type="tel" id="o-phone" name="phone" required maxlength="32" value="{{ old.phone ?? '' }}"
                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
                 </div>
+                {# indirizzo di spedizione: serve anche all'ordine dropship verso il fornitore #}
+                <div class="sm:col-span-2">
+                    <label for="o-street" class="block text-sm font-medium mb-1">{{ t('order.street') }}</label>
+                    <input type="text" id="o-street" name="address_street" required maxlength="255" value="{{ old.address_street ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="o-city" class="block text-sm font-medium mb-1">{{ t('order.city') }}</label>
+                    <input type="text" id="o-city" name="address_city" required maxlength="128" value="{{ old.address_city ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="o-zip" class="block text-sm font-medium mb-1">{{ t('order.zip') }}</label>
+                    <input type="text" id="o-zip" name="address_zip" required maxlength="16" value="{{ old.address_zip ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
                 <div>
                     <label for="o-country" class="block text-sm font-medium mb-1">{{ t('order.country') }}</label>
                     <select id="o-country" name="country" required
@@ -58,6 +74,14 @@
                 <textarea id="o-notes" name="notes" rows="4" maxlength="2000"
                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">{{ old.notes ?? '' }}</textarea>
             </div>
+            {# pagamento: unico canale = bonifico; l'ordine si conferma SOLO all'arrivo #}
+            <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">
+                {{ t('order.payment_notice') }}
+                <button type="button" @click="payOpen = true" class="underline font-semibold hover:text-amber-700">
+                    {{ t('order.payment_details_link') }}
+                </button>
+            </div>
+
             <button type="submit" class="rounded-lg bg-neutral-900 text-white px-6 py-2.5 font-semibold hover:bg-neutral-700">
                 {{ t('order.submit') }}
             </button>
@@ -110,5 +134,29 @@
                 <p class="text-xs text-neutral-400 mt-2">{{ t('cart.total_items') }}: {{ cart.total_items }}</p>
             </div>
         </aside>
+
+        {# ── Modal pagamento: come funziona il bonifico ── #}
+        <div x-show="payOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             role="dialog" aria-modal="true" aria-labelledby="pay-modal-title" @keydown.escape.window="payOpen = false">
+            <div class="absolute inset-0 bg-neutral-900/60" @click="payOpen = false"></div>
+            <div class="relative bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
+                <div class="flex items-start justify-between gap-4">
+                    <h2 id="pay-modal-title" class="text-lg font-bold">{{ t('payment.modal_title') }}</h2>
+                    <button type="button" @click="payOpen = false" class="p-1 rounded-md hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700" aria-label="{{ t('payment.modal_close') }}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <ol class="list-decimal list-inside text-sm text-neutral-600 space-y-1.5">
+                    <li>{{ t('payment.step_1') }}</li>
+                    <li>{{ t('payment.step_2') }}</li>
+                    <li>{{ t('payment.step_3') }}</li>
+                </ol>
+                {% include '_bank_details.twig' with { reference: null } %}
+                <button type="button" @click="payOpen = false"
+                        class="w-full rounded-lg bg-neutral-900 text-white py-2.5 font-semibold hover:bg-neutral-700">
+                    {{ t('payment.modal_close') }}
+                </button>
+            </div>
+        </div>
     </div>
 {% endblock %}

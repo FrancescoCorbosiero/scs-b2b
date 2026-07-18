@@ -23,11 +23,15 @@ Grid di card prodotto. Ogni card:
 - CTA "Aggiungi al carrello" → aggiunge il prodotto e porta/espande la vista carrello
   del prodotto (o modale con la tabella taglie)
 
+**Navigazione brand dedicata**: sidebar sticky su desktop (elenco brand con
+conteggio prodotti, stato attivo evidenziato, ricerca client-side oltre gli
+8 brand) e chips scorrevoli su mobile; i link preservano gli altri filtri.
+Il brand sulla card è cliccabile.
+
 Toolbar filtri (stato su query string → URL condivisibili, enhancement Alpine):
 - Disponibilità: Alta / Media / Bassa — soglie da `.env`
   (`AVAILABILITY_HIGH_MIN=60`, `AVAILABILITY_LOW_MAX=20` sul totale pezzi)
 - Recommended (toggle)
-- Brand (dropdown popolato dai brand attivi)
 - Prezzo min–max (sul prezzo netto di listino)
 - Ricerca per nome/SKU (debounce 300ms)
 - Toggle taglie **EU / US** (persiste in sessione)
@@ -54,42 +58,63 @@ Per ogni prodotto nel carrello: thumbnail, SKU, nome, "Remove", e la **tabella t
   disabilitata sotto soglia.
 - Persistenza: sessione server-side; sopravvive a refresh e navigazione.
 
-## /richiesta-ordine (dal carrello)
+## /richiesta-ordine (dal carrello) — ciclo di vita a stati
 
-Form: nome*, azienda, email*, telefono*, **paese di residenza*** (precompilato
-dal selettore in header), **partita IVA** (facoltativa), note. Honeypot + CSRF +
-rate limit (max 3 invii/ora per sessione/IP). Il riepilogo mostra un'anteprima
-live di imponibile / VAT / totale che reagisce a paese e P.IVA (JS, dati
-pubblici); il calcolo autoritativo resta server-side (`VatService`, docs/04).
-All'invio, in quest'ordine:
+Form: nome*, azienda, email*, telefono*, **indirizzo di spedizione***
+(via/civico, città, CAP), **paese di residenza*** (precompilato dal selettore
+in header), **partita IVA** (facoltativa), note. Honeypot + CSRF + rate limit
+(max 3 invii/ora per sessione/IP). Il riepilogo mostra un'anteprima live di
+imponibile / VAT / totale che reagisce a paese e P.IVA (JS, dati pubblici);
+il calcolo autoritativo resta server-side (`VatService`, docs/04). Un banner
+esplicita che il pagamento avviene SOLO via bonifico e che **l'ordine viene
+confermato all'arrivo del pagamento**, con modal "Come funziona" (coordinate
+bancarie da `BANK_*` in `.env`).
+
+**Stati**: `pending` (in attesa di pagamento) → `confirmed` / `cancelled`.
+
+All'invio (stato `pending`), in quest'ordine:
 1. Rivalidare carrello vs stock corrente; risolvere il VAT per paese/P.IVA;
-   assegnare il numero ricevuta (PF-<anno>-<NNNN>); salvare `order_requests`
-   (snapshot completo + imponibile/VAT/totale).
-2. Email admin a `ADMIN_EMAIL` (info@shoesclothingstore.com), sempre in
-   italiano: tabella HTML con SKU, prodotto, taglia EU/US, barcode, qty, prezzo
-   unitario netto, subtotale, imponibile/VAT/totale, paese e P.IVA, dati
-   contatto; se `ADMIN_EMAIL_SHOW_COST=1` anche costo e margine.
-3. Email formale al cliente, nella sua lingua (IT/EN), senza costi/margini,
-   con la **ricevuta pro-forma PDF in allegato** (dompdf; rigenerabile e
-   scaricabile anche da /admin).
-4. Svuotare il carrello → pagina di conferma con recapiti.
-Un fallimento SMTP NON deve perdere la richiesta (già a DB, flag `email_*_sent=0`,
-log dell'errore) e all'utente si mostra comunque la conferma con invito a
-contattare i recapiti in caso di mancata risposta.
+   salvare `order_requests` (snapshot completo + imponibile/VAT/totale +
+   indirizzo). NIENTE numero ricevuta a questo stadio.
+2. **Auto-dropship** (se `AUTO_DROPSHIP_ON_REQUEST=1`): crea subito l'ordine
+   presso GoldenSneakers con l'indirizzo del cliente per bloccare lo stock
+   prima che arrivi il bonifico (vedi docs/09 § Auto-dropship; in
+   `DROPSHIP_MODE=simulation` nessuna chiamata parte). L'esito è riportato
+   nell'email admin; un fallimento non blocca mai la richiesta.
+3. Email admin a `ADMIN_EMAIL`, sempre in italiano: tabella completa, paese,
+   P.IVA, indirizzo, esito auto-dropship, promemoria "conferma alla ricezione
+   del pagamento"; se `ADMIN_EMAIL_SHOW_COST=1` anche costo e margine.
+4. Email al cliente nella sua lingua (IT/EN): riepilogo + **istruzioni di
+   pagamento** (coordinate, importo, causale "Richiesta ordine #id") con
+   l'avviso esplicito che l'ordine si conferma alla ricezione del pagamento.
+   Nessun allegato.
+5. Svuotare il carrello → pagina di conferma con recapiti.
+
+**Conferma admin** (`POST /admin/richieste/{id}/conferma`, dopo verifica
+dell'accredito): stato `confirmed`, assegnazione del numero ricevuta
+(PF-<anno>-<NNNN>) e **email di conferma al cliente con la ricevuta pro-forma
+PDF in allegato** (dompdf; scaricabile anche da /admin). **Annulla**
+(`/annulla`): stato `cancelled`, nessuna email.
+
+Un fallimento SMTP NON deve perdere la richiesta né la conferma (già a DB,
+flag `email_*_sent=0` / flash admin, log dell'errore).
 
 ## /contatti
 
 Recapiti da config (valori in `01-overview.md`): email, telefono, WhatsApp
 (`wa.me`), sede, P.IVA, link al sito principale. Card semplici + bottoni azione
-(mailto, tel, WhatsApp).
+(mailto, tel, WhatsApp). Sezione **Pagamenti — Bonifico bancario** con le
+coordinate da `BANK_*` (con `BANK_IBAN` vuoto: invito a contattarci).
 
 ## /admin (password dedicata `ADMIN_PASSWORD_HASH`)
 
 Minimale, server-rendered (sempre in italiano):
-- Elenco richieste d'ordine (data, cliente, paese/regime VAT, numero ricevuta,
-  pezzi, imponibile, stato invio email) con paginazione; dettaglio con snapshot,
-  totali imponibile/VAT/lordo, costo fornitore, margine e **download della
-  ricevuta pro-forma PDF**.
+- Elenco richieste d'ordine (stato del ciclo con badge e filtro, data, cliente,
+  paese/regime VAT, numero ricevuta, pezzi, imponibile, stato invio email) con
+  paginazione; dashboard con contatore "in attesa di pagamento"; dettaglio con
+  snapshot, indirizzo di spedizione, totali imponibile/VAT/lordo, costo
+  fornitore, margine, **bottoni Conferma (pagamento ricevuto) / Annulla** e
+  **download della ricevuta pro-forma PDF**.
 - **/admin/margini — gestione margini** (docs/04): regole per brand o
   nome-contiene (percentuale o importo fisso, priorità, attiva/disattiva,
   conteggio prodotti corrispondenti), margine di default, aliquote VAT per

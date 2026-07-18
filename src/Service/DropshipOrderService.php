@@ -277,6 +277,101 @@ final class DropshipOrderService
         return ['ok' => true, 'errors' => [], 'dropship_id' => $dropshipId];
     }
 
+    // ── Creazione automatica alla richiesta d'ordine (docs/06 e 09) ──
+
+    /**
+     * Crea l'ordine dropship direttamente alla richiesta del cliente, con il
+     * SUO indirizzo di spedizione, per bloccare lo stock del fornitore prima
+     * che arrivi il bonifico (AUTO_DROPSHIP_ON_REQUEST).
+     *
+     * ⚠ Percorso raggiungibile da chiunque abbia la password condivisa del
+     * catalogo: per questo resta dietro flag .env (kill-switch), eredita rate
+     * limit e ordine minimo della richiesta, e in DROPSHIP_MODE=simulation
+     * non invia nulla. L'esito è riportato nell'email admin.
+     *
+     * @param array<string, mixed> $order richiesta appena salvata (con cart_snapshot e indirizzo)
+     * @return array{ok: bool, dropship_id: int|null, message: string|null, simulated: bool|null}
+     */
+    public function autoCreateFromRequest(array $order): array
+    {
+        $fail = fn (string $message): array => ['ok' => false, 'dropship_id' => null, 'message' => $message, 'simulated' => null];
+
+        if (!$this->isEnabled()) {
+            return $fail($this->lang->t('dropship.disabled'));
+        }
+        if (!$this->isSimulation()) {
+            // come in send(): la modalità live non è implementata nel client
+            return $fail($this->lang->t('dropship.error_live_disabled'));
+        }
+
+        $errors = [];
+        $address = $this->validateAddress([
+            'name' => (string) ($order['customer_name'] ?? ''),
+            'street' => (string) ($order['address_street'] ?? ''),
+            'city' => (string) ($order['address_city'] ?? ''),
+            'zip_code' => (string) ($order['address_zip'] ?? ''),
+            'country_code' => (string) ($order['country_code'] ?? ''),
+            'phone' => (string) ($order['phone'] ?? ''),
+            'email' => (string) ($order['email'] ?? ''),
+        ], $errors);
+        if ($errors !== []) {
+            return $fail(implode(' ', $errors));
+        }
+
+        // righe ordinabili, clampate allo stock corrente (appena rivalidato dal carrello)
+        $items = [];
+        $included = [];
+        $wholesaleCents = 0;
+        foreach ($this->linesFromSnapshot($order) as $line) {
+            $qty = (int) $line['qty'];
+            if (!$line['orderable'] || $qty < 1) {
+                continue;
+            }
+            $items[] = $line['supplier_size_id'] !== null
+                ? ['size_id' => $line['supplier_size_id'], 'quantity' => $qty]
+                : ['sku' => $line['sku'], 'size_us' => $line['size_us'], 'quantity' => $qty];
+            $wholesaleCents += CartService::cents($line['offer_price']) * $qty;
+            $included[] = $line;
+        }
+        if ($items === []) {
+            return $fail($this->lang->t('dropship.error_no_items'));
+        }
+
+        $payload = [
+            'delivery_address' => $address,
+            'client_provides_shipping_label' => false,
+            'items' => $items,
+        ];
+        try {
+            $response = $this->client->createOrder($payload);
+        } catch (DropshipException $e) {
+            $this->logger->error('Auto-dropship rifiutato', ['error' => $e->getMessage()]);
+
+            return $fail($e->getMessage());
+        }
+
+        $dropshipId = $this->dropshipOrders->insert([
+            'order_request_id' => (int) ($order['id'] ?? 0) > 0 ? (int) $order['id'] : null,
+            'mode' => $this->mode(),
+            'status' => 'UNCONFIRMED',
+            'vendor_order_id' => $response['order_id'],
+            'dropship_package_id' => $response['dropship_package_id'],
+            'total_price' => CartService::money($wholesaleCents),
+            'currency' => 'EUR',
+            'request_payload' => (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+            'lines_snapshot' => (string) json_encode($included, JSON_UNESCAPED_UNICODE),
+            'response_payload' => (string) json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+        ]);
+        $this->logger->info('Ordine dropship automatico registrato', [
+            'dropship_id' => $dropshipId,
+            'order_request_id' => $order['id'] ?? null,
+            'mode' => $this->mode(),
+            'simulated' => $response['simulated'],
+        ]);
+
+        return ['ok' => true, 'dropship_id' => $dropshipId, 'message' => null, 'simulated' => (bool) $response['simulated']];
+    }
+
     /**
      * Rilegge lo stato dal fornitore (in simulazione: risposta fittizia,
      * nessuna chiamata) e aggiorna il record.

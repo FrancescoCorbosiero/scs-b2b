@@ -56,10 +56,15 @@ final class CatalogController
             'page' => min($page, $totalPages),
             'total_pages' => $totalPages,
             'filters' => $filters,
-            'brands' => $this->products->activeBrands(),
+            'brands' => $this->products->activeBrandsWithCounts(),
             'sorts' => self::SORTS,
             'query_string' => http_build_query(array_filter(
                 array_diff_key($query, ['page' => null]),
+                static fn ($v) => $v !== '' && $v !== null,
+            )),
+            // per i link della navigazione brand: filtri correnti SENZA brand e pagina
+            'brand_base_qs' => http_build_query(array_filter(
+                array_diff_key($query, ['page' => null, 'brand' => null]),
                 static fn ($v) => $v !== '' && $v !== null,
             )),
         ]);

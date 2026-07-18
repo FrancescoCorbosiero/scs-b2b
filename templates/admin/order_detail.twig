@@ -4,7 +4,16 @@
 
 {% block content %}
     <a href="/admin/richieste" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('admin.back') }}</a>
-    <h1 class="text-2xl font-bold mt-2 mb-6">{{ t('admin.order_detail') }} #{{ order.id }}</h1>
+    {% set status = order.status ?? 'pending' %}
+    <div class="flex flex-wrap items-center gap-3 mt-2 mb-6">
+        <h1 class="text-2xl font-bold">{{ t('admin.order_detail') }} #{{ order.id }}</h1>
+        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold uppercase border
+            {{ status == 'confirmed' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+             : status == 'cancelled' ? 'bg-red-50 border-red-200 text-red-700'
+             : 'bg-amber-50 border-amber-200 text-amber-800' }}">
+            {{ t('order_status.' ~ status) }}
+        </span>
+    </div>
 
     <div class="grid lg:grid-cols-3 gap-5 items-start">
         <div class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 overflow-x-auto">
@@ -45,6 +54,9 @@
                 <p><span class="text-neutral-500">Email:</span> <a class="underline" href="mailto:{{ order.email }}">{{ order.email }}</a></p>
                 <p><span class="text-neutral-500">{{ t('contact.phone') }}:</span> {{ order.phone }}</p>
                 {% if order.notes %}<p><span class="text-neutral-500">{{ t('order.notes') }}:</span> {{ order.notes }}</p>{% endif %}
+                {% if order.address_street %}
+                    <p><span class="text-neutral-500">{{ t('admin.shipping_address') }}:</span> {{ order.address_street }}, {{ order.address_zip }} {{ order.address_city }}</p>
+                {% endif %}
                 <p><span class="text-neutral-500">{{ t('admin.country') }}:</span> <span class="font-bold">{{ order.country_code ?? 'IT' }}</span> — {{ t('country.' ~ (order.country_code ?? 'IT')) }}</p>
                 {% if order.vat_number %}<p><span class="text-neutral-500">{{ t('admin.vat_number') }}:</span> <span class="font-mono">{{ order.vat_number }}</span></p>{% endif %}
                 {% if order.plan %}<p><span class="text-neutral-500">{{ t('admin.plan_legacy') }}:</span> <span class="uppercase font-bold">{{ order.plan }}</span></p>{% endif %}
@@ -62,11 +74,38 @@
                 <div class="flex justify-between border-t border-neutral-100 pt-2"><span class="text-neutral-500">{{ t('admin.cost') }}</span><span>{{ total_cost|eur }}</span></div>
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.margin') }}</span><strong class="text-emerald-600">{{ margin|eur }}</strong></div>
             </div>
+            {# ── Ciclo di vita: conferma a pagamento ricevuto / annulla ── #}
+            {% if status == 'pending' %}
+                <div class="bg-white rounded-xl border border-amber-200 p-5 text-sm space-y-3">
+                    <p class="text-amber-800 text-xs">{{ t('admin.pending_hint') }}</p>
+                    <form method="post" action="/admin/richieste/{{ order.id }}/conferma"
+                          data-confirm="{{ t('admin.confirm_prompt')|e('html_attr') }}">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                        <button type="submit" class="w-full rounded-lg bg-emerald-600 text-white font-semibold py-2.5 hover:bg-emerald-500">
+                            {{ t('admin.confirm_button') }}
+                        </button>
+                    </form>
+                    <form method="post" action="/admin/richieste/{{ order.id }}/annulla"
+                          data-confirm="{{ t('admin.cancel_prompt')|e('html_attr') }}">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                        <button type="submit" class="w-full rounded-lg border border-red-200 text-red-600 font-semibold py-2 hover:bg-red-50">
+                            {{ t('admin.cancel_button') }}
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+
             <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
                 <div class="flex items-center justify-between gap-2">
                     <span class="text-neutral-500">{{ t('admin.receipt') }}</span>
-                    <span class="font-mono text-xs">{{ order.receipt_number ?? '—' }}</span>
+                    <span class="font-mono text-xs">{{ order.receipt_number ?: t('admin.receipt_on_confirm') }}</span>
                 </div>
+                {% if order.confirmed_at ?? null %}
+                    <p class="text-xs text-neutral-400">{{ t('admin.confirmed_at') }}: {{ order.confirmed_at }}</p>
+                {% endif %}
+                {% if order.cancelled_at ?? null %}
+                    <p class="text-xs text-neutral-400">{{ t('admin.cancelled_at') }}: {{ order.cancelled_at }}</p>
+                {% endif %}
                 <a href="/admin/richieste/{{ order.id }}/ricevuta.pdf" target="_blank" rel="noopener"
                    class="block text-center rounded-lg border border-neutral-300 font-semibold py-2 hover:bg-neutral-50">
                     {{ t('admin.receipt_download') }}

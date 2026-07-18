@@ -3,6 +3,7 @@
         <thead>
             <tr class="bg-neutral-50 text-neutral-500 text-left">
                 <th class="px-4 py-2.5 font-medium">#</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.status') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.customer') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.country') }}</th>
@@ -16,6 +17,15 @@
             {% for order in orders %}
                 <tr class="hover:bg-neutral-50">
                     <td class="px-4 py-2.5"><a href="/admin/richieste/{{ order.id }}" class="font-semibold underline">#{{ order.id }}</a></td>
+                    <td class="px-4 py-2.5">
+                        {% set st = order.status ?? 'pending' %}
+                        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border whitespace-nowrap
+                            {{ st == 'confirmed' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                             : st == 'cancelled' ? 'bg-red-50 border-red-200 text-red-700'
+                             : 'bg-amber-50 border-amber-200 text-amber-800' }}">
+                            {{ t('order_status.' ~ st) }}
+                        </span>
+                    </td>
                     <td class="px-4 py-2.5 whitespace-nowrap">{{ order.created_at }}</td>
                     <td class="px-4 py-2.5">
                         {{ order.customer_name }}{% if order.company %} <span class="text-neutral-400">({{ order.company }})</span>{% endif %}
@@ -35,7 +45,7 @@
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="8" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
+                <tr><td colspan="9" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
             {% endfor %}
         </tbody>
     </table>

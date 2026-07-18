@@ -6,15 +6,23 @@ namespace App\Service;
 
 use App\Repository\OrderRequestRepository;
 use App\Repository\ProductRepository;
+use App\Support\Config;
 use App\Support\Lang;
 use App\Support\Session;
 use Psr\Log\LoggerInterface;
 
 /**
- * Richiesta d'ordine: validazione form, antispam, snapshot del carrello,
- * VAT per paese (VatService), numero ricevuta pro-forma, salvataggio a DB
- * e invio email. Un fallimento SMTP NON perde la richiesta: è già a DB con
- * i flag email_*_sent a 0.
+ * Ciclo di vita della richiesta d'ordine (docs/06):
+ *
+ * 1. submit(): validazione form (con indirizzo di spedizione), antispam,
+ *    snapshot del carrello, VAT per paese (VatService), salvataggio 'pending',
+ *    eventuale ordine dropship automatico (AUTO_DROPSHIP_ON_REQUEST) ed email
+ *    di istruzioni pagamento (bonifico) — SENZA ricevuta.
+ * 2. confirm(): l'admin registra il pagamento → numero ricevuta pro-forma ed
+ *    email di conferma col PDF allegato.
+ * 3. cancel(): richiesta mai pagata → annullata.
+ *
+ * Un fallimento SMTP o dropship NON perde la richiesta: è già a DB.
  */
 final class OrderService
 {
@@ -27,7 +35,9 @@ final class OrderService
         private readonly OrderMailer $mailer,
         private readonly VatService $vat,
         private readonly ReceiptService $receipts,
+        private readonly DropshipOrderService $dropship,
         private readonly Session $session,
+        private readonly Config $config,
         private readonly Lang $lang,
         private readonly LoggerInterface $logger,
     ) {
@@ -60,6 +70,9 @@ final class OrderService
         $company = $this->cleanString($input['company'] ?? null, 128);
         $email = $this->cleanString($input['email'] ?? null, 255);
         $phone = $this->cleanString($input['phone'] ?? null, 32);
+        $street = $this->cleanString($input['address_street'] ?? null, 255);
+        $city = $this->cleanString($input['address_city'] ?? null, 128);
+        $zip = $this->cleanString($input['address_zip'] ?? null, 16);
         $notes = $this->cleanString($input['notes'] ?? null, 2000);
         $country = strtoupper($this->cleanString($input['country'] ?? null, 2));
         $vatNumberRaw = $this->cleanString($input['vat_number'] ?? null, 32);
@@ -73,6 +86,15 @@ final class OrderService
         }
         if ($phone === '') {
             $errors[] = $this->lang->t('order.error_phone');
+        }
+        if ($street === '') {
+            $errors[] = $this->lang->t('order.error_street');
+        }
+        if ($city === '') {
+            $errors[] = $this->lang->t('order.error_city');
+        }
+        if ($zip === '') {
+            $errors[] = $this->lang->t('order.error_zip');
         }
         if (!$this->vat->isValidCountry($country)) {
             $errors[] = $this->lang->t('order.error_country');
@@ -102,20 +124,16 @@ final class OrderService
         $vatAmount = VatService::vatAmount($detail['total_amount'], $vat['rate']);
         $totalGross = VatService::grossTotal($detail['total_amount'], $vatAmount);
         $snapshot = $this->buildSnapshot($detail);
-
-        $receiptNumber = null;
-        try {
-            $receiptNumber = $this->receipts->assignNumber();
-        } catch (\Throwable $e) {
-            // senza numero la richiesta resta valida: la ricevuta si rigenera da /admin
-            $this->logger->error('Assegnazione numero ricevuta fallita', ['error' => $e->getMessage()]);
-        }
+        $snapshotJson = (string) json_encode($snapshot, JSON_UNESCAPED_UNICODE);
 
         $orderId = $this->orders->insert([
             'customer_name' => $name,
             'company' => $company !== '' ? $company : null,
             'email' => $email,
             'phone' => $phone,
+            'address_street' => $street,
+            'address_city' => $city,
+            'address_zip' => $zip,
             'notes' => $notes !== '' ? $notes : null,
             'locale' => $locale,
             'country_code' => $vat['country_code'],
@@ -124,10 +142,9 @@ final class OrderService
             'vat_rate' => number_format($vat['rate'], 2, '.', ''),
             'vat_amount' => $vatAmount,
             'total_gross' => $totalGross,
-            'receipt_number' => $receiptNumber,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
-            'cart_snapshot' => (string) json_encode($snapshot, JSON_UNESCAPED_UNICODE),
+            'cart_snapshot' => $snapshotJson,
             'ip_address' => $ip,
             'user_agent' => $userAgent !== '' ? mb_substr($userAgent, 0, 255) : null,
         ]);
@@ -135,10 +152,14 @@ final class OrderService
         $order = [
             'id' => $orderId,
             'created_at' => date('Y-m-d H:i:s'),
+            'status' => 'pending',
             'customer_name' => $name,
             'company' => $company,
             'email' => $email,
             'phone' => $phone,
+            'address_street' => $street,
+            'address_city' => $city,
+            'address_zip' => $zip,
             'notes' => $notes,
             'locale' => $locale,
             'country_code' => $vat['country_code'],
@@ -147,15 +168,30 @@ final class OrderService
             'vat_rate' => number_format($vat['rate'], 2, '.', ''),
             'vat_amount' => $vatAmount,
             'total_gross' => $totalGross,
-            'receipt_number' => $receiptNumber,
+            'receipt_number' => null,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
+            'cart_snapshot' => $snapshotJson,
             'lines' => $snapshot['lines'],
         ];
 
-        // email: un fallimento non blocca la richiesta (già salvata)
+        // ordine dropship automatico presso il fornitore (per battere il delta
+        // del bonifico): un fallimento non blocca mai la richiesta
+        $autoDropship = null;
+        if ($this->config->bool('AUTO_DROPSHIP_ON_REQUEST', false)) {
+            try {
+                $autoDropship = $this->dropship->autoCreateFromRequest($order);
+            } catch (\Throwable $e) {
+                $this->logger->error('Auto-dropship fallito', ['order_id' => $orderId, 'error' => $e->getMessage()]);
+                $autoDropship = ['ok' => false, 'dropship_id' => null, 'message' => $e->getMessage(), 'simulated' => null];
+            }
+        }
+
+        // email: un fallimento non blocca la richiesta (già salvata).
+        // Cliente: istruzioni di pagamento via bonifico, NIENTE ricevuta
+        // (arriva con la conferma admin a pagamento ricevuto).
         try {
-            $this->mailer->sendAdminEmail($order);
+            $this->mailer->sendAdminEmail($order, $autoDropship);
             $this->orders->markEmailSent($orderId, 'admin');
         } catch (\Throwable $e) {
             $this->logger->error('Invio email admin fallito', ['order_id' => $orderId, 'error' => $e->getMessage()]);
@@ -170,6 +206,60 @@ final class OrderService
         $this->cart->clearAll();
 
         return ['ok' => true, 'order_id' => $orderId, 'errors' => [], 'cart_adjusted' => false];
+    }
+
+    /**
+     * Conferma admin (pagamento ricevuto): assegna il numero ricevuta e invia
+     * al cliente l'email di conferma con la ricevuta pro-forma PDF allegata.
+     *
+     * @return array{ok: bool, error: string|null, email_sent: bool}
+     */
+    public function confirm(int $orderId): array
+    {
+        $order = $this->orders->find($orderId);
+        if ($order === null) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_found'), 'email_sent' => false];
+        }
+        if (($order['status'] ?? 'pending') !== 'pending') {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending'), 'email_sent' => false];
+        }
+
+        // il numero esiste solo per ordini confermati (richieste legacy incluse)
+        $receiptNumber = is_string($order['receipt_number'] ?? null) && $order['receipt_number'] !== ''
+            ? (string) $order['receipt_number']
+            : $this->receipts->assignNumber();
+        if (!$this->orders->markConfirmed($orderId, $receiptNumber)) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending'), 'email_sent' => false];
+        }
+
+        $order['status'] = 'confirmed';
+        $order['receipt_number'] = $receiptNumber;
+        $snapshot = json_decode(is_string($order['cart_snapshot'] ?? null) ? $order['cart_snapshot'] : '[]', true);
+        $order['lines'] = is_array($snapshot) && is_array($snapshot['lines'] ?? null) ? $snapshot['lines'] : [];
+
+        $emailSent = true;
+        try {
+            $this->mailer->sendCustomerConfirmedEmail($order);
+        } catch (\Throwable $e) {
+            $emailSent = false;
+            $this->logger->error('Invio email conferma fallito', ['order_id' => $orderId, 'error' => $e->getMessage()]);
+        }
+
+        return ['ok' => true, 'error' => null, 'email_sent' => $emailSent];
+    }
+
+    /** @return array{ok: bool, error: string|null} */
+    public function cancel(int $orderId): array
+    {
+        $order = $this->orders->find($orderId);
+        if ($order === null) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_found')];
+        }
+        if (($order['status'] ?? 'pending') !== 'pending' || !$this->orders->markCancelled($orderId)) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending')];
+        }
+
+        return ['ok' => true, 'error' => null];
     }
 
     /**

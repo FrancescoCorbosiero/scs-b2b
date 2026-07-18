@@ -45,6 +45,17 @@ localizzata con ricevuta pro-forma PDF (dompdf) numerata PF-<anno>-<NNNN>.
 Migrazione: 0003_europe.sql (al deploy: `php bin/migrate.php` poi un
 `--reprice`/sync per passare ai prezzi netti).
 
+**M8 — Ciclo ordine con pagamento via bonifico (luglio 2026) ✔**
+Stati richiesta (pending → confirmed/cancelled) con azioni admin; email alla
+richiesta = istruzioni di pagamento via bonifico (coordinate da `BANK_*`,
+causale, avviso esplicito "ordine confermato all'arrivo del pagamento");
+ricevuta pro-forma spostata all'email di conferma (numero assegnato lì);
+indirizzo di spedizione nel form ordine; **auto-dropship alla richiesta**
+dietro flag `AUTO_DROPSHIP_ON_REQUEST` (kill-switch; vedi docs/09); dati
+bancari in /contatti e nel modal al checkout; navigazione brand con sidebar
+sticky/chips mobile; nuovo numero di telefono/WhatsApp (+39 392 772 0691).
+Migrazione: 0004_order_lifecycle.sql.
+
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
 1. **Margine di default**: la migrazione parte da **30%** (continuità col
