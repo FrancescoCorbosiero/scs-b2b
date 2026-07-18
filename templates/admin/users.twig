@@ -1,0 +1,116 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('users.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-2">{{ t('users.title') }}</h1>
+    <p class="text-sm text-neutral-500 mb-6 max-w-3xl">{{ t('users.intro') }}</p>
+
+    <div class="grid lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-neutral-50 text-neutral-500 text-left">
+                        <th class="px-4 py-2.5 font-medium">{{ t('admin.customer') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('login.email') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('users.col_status') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('users.col_last_login') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.orders') }}</th>
+                        <th class="px-4 py-2.5"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    {% for u in users %}
+                        <tr class="{{ u.is_active ? '' : 'opacity-50' }}">
+                            <td class="px-4 py-2.5">
+                                <strong>{{ u.name }}</strong>
+                                {% if u.company %}<span class="text-neutral-400"> ({{ u.company }})</span>{% endif %}
+                                <span class="block text-xs text-neutral-400">{{ u.country_code }} · {{ u.locale|upper }}{% if u.vat_number %} · {{ u.vat_number }}{% endif %}</span>
+                            </td>
+                            <td class="px-4 py-2.5 break-all">{{ u.email }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">
+                                {% if not u.is_active %}
+                                    <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border bg-red-50 border-red-200 text-red-700">{{ t('users.status_disabled') }}</span>
+                                {% elseif u.password_hash %}
+                                    <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border bg-emerald-50 border-emerald-200 text-emerald-700">{{ t('users.status_active') }}</span>
+                                {% else %}
+                                    <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border bg-amber-50 border-amber-200 text-amber-800">{{ t('users.status_invited') }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 whitespace-nowrap text-xs text-neutral-500">{{ u.last_login_at ?: '—' }}</td>
+                            <td class="px-4 py-2.5 text-right">{{ u.orders_count }}</td>
+                            <td class="px-4 py-2.5">
+                                <div class="flex items-center justify-end gap-3 whitespace-nowrap text-xs font-semibold">
+                                    <form method="post" action="/admin/clienti/{{ u.id }}/invito">
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <button type="submit" class="underline text-neutral-600 hover:text-neutral-900">
+                                            {{ u.password_hash ? t('users.send_reset') : t('users.send_invite') }}
+                                        </button>
+                                    </form>
+                                    <form method="post" action="/admin/clienti/{{ u.id }}/attiva"
+                                          {% if u.is_active %}data-confirm="{{ t('users.deactivate_confirm')|e('html_attr') }}"{% endif %}>
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <input type="hidden" name="active" value="{{ u.is_active ? '0' : '1' }}">
+                                        <button type="submit" class="underline {{ u.is_active ? 'text-red-600' : 'text-emerald-600' }}">
+                                            {{ u.is_active ? t('users.deactivate') : t('users.activate') }}
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-neutral-400">{{ t('users.none') }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# ── Nuovo cliente ── #}
+        <form method="post" action="/admin/clienti" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm">
+            <h2 class="font-bold">{{ t('users.new_title') }}</h2>
+            <p class="text-xs text-neutral-500">{{ t('users.new_hint') }}</p>
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <div>
+                <label for="u-name" class="block font-medium mb-1">{{ t('order.name') }}</label>
+                <input type="text" id="u-name" name="name" required maxlength="128" class="w-full rounded-lg border-neutral-300">
+            </div>
+            <div>
+                <label for="u-email" class="block font-medium mb-1">{{ t('login.email') }} *</label>
+                <input type="email" id="u-email" name="email" required maxlength="255" class="w-full rounded-lg border-neutral-300">
+            </div>
+            <div>
+                <label for="u-company" class="block font-medium mb-1">{{ t('order.company') }}</label>
+                <input type="text" id="u-company" name="company" maxlength="128" class="w-full rounded-lg border-neutral-300">
+            </div>
+            <div>
+                <label for="u-phone" class="block font-medium mb-1">{{ t('contact.phone') }}</label>
+                <input type="tel" id="u-phone" name="phone" maxlength="32" class="w-full rounded-lg border-neutral-300">
+            </div>
+            <div>
+                <label for="u-vat" class="block font-medium mb-1">{{ t('order.vat_number') }}</label>
+                <input type="text" id="u-vat" name="vat_number" maxlength="32" class="w-full rounded-lg border-neutral-300">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="u-country" class="block font-medium mb-1">{{ t('admin.country') }}</label>
+                    <select id="u-country" name="country" class="w-full rounded-lg border-neutral-300">
+                        {% for c in vat_countries %}
+                            <option value="{{ c.country_code }}" {{ c.country_code == 'IT' ? 'selected' }}>{{ c.country_code }} — {{ t('country.' ~ c.country_code) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="u-locale" class="block font-medium mb-1">{{ t('nav.language_label') }}</label>
+                    <select id="u-locale" name="locale" class="w-full rounded-lg border-neutral-300">
+                        {% for l in locales %}
+                            <option value="{{ l }}">{{ t('lang.' ~ l) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white py-2.5 font-semibold hover:bg-neutral-700">
+                {{ t('users.create_button') }}
+            </button>
+        </form>
+    </div>
+{% endblock %}

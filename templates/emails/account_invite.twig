@@ -1,0 +1,18 @@
+{# Email di invito (locale dell'utente): link monouso per impostare la password.
+   La password NON viaggia mai via email. #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 620px;">
+    <h1 style="font-size: 20px;">{{ t('email.invite_title', {company: company_name}) }}</h1>
+    <p>{{ t('email.customer_greeting', {name: user.name}) }}</p>
+    <p>{{ t('email.invite_body', {company: company_name}) }}</p>
+    <p style="margin: 22px 0; text-align: center;">
+        <a href="{{ link }}" style="background: #171717; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 8px; font-weight: bold; display: inline-block;">
+            {{ t('email.invite_cta') }}
+        </a>
+    </p>
+    <p style="font-size: 12px; color: #525252;">{{ t('email.invite_expiry', {hours: ttl_hours}) }}</p>
+    <p style="font-size: 12px; color: #525252;">{{ t('email.link_fallback') }}<br>
+        <a href="{{ link }}" style="color: #525252; word-break: break-all;">{{ link }}</a></p>
+    <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>
+    <p style="color: #525252; font-size: 12px; margin-top: 16px;">{{ t('email.customer_contacts') }}: {{ contact_email }}</p>
+</div>

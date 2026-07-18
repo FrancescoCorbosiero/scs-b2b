@@ -2,14 +2,26 @@
 
 ## Autenticazione
 
-- **Catalogo**: password unica condivisa. In `.env` come `CATALOG_PASSWORD_HASH`
-  (Argon2id via `password_hash`). Mai in chiaro nel repo o nei log.
+- **Account clienti** (dalla M9): creati SOLO dall'admin (`/admin/clienti`),
+  nessuna registrazione pubblica (il listino è riservato). Attivazione con
+  **invito via email**: link monouso con scadenza (72h) per impostare la
+  password — la password non viaggia MAI via email. A DB vive solo l'hash
+  sha256 del token (`user_tokens`); un nuovo invito/reset invalida i
+  precedenti; i tentativi con password invalida NON bruciano il token.
+  Reset self-service con risposta **neutra** (mai rivelare se un'email
+  esiste) e throttle (max 3 token/ora per utente). Password Argon2id,
+  minimo 10 caratteri. Account disattivato → sessioni decadute al primo
+  request (controllo in `CatalogAuthMiddleware`).
+- **Catalogo (ospite, transizione)**: password unica condivisa in `.env` come
+  `CATALOG_PASSWORD_HASH` (Argon2id). Attiva finché `GUEST_LOGIN_ENABLED=1`:
+  spegnerla quando tutti i clienti hanno l'account.
 - **Admin**: seconda password dedicata, `ADMIN_PASSWORD_HASH`, sessione separata
   (flag distinto in sessione, non riusare quella catalogo).
 - Sessioni PHP: cookie `HttpOnly`, `Secure`, `SameSite=Lax`; rigenerare l'id al login;
   durata `SESSION_LIFETIME_DAYS` (default 7) con "ricordami".
 - Rate limiting login su tabella `login_attempts`: lockout dopo 5 tentativi falliti
-  in 15 minuti per (IP, scope), risposta generica senza rivelare il motivo esatto.
+  in 15 minuti per (IP, scope — 'catalog' | 'admin' | 'user'), risposta generica
+  senza rivelare il motivo esatto.
 - Fornire `bin/hash-password.php` per generare gli hash da mettere in `.env`.
 
 ## Non indicizzabilità

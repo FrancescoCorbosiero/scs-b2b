@@ -1,0 +1,27 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('account.forgot_title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <div class="max-w-sm mx-auto mt-10 sm:mt-16">
+        <img src="/logo.png" alt="{{ company_name }}" class="mx-auto mb-8 w-56 sm:w-72 max-w-full h-auto">
+        <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
+            <h1 class="text-xl font-bold mb-1">{{ t('account.forgot_title') }}</h1>
+            <p class="text-sm text-neutral-500 mb-6">{{ t('account.forgot_intro') }}</p>
+            <form method="post" action="/password-dimenticata" class="space-y-4">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <div>
+                    <label for="email" class="block text-sm font-medium mb-1">{{ t('login.email') }}</label>
+                    <input type="email" id="email" name="email" required autofocus autocomplete="username"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                    {{ t('account.forgot_submit') }}
+                </button>
+                <p class="text-center text-sm">
+                    <a href="/login" class="underline text-neutral-500 hover:text-neutral-900">{{ t('admin.back') }}</a>
+                </p>
+            </form>
+        </div>
+    </div>
+{% endblock %}

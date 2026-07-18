@@ -127,6 +127,7 @@ final class OrderService
         $snapshotJson = (string) json_encode($snapshot, JSON_UNESCAPED_UNICODE);
 
         $orderId = $this->orders->insert([
+            'user_id' => $this->session->userId(),
             'customer_name' => $name,
             'company' => $company !== '' ? $company : null,
             'email' => $email,

@@ -48,8 +48,38 @@ final class TestDb
             UNIQUE (product_id, size_eu)
         )');
 
+        $pdo->exec('CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NULL,
+            name TEXT NOT NULL,
+            company TEXT NULL,
+            phone TEXT NULL,
+            vat_number TEXT NULL,
+            address_street TEXT NULL,
+            address_city TEXT NULL,
+            address_zip TEXT NULL,
+            country_code TEXT NOT NULL DEFAULT "IT",
+            locale TEXT NOT NULL DEFAULT "it",
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_login_at TEXT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE user_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            purpose TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used_at TEXT NULL,
+            created_at TEXT NOT NULL
+        )');
+
         $pdo->exec('CREATE TABLE order_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NULL,
             created_at TEXT NOT NULL,
             customer_name TEXT NOT NULL,
             company TEXT NULL,

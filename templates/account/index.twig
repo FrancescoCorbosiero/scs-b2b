@@ -1,0 +1,108 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('account.title') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-wrap items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold">{{ t('account.title') }}</h1>
+        <a href="/account/ordini" class="ml-auto rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50">
+            {{ t('account.my_orders') }} →
+        </a>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-5 items-start max-w-5xl">
+        {# ── Profilo ── #}
+        <form method="post" action="/account/profilo" class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-5 sm:p-6 space-y-4">
+            <h2 class="font-bold">{{ t('account.profile_title') }}</h2>
+            <p class="text-xs text-neutral-500">{{ t('account.profile_hint') }}</p>
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <div class="grid sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <label class="block font-medium mb-1">{{ t('login.email') }}</label>
+                    <input type="email" value="{{ user.email }}" disabled
+                           class="w-full rounded-lg border-neutral-200 bg-neutral-50 text-neutral-500">
+                    <p class="mt-1 text-xs text-neutral-400">{{ t('account.email_locked') }}</p>
+                </div>
+                <div>
+                    <label for="p-name" class="block font-medium mb-1">{{ t('order.name') }}</label>
+                    <input type="text" id="p-name" name="name" required maxlength="128" value="{{ user.name }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-company" class="block font-medium mb-1">{{ t('order.company') }}</label>
+                    <input type="text" id="p-company" name="company" maxlength="128" value="{{ user.company ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-phone" class="block font-medium mb-1">{{ t('contact.phone') }}</label>
+                    <input type="tel" id="p-phone" name="phone" maxlength="32" value="{{ user.phone ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div class="sm:col-span-2">
+                    <label for="p-street" class="block font-medium mb-1">{{ t('order.street') }}</label>
+                    <input type="text" id="p-street" name="address_street" maxlength="255" value="{{ user.address_street ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-city" class="block font-medium mb-1">{{ t('order.city') }}</label>
+                    <input type="text" id="p-city" name="address_city" maxlength="128" value="{{ user.address_city ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-zip" class="block font-medium mb-1">{{ t('order.zip') }}</label>
+                    <input type="text" id="p-zip" name="address_zip" maxlength="16" value="{{ user.address_zip ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-country" class="block font-medium mb-1">{{ t('order.country') }}</label>
+                    <select id="p-country" name="country" class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        {% for c in countries %}
+                            <option value="{{ c.code }}" {{ user.country_code == c.code ? 'selected' }}>{{ c.name }} ({{ c.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="p-vat" class="block font-medium mb-1">{{ t('order.vat_number') }}</label>
+                    <input type="text" id="p-vat" name="vat_number" maxlength="32" value="{{ user.vat_number ?? '' }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="p-locale" class="block font-medium mb-1">{{ t('nav.language_label') }}</label>
+                    <select id="p-locale" name="locale" class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        {% for l in locales %}
+                            <option value="{{ l }}" {{ user.locale == l ? 'selected' }}>{{ t('lang.' ~ l) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="rounded-lg bg-neutral-900 text-white px-6 py-2.5 font-semibold hover:bg-neutral-700">
+                {{ t('account.profile_save') }}
+            </button>
+        </form>
+
+        {# ── Cambio password ── #}
+        <form method="post" action="/account/password" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-4 text-sm">
+            <h2 class="font-bold">{{ t('account.change_password_title') }}</h2>
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <div>
+                <label for="cp-current" class="block font-medium mb-1">{{ t('account.current_password') }}</label>
+                <input type="password" id="cp-current" name="current_password" required autocomplete="current-password"
+                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+            </div>
+            <div>
+                <label for="cp-new" class="block font-medium mb-1">{{ t('account.new_password') }}</label>
+                <input type="password" id="cp-new" name="password" required minlength="10" autocomplete="new-password"
+                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                <p class="mt-1 text-xs text-neutral-400">{{ t('account.password_hint') }}</p>
+            </div>
+            <div>
+                <label for="cp-confirm" class="block font-medium mb-1">{{ t('account.confirm_password') }}</label>
+                <input type="password" id="cp-confirm" name="password_confirm" required minlength="10" autocomplete="new-password"
+                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+            </div>
+            <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white py-2.5 font-semibold hover:bg-neutral-700">
+                {{ t('account.change_password_submit') }}
+            </button>
+        </form>
+    </div>
+{% endblock %}

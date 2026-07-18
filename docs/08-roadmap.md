@@ -59,6 +59,17 @@ riallineamento righe da /admin con rinotifica cliente; densità griglia
 catalogo selezionabile (grande/media/compatta).
 Migrazione: 0004_order_lifecycle.sql.
 
+**M9 — Profilazione clienti (luglio 2026) ✔**
+Account personali creati dall'admin (`/admin/clienti`) con invito via email
+(link monouso 72h, la password non viaggia mai in chiaro); login email+password
+con lockout per IP; modalità ospite (password condivisa) in coesistenza dietro
+`GUEST_LOGIN_ENABLED` per la transizione; reset password self-service con
+risposta neutra e throttle; area personale `/account` (profilo che precompila
+il checkout, cambio password, ordini con ricevute); ordini agganciati a
+`user_id` (storici matchati per email). Migrazione: 0005_users.sql.
+Nota: con gli account attivi, l'auto-dropship live diventa tracciabile per
+cliente — prerequisito consigliato prima di `DROPSHIP_MODE=live`.
+
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
 1. **Margine di default**: la migrazione parte da **30%** (continuità col

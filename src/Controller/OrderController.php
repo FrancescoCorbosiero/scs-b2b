@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Repository\UserRepository;
 use App\Service\CartService;
 use App\Service\OrderService;
 use App\Support\ClientIp;
@@ -21,6 +22,7 @@ final class OrderController
         private readonly Session $session,
         private readonly CartService $cart,
         private readonly OrderService $orders,
+        private readonly UserRepository $users,
         private readonly ClientIp $clientIp,
         private readonly Lang $lang,
     ) {
@@ -35,10 +37,38 @@ final class OrderController
         }
         $detail = $this->cart->detail();
 
+        // precompilazione: prima i dati di un submit fallito, poi il profilo account
+        $old = $this->session->get('order_form_old');
+        if (!is_array($old) || $old === []) {
+            $old = $this->profileDefaults();
+        }
+
         return $this->view->render($response, 'order/form.twig', [
             'cart' => $detail,
-            'old' => $this->session->get('order_form_old') ?? [],
+            'old' => $old,
         ]);
+    }
+
+    /** @return array<string, string> checkout precompilato dal profilo dell'account */
+    private function profileDefaults(): array
+    {
+        $userId = $this->session->userId();
+        $user = $userId !== null ? $this->users->findActive($userId) : null;
+        if ($user === null) {
+            return [];
+        }
+
+        return array_filter([
+            'customer_name' => (string) $user['name'],
+            'company' => (string) ($user['company'] ?? ''),
+            'email' => (string) $user['email'],
+            'phone' => (string) ($user['phone'] ?? ''),
+            'address_street' => (string) ($user['address_street'] ?? ''),
+            'address_city' => (string) ($user['address_city'] ?? ''),
+            'address_zip' => (string) ($user['address_zip'] ?? ''),
+            'country' => (string) $user['country_code'],
+            'vat_number' => (string) ($user['vat_number'] ?? ''),
+        ], static fn (string $v): bool => $v !== '');
     }
 
     public function submit(Request $request, Response $response): Response

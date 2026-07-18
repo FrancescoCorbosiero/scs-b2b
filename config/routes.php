@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Controller\AccountController;
 use App\Controller\AdminController;
+use App\Controller\AdminUserController;
 use App\Controller\CartController;
 use App\Controller\CatalogController;
 use App\Controller\ContactController;
@@ -25,6 +27,12 @@ return static function (App $app): void {
     $app->post('/admin/login', [AdminController::class, 'loginSubmit']);
     $app->post('/admin/logout', [AdminController::class, 'logout']);
 
+    // account: impostazione password via token (invito/reset) e password dimenticata
+    $app->get('/account/imposta-password', [AccountController::class, 'setPasswordForm']);
+    $app->post('/account/imposta-password', [AccountController::class, 'setPasswordSubmit']);
+    $app->get('/password-dimenticata', [AccountController::class, 'forgotForm']);
+    $app->post('/password-dimenticata', [AccountController::class, 'forgotSubmit']);
+
     // ── Area catalogo (password condivisa) ──────────────────────────
     $app->group('', function (RouteCollectorProxy $group): void {
         $group->get('/', [CatalogController::class, 'index']);
@@ -46,6 +54,13 @@ return static function (App $app): void {
         $group->get('/conferma', [OrderController::class, 'confirmation']);
 
         $group->get('/contatti', [ContactController::class, 'index']);
+
+        // area personale (richiede account: in modalità ospite → redirect login)
+        $group->get('/account', [AccountController::class, 'profile']);
+        $group->post('/account/profilo', [AccountController::class, 'profileSave']);
+        $group->post('/account/password', [AccountController::class, 'passwordSave']);
+        $group->get('/account/ordini', [AccountController::class, 'orders']);
+        $group->get('/account/ordini/{id:[0-9]+}/ricevuta.pdf', [AccountController::class, 'receiptPdf']);
     })->add(CatalogAuthMiddleware::class);
 
     // ── Area admin (password dedicata, sessione separata) ───────────
@@ -74,6 +89,12 @@ return static function (App $app): void {
         $group->post('/sync/run', [AdminController::class, 'syncRun']);
         $group->get('/recommended', [AdminController::class, 'recommended']);
         $group->post('/recommended', [AdminController::class, 'recommendedToggle']);
+
+        // gestione clienti: account con invito via email
+        $group->get('/clienti', [AdminUserController::class, 'index']);
+        $group->post('/clienti', [AdminUserController::class, 'create']);
+        $group->post('/clienti/{id:[0-9]+}/invito', [AdminUserController::class, 'sendLink']);
+        $group->post('/clienti/{id:[0-9]+}/attiva', [AdminUserController::class, 'toggleActive']);
 
         // gestione margini: regole per brand/nome, margine default, aliquote VAT
         $group->get('/margini', [AdminController::class, 'margins']);

@@ -18,6 +18,7 @@ use App\Repository\VatRateRepository;
 use App\Support\Config;
 use App\Support\Lang;
 use App\Support\Session;
+use App\Support\SmtpMailer;
 use App\Support\TwigExtension;
 use App\Tests\Support\TestDb;
 use PDO;
@@ -74,7 +75,7 @@ final class OrderLifecycleTest extends TestCase
             new CartService($session, $products, $config),
             $products,
             $this->orders,
-            new OrderMailer($config, $twig, $lang, $receipts),
+            new OrderMailer($config, $twig, $lang, $receipts, new SmtpMailer($config)),
             new VatService(new VatRateRepository($this->pdo)),
             $receipts,
             $this->dropship,

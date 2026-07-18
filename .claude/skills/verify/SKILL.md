@@ -68,5 +68,11 @@ php -S 127.0.0.1:8090 -t public router.php
 - SMTP assente: l'invio email fallisce ma è catturato, la richiesta si salva.
 - Login admin: attenzione al lockout (5 errori/15min per IP+scope) — diagnosi
   con `php bin/check-auth.php`.
+- Account clienti: creali da `/admin/clienti`; senza SMTP l'invito non parte,
+  ma il token è a DB: `SELECT token_hash FROM user_tokens` non basta (è sha256),
+  quindi in dev genera il link con
+  `php -r '...UserTokenRepository->issue(id,"invite",72)'` e apri
+  `/account/imposta-password?token=<chiaro>`. Login utente: email+password;
+  ospite: solo password (con GUEST_LOGIN_ENABLED=1).
 - Browser: Playwright con `executablePath: '/opt/pw-browsers/chromium'`
   (`npm install playwright-core` in scratch).

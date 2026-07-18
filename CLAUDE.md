@@ -1,7 +1,9 @@
 # B2B Sneakers Catalog — b2b.shoesclothingstore.com
 
-Piattaforma catalogo sneakers B2B in sola lettura, protetta da password condivisa,
-valida in tutta Europa (UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
+Piattaforma catalogo sneakers B2B in sola lettura, ad accesso riservato con
+account personali creati dall'admin via invito email (più una password condivisa
+"ospite" di transizione, `GUEST_LOGIN_ENABLED`), valida in tutta Europa
+(UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
 Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
 compongono un carrello e inviano una **richiesta d'ordine** che riceve subito le
 istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
