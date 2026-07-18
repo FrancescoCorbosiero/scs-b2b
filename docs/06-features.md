@@ -35,6 +35,7 @@ Toolbar filtri (stato su query string → URL condivisibili, enhancement Alpine)
 - Prezzo min–max (sul prezzo netto di listino)
 - Ricerca per nome/SKU (debounce 300ms)
 - Toggle taglie **EU / US** (persiste in sessione)
+- Densità griglia **grande / media / compatta** (persiste in sessione)
 - Ordinamento: rilevanza/nome, prezzo ↑↓, disponibilità ↓
 - Paginazione 24/pagina
 - **Export Excel** del risultato filtrato: SKU, nome, brand, taglia EU, taglia US,
@@ -72,6 +73,10 @@ bancarie da `BANK_*` in `.env`).
 
 **Stati**: `pending` (in attesa di pagamento) → `confirmed` / `cancelled`.
 
+**Finestra di ripensamento**: al submit un countdown di 15 secondi con
+bottone "Annulla" trattiene l'invio REALE (niente email né auto-dropship
+finché non scade); senza JavaScript l'invio è diretto.
+
 All'invio (stato `pending`), in quest'ordine:
 1. Rivalidare carrello vs stock corrente; risolvere il VAT per paese/P.IVA;
    salvare `order_requests` (snapshot completo + imponibile/VAT/totale +
@@ -95,6 +100,14 @@ dell'accredito): stato `confirmed`, assegnazione del numero ricevuta
 (PF-<anno>-<NNNN>) e **email di conferma al cliente con la ricevuta pro-forma
 PDF in allegato** (dompdf; scaricabile anche da /admin). **Annulla**
 (`/annulla`): stato `cancelled`, nessuna email.
+
+**Riallineamento admin** (`/admin/richieste/{id}/modifica`, solo `pending`):
+se lo stock cambia durante l'attesa del bonifico, l'admin corregge le
+quantità riga per riga (0 = rimuovi; stock corrente mostrato a fianco, righe
+oltre stock evidenziate); prezzi unitari quotati invariati, totali e VAT
+ricalcolati; con la spunta "rinotifica" il cliente riceve le istruzioni di
+pagamento AGGIORNATE. Poi conferma/annulla come sempre. Con l'auto-dropship
+attivo il caso è raro (lo stock è bloccato subito): è la rete di sicurezza.
 
 Un fallimento SMTP NON deve perdere la richiesta né la conferma (già a DB,
 flag `email_*_sent=0` / flash admin, log dell'errore).

@@ -49,4 +49,13 @@ final class PreferenceController
 
         return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
     }
+
+    public function setGridSize(Request $request, Response $response): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $size = is_string($body['grid_size'] ?? null) ? $body['grid_size'] : '';
+        $this->session->setGridSize($size);
+
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+    }
 }

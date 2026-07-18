@@ -1,0 +1,60 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('admin.edit_title') }} #{{ order.id }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="/admin/richieste/{{ order.id }}" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('admin.back') }}</a>
+    <h1 class="text-2xl font-bold mt-2 mb-2">{{ t('admin.edit_title') }} #{{ order.id }}</h1>
+    <p class="text-sm text-neutral-500 mb-6 max-w-3xl">{{ t('admin.edit_intro') }}</p>
+
+    <form method="post" action="/admin/richieste/{{ order.id }}/modifica" class="max-w-4xl space-y-4">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+        <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-neutral-50 text-neutral-500 text-left">
+                        <th class="px-3 py-2.5 font-medium">SKU</th>
+                        <th class="px-3 py-2.5 font-medium">Prodotto</th>
+                        <th class="px-3 py-2.5 font-medium">EU/US</th>
+                        <th class="px-3 py-2.5 font-medium text-right">Prezzo unit.</th>
+                        <th class="px-3 py-2.5 font-medium text-right">{{ t('admin.edit_col_requested') }}</th>
+                        <th class="px-3 py-2.5 font-medium text-right">{{ t('admin.edit_col_stock') }}</th>
+                        <th class="px-3 py-2.5 font-medium text-right">{{ t('admin.edit_col_qty') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    {% for line in lines %}
+                        {% set available = stock[line.sku][line.size_eu] ?? 0 %}
+                        <tr class="{{ line.qty > available ? 'bg-amber-50/60' }}">
+                            <td class="px-3 py-2 font-mono text-xs">{{ line.sku }}</td>
+                            <td class="px-3 py-2">{{ line.name }}</td>
+                            <td class="px-3 py-2 whitespace-nowrap">{{ line.size_eu }}{% if line.size_us %} / {{ line.size_us }}{% endif %}</td>
+                            <td class="px-3 py-2 text-right whitespace-nowrap">{{ line.unit_price|eur }}</td>
+                            <td class="px-3 py-2 text-right">{{ line.qty }}</td>
+                            <td class="px-3 py-2 text-right font-semibold {{ line.qty > available ? 'text-amber-700' }}">{{ available }}</td>
+                            <td class="px-3 py-2 text-right">
+                                <input type="number" name="qty[{{ loop.index0 }}]" value="{{ line.qty }}" min="0" step="1"
+                                       class="w-20 rounded-md border-neutral-300 text-right text-sm focus:border-amber-500 focus:ring-amber-500"
+                                       inputmode="numeric">
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-neutral-500">{{ t('admin.edit_qty_hint') }}</p>
+
+        <label class="flex items-center gap-2 text-sm bg-white rounded-xl border border-neutral-200 p-4">
+            <input type="checkbox" name="renotify" value="1" checked class="rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+            {{ t('admin.edit_renotify') }}
+        </label>
+
+        <div class="flex items-center gap-3">
+            <button type="submit" class="rounded-lg bg-neutral-900 text-white px-6 py-2.5 font-semibold hover:bg-neutral-700">
+                {{ t('admin.edit_save') }}
+            </button>
+            <a href="/admin/richieste/{{ order.id }}" class="text-sm underline text-neutral-500 hover:text-neutral-900">{{ t('dropship.cancel') }}</a>
+        </div>
+    </form>
+{% endblock %}

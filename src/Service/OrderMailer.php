@@ -69,10 +69,12 @@ final class OrderMailer
 
     /**
      * Email alla richiesta: istruzioni di pagamento (bonifico), nessun allegato.
+     * Con $isUpdate=true è il RIALLINEAMENTO admin (docs/06): stesso contenuto
+     * con importi aggiornati e intro/oggetto dedicati.
      *
      * @param array<string, mixed> $order
      */
-    public function sendCustomerEmail(array $order): void
+    public function sendCustomerEmail(array $order, bool $isUpdate = false): void
     {
         // difesa in profondità: il template cliente non deve MAI vedere i costi
         $order = self::stripCosts($order);
@@ -83,6 +85,7 @@ final class OrderMailer
         try {
             $html = $this->twig->render('emails/customer_order.twig', [
                 'order' => $order,
+                'is_update' => $isUpdate,
                 'bank' => $this->bankDetails(),
                 'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
                 'contact_email' => $this->config->str('CONTACT_EMAIL'),
@@ -92,7 +95,7 @@ final class OrderMailer
         } finally {
             $this->lang->setLocale($previousLocale);
         }
-        $subject = $this->lang->tIn($locale, 'email.customer_subject', [
+        $subject = $this->lang->tIn($locale, $isUpdate ? 'email.updated_subject' : 'email.customer_subject', [
             'id' => (int) ($order['id'] ?? 0),
             'company' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
         ]);

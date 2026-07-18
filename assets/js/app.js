@@ -102,6 +102,52 @@
             updateVatPreview();
         }
 
+        // ── Richiesta ordine: countdown di ripensamento PRIMA dell'invio ──
+        // Nulla parte (né email né ordine al fornitore) finché il countdown
+        // non scade; "Annulla" riporta al form. Senza JS: invio diretto.
+        var orderForm = document.querySelector('[data-order-form]');
+        if (orderForm) {
+            var countdownBox = orderForm.querySelector('[data-submit-countdown]');
+            var countdownText = orderForm.querySelector('[data-countdown-text]');
+            var cancelBtn = orderForm.querySelector('[data-countdown-cancel]');
+            var submitBtn = orderForm.querySelector('[data-order-submit]');
+            var countdownTimer = null;
+
+            var stopCountdown = function () {
+                if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+                if (countdownBox) countdownBox.classList.add('hidden');
+                if (submitBtn) { submitBtn.classList.remove('hidden'); submitBtn.disabled = false; }
+            };
+
+            orderForm.addEventListener('submit', function (e) {
+                if (orderForm.dataset.countdownDone === '1' || !countdownBox) return;
+                if (!orderForm.checkValidity()) return; // lascia i messaggi nativi del browser
+                e.preventDefault();
+                var remaining = parseInt(orderForm.getAttribute('data-countdown-seconds') || '15', 10);
+                var template = countdownBox.getAttribute('data-text-template') || ':s';
+                var render = function () {
+                    if (countdownText) countdownText.textContent = template.replace(':s', String(remaining));
+                };
+                if (submitBtn) { submitBtn.disabled = true; submitBtn.classList.add('hidden'); }
+                countdownBox.classList.remove('hidden');
+                countdownBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                render();
+                countdownTimer = setInterval(function () {
+                    remaining--;
+                    if (remaining <= 0) {
+                        clearInterval(countdownTimer);
+                        countdownTimer = null;
+                        orderForm.dataset.countdownDone = '1';
+                        orderForm.submit();
+                        return;
+                    }
+                    render();
+                }, 1000);
+            });
+
+            if (cancelBtn) cancelBtn.addEventListener('click', stopCountdown);
+        }
+
         // ── Carrello: aggiornamento quantità via fetch ───────────────
         var csrfInput = document.querySelector('input[name="_csrf"]');
         var csrf = csrfInput ? csrfInput.value : '';

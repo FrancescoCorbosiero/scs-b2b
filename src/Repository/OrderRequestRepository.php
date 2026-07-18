@@ -73,6 +73,25 @@ final class OrderRequestRepository
         return $stmt->rowCount() > 0;
     }
 
+    /** Riallineamento righe/totali da /admin (solo richieste ancora in attesa). */
+    public function updateTotalsAndSnapshot(
+        int $id,
+        int $totalItems,
+        string $totalAmount,
+        string $vatAmount,
+        string $totalGross,
+        string $snapshotJson,
+    ): bool {
+        $stmt = $this->pdo->prepare(
+            "UPDATE order_requests
+             SET total_items = ?, total_amount = ?, vat_amount = ?, total_gross = ?, cart_snapshot = ?
+             WHERE id = ? AND status = 'pending'"
+        );
+        $stmt->execute([$totalItems, $totalAmount, $vatAmount, $totalGross, $snapshotJson, $id]);
+
+        return $stmt->rowCount() > 0;
+    }
+
     public function markCancelled(int $id): bool
     {
         $stmt = $this->pdo->prepare(
