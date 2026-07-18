@@ -59,6 +59,9 @@ return [
             'autoescape' => 'html',
             'strict_variables' => false,
             'cache' => $cache,
+            // senza auto_reload la cache di produzione servirebbe i template
+            // VECCHI dopo un deploy (il default segue 'debug', che è off)
+            'auto_reload' => true,
         ]);
         $twig->addExtension(new TwigExtension($c->get(Lang::class)));
 
