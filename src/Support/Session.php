@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Sessione server-side: auth catalogo/admin (flag distinti), piano prezzi,
+ * Sessione server-side: auth catalogo/admin (flag distinti), paese e lingua,
  * sistema taglie, carrello, token CSRF e messaggi flash.
  */
 final class Session
 {
-    public const PLANS = ['base', 'pro', 'max'];
     public const SIZE_SYSTEMS = ['eu', 'us'];
+    public const LOCALES = ['it', 'en'];
+    public const DEFAULT_LOCALE = 'it';
+    public const DEFAULT_COUNTRY = 'IT';
 
     public function __construct(private readonly Config $config)
     {
@@ -95,17 +97,33 @@ final class Session
 
     // ── Preferenze utente ────────────────────────────────────────────
 
-    public function plan(): string
+    /** Codice ISO a 2 lettere del paese di residenza (l'esistenza in vat_rates è validata a monte). */
+    public function country(): string
     {
-        $plan = $_SESSION['plan'] ?? 'base';
+        $country = $_SESSION['country'] ?? self::DEFAULT_COUNTRY;
 
-        return in_array($plan, self::PLANS, true) ? $plan : 'base';
+        return is_string($country) && preg_match('/^[A-Z]{2}$/', $country) === 1 ? $country : self::DEFAULT_COUNTRY;
     }
 
-    public function setPlan(string $plan): void
+    public function setCountry(string $country): void
     {
-        if (in_array($plan, self::PLANS, true)) {
-            $_SESSION['plan'] = $plan;
+        $country = strtoupper(trim($country));
+        if (preg_match('/^[A-Z]{2}$/', $country) === 1) {
+            $_SESSION['country'] = $country;
+        }
+    }
+
+    public function locale(): string
+    {
+        $locale = $_SESSION['locale'] ?? self::DEFAULT_LOCALE;
+
+        return in_array($locale, self::LOCALES, true) ? $locale : self::DEFAULT_LOCALE;
+    }
+
+    public function setLocale(string $locale): void
+    {
+        if (in_array($locale, self::LOCALES, true)) {
+            $_SESSION['locale'] = $locale;
         }
     }
 

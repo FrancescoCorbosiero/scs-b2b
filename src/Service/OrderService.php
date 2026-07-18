@@ -12,8 +12,9 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Richiesta d'ordine: validazione form, antispam, snapshot del carrello,
- * salvataggio a DB e invio email. Un fallimento SMTP NON perde la richiesta:
- * è già a DB con i flag email_*_sent a 0.
+ * VAT per paese (VatService), numero ricevuta pro-forma, salvataggio a DB
+ * e invio email. Un fallimento SMTP NON perde la richiesta: è già a DB con
+ * i flag email_*_sent a 0.
  */
 final class OrderService
 {
@@ -24,6 +25,8 @@ final class OrderService
         private readonly ProductRepository $products,
         private readonly OrderRequestRepository $orders,
         private readonly OrderMailer $mailer,
+        private readonly VatService $vat,
+        private readonly ReceiptService $receipts,
         private readonly Session $session,
         private readonly Lang $lang,
         private readonly LoggerInterface $logger,
@@ -58,6 +61,8 @@ final class OrderService
         $email = $this->cleanString($input['email'] ?? null, 255);
         $phone = $this->cleanString($input['phone'] ?? null, 32);
         $notes = $this->cleanString($input['notes'] ?? null, 2000);
+        $country = strtoupper($this->cleanString($input['country'] ?? null, 2));
+        $vatNumberRaw = $this->cleanString($input['vat_number'] ?? null, 32);
 
         $errors = [];
         if ($name === '') {
@@ -68,6 +73,12 @@ final class OrderService
         }
         if ($phone === '') {
             $errors[] = $this->lang->t('order.error_phone');
+        }
+        if (!$this->vat->isValidCountry($country)) {
+            $errors[] = $this->lang->t('order.error_country');
+        }
+        if ($vatNumberRaw !== '' && !VatService::isPlausibleVatNumber($vatNumberRaw, $country !== '' ? $country : 'IT')) {
+            $errors[] = $this->lang->t('order.error_vat_number');
         }
         if ($errors !== []) {
             return ['ok' => false, 'order_id' => null, 'errors' => $errors, 'cart_adjusted' => false];
@@ -82,9 +93,23 @@ final class OrderService
             return $fail($this->lang->t('order.error_minimum', ['min' => $this->cart->minOrderItems()]));
         }
 
-        $plan = $this->session->plan();
-        $detail = $this->cart->detail($plan);
-        $snapshot = $this->buildSnapshot($detail, $plan);
+        // il paese scelto nel form diventa la preferenza di sessione (header allineato)
+        $this->session->setCountry($country);
+        $locale = $this->session->locale();
+
+        $detail = $this->cart->detail();
+        $vat = $this->vat->resolve($country, $vatNumberRaw !== '' ? $vatNumberRaw : null);
+        $vatAmount = VatService::vatAmount($detail['total_amount'], $vat['rate']);
+        $totalGross = VatService::grossTotal($detail['total_amount'], $vatAmount);
+        $snapshot = $this->buildSnapshot($detail);
+
+        $receiptNumber = null;
+        try {
+            $receiptNumber = $this->receipts->assignNumber();
+        } catch (\Throwable $e) {
+            // senza numero la richiesta resta valida: la ricevuta si rigenera da /admin
+            $this->logger->error('Assegnazione numero ricevuta fallita', ['error' => $e->getMessage()]);
+        }
 
         $orderId = $this->orders->insert([
             'customer_name' => $name,
@@ -92,7 +117,14 @@ final class OrderService
             'email' => $email,
             'phone' => $phone,
             'notes' => $notes !== '' ? $notes : null,
-            'plan' => $plan,
+            'locale' => $locale,
+            'country_code' => $vat['country_code'],
+            'vat_number' => $vat['vat_number'],
+            'vat_scheme' => $vat['scheme'],
+            'vat_rate' => number_format($vat['rate'], 2, '.', ''),
+            'vat_amount' => $vatAmount,
+            'total_gross' => $totalGross,
+            'receipt_number' => $receiptNumber,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
             'cart_snapshot' => (string) json_encode($snapshot, JSON_UNESCAPED_UNICODE),
@@ -108,7 +140,14 @@ final class OrderService
             'email' => $email,
             'phone' => $phone,
             'notes' => $notes,
-            'plan' => $plan,
+            'locale' => $locale,
+            'country_code' => $vat['country_code'],
+            'vat_number' => $vat['vat_number'],
+            'vat_scheme' => $vat['scheme'],
+            'vat_rate' => number_format($vat['rate'], 2, '.', ''),
+            'vat_amount' => $vatAmount,
+            'total_gross' => $totalGross,
+            'receipt_number' => $receiptNumber,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
             'lines' => $snapshot['lines'],
@@ -141,9 +180,9 @@ final class OrderService
      *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
      *   quantity_stock: int, price: string, qty: int, row_total: string}>,
      *   product_items: int, product_total: string}>, total_items: int, total_amount: string} $detail
-     * @return array{plan: string, lines: list<array<string, mixed>>}
+     * @return array{lines: list<array<string, mixed>>}
      */
-    private function buildSnapshot(array $detail, string $plan): array
+    private function buildSnapshot(array $detail): array
     {
         $skus = array_map(static fn (array $p): string => $p['sku'], $detail['products']);
         $costs = $this->products->costBySkuSize($skus);
@@ -176,7 +215,7 @@ final class OrderService
             }
         }
 
-        return ['plan' => $plan, 'lines' => $lines];
+        return ['lines' => $lines];
     }
 
     private function cleanString(mixed $value, int $maxLength): string

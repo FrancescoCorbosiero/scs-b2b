@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Repository\DropshipOrderRepository;
+use App\Repository\MarginRuleRepository;
 use App\Repository\OrderRequestRepository;
 use App\Repository\ProductRepository;
+use App\Repository\SettingsRepository;
 use App\Repository\SyncLogRepository;
+use App\Repository\VatRateRepository;
 use App\Service\AuthService;
 use App\Service\DropshipOrderService;
 use App\Service\FeedSyncService;
+use App\Service\OrderMailer;
+use App\Service\PricingService;
+use App\Service\ReceiptService;
 use App\Support\ClientIp;
 use App\Support\Http;
 use App\Support\Lang;
@@ -33,6 +39,10 @@ final class AdminController
         private readonly FeedSyncService $feedSync,
         private readonly DropshipOrderRepository $dropshipOrders,
         private readonly DropshipOrderService $dropship,
+        private readonly MarginRuleRepository $marginRules,
+        private readonly SettingsRepository $settings,
+        private readonly VatRateRepository $vatRates,
+        private readonly ReceiptService $receipts,
     ) {
     }
 
@@ -108,7 +118,7 @@ final class AdminController
         $snapshot = json_decode(is_string($order['cart_snapshot'] ?? null) ? $order['cart_snapshot'] : '[]', true);
         $lines = is_array($snapshot) && is_array($snapshot['lines'] ?? null) ? $snapshot['lines'] : [];
 
-        // margine: prezzo del piano - costo fornitore (solo vista admin)
+        // margine: totale netto di listino - costo fornitore (solo vista admin)
         $totalCost = 0.0;
         foreach ($lines as $line) {
             if (!is_array($line)) {
@@ -158,6 +168,156 @@ final class AdminController
         }
 
         return Http::redirect($response, '/admin/sync');
+    }
+
+    // ── Gestione margini (regole, default, aliquote VAT) ─────────────
+
+    public function margins(Request $request, Response $response): Response
+    {
+        $rules = [];
+        foreach ($this->marginRules->all() as $rule) {
+            $rule['matching_products'] = $this->marginRules->matchingProductsCount($rule['match_type'], $rule['match_value']);
+            $rules[] = $rule;
+        }
+
+        return $this->view->render($response, 'admin/margins.twig', [
+            'rules' => $rules,
+            'default_margin_type' => $this->settings->get('default_margin_type', 'percent'),
+            'default_margin_value' => $this->settings->get('default_margin_value', '30'),
+            'vat_rates' => $this->vatRates->all(),
+            'brands' => $this->products->activeBrands(),
+        ]);
+    }
+
+    public function marginRuleCreate(Request $request, Response $response): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $matchType = is_string($body['match_type'] ?? null) ? $body['match_type'] : '';
+        $matchValue = is_string($body['match_value'] ?? null) ? trim(mb_substr($body['match_value'], 0, 128)) : '';
+        $marginType = is_string($body['margin_type'] ?? null) ? $body['margin_type'] : '';
+        $marginValue = $body['margin_value'] ?? null;
+        $priority = is_numeric($body['priority'] ?? null) ? (int) $body['priority'] : 100;
+
+        if (!in_array($matchType, MarginRuleRepository::MATCH_TYPES, true)
+            || $matchValue === ''
+            || !in_array($marginType, PricingService::MARGIN_TYPES, true)
+            || !is_numeric($marginValue)
+            || (float) $marginValue < -100 || (float) $marginValue > 10000) {
+            $this->session->flash('error', $this->lang->t('margins.error_invalid'));
+
+            return Http::redirect($response, '/admin/margini');
+        }
+
+        $this->marginRules->insert($priority, $matchType, $matchValue, $marginType, (float) $marginValue);
+        $this->session->flash('success', $this->lang->t('margins.rule_saved'));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    /** @param array<string, string> $args */
+    public function marginRuleToggle(Request $request, Response $response, array $args): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $active = ($body['active'] ?? '') === '1';
+        if (!$this->marginRules->setActive((int) ($args['id'] ?? 0), $active)) {
+            $this->session->flash('error', $this->lang->t('admin.order_not_found'));
+
+            return Http::redirect($response, '/admin/margini');
+        }
+        $this->session->flash('success', $this->lang->t('margins.rule_saved'));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    /** @param array<string, string> $args */
+    public function marginRuleDelete(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->marginRules->delete((int) ($args['id'] ?? 0))) {
+            $this->session->flash('error', $this->lang->t('admin.order_not_found'));
+
+            return Http::redirect($response, '/admin/margini');
+        }
+        $this->session->flash('success', $this->lang->t('margins.rule_deleted'));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    public function marginDefaultSave(Request $request, Response $response): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $type = is_string($body['margin_type'] ?? null) ? $body['margin_type'] : '';
+        $value = $body['margin_value'] ?? null;
+
+        if (!in_array($type, PricingService::MARGIN_TYPES, true)
+            || !is_numeric($value)
+            || (float) $value < -100 || (float) $value > 10000) {
+            $this->session->flash('error', $this->lang->t('margins.error_invalid'));
+
+            return Http::redirect($response, '/admin/margini');
+        }
+
+        $this->settings->set('default_margin_type', $type);
+        $this->settings->set('default_margin_value', number_format((float) $value, 2, '.', ''));
+        $this->session->flash('success', $this->lang->t('margins.default_saved'));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    public function vatRateSave(Request $request, Response $response): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $country = is_string($body['country'] ?? null) ? strtoupper(trim($body['country'])) : '';
+        $rate = $body['vat_rate'] ?? null;
+
+        if (!is_numeric($rate) || (float) $rate < 0 || (float) $rate > 100
+            || !$this->vatRates->updateRate($country, (float) $rate)) {
+            $this->session->flash('error', $this->lang->t('margins.error_invalid'));
+        } else {
+            // le aliquote toccano solo il VAT a fine ordine: nessun reprice necessario
+            $this->session->flash('success', $this->lang->t('margins.vat_saved', ['country' => $country]));
+        }
+
+        return Http::redirect($response, '/admin/margini');
+    }
+
+    /** Ricalcola i prezzi con le regole aggiornate e torna a /admin/margini. */
+    private function repriceAndRedirect(Response $response): Response
+    {
+        set_time_limit(300);
+        $result = $this->feedSync->run(repriceOnly: true);
+        if ($result['status'] === 'ok') {
+            $this->session->flash('success', $this->lang->t('margins.repriced', ['n' => $result['rows_read']]));
+        } else {
+            $this->session->flash('error', $this->lang->t('admin.sync_failed', ['error' => (string) $result['message']]));
+        }
+
+        return Http::redirect($response, '/admin/margini');
+    }
+
+    // ── Ricevuta pro-forma (PDF rigenerato dallo snapshot) ───────────
+
+    /** @param array<string, string> $args */
+    public function receiptPdf(Request $request, Response $response, array $args): Response
+    {
+        $order = $this->orders->find((int) ($args['id'] ?? 0));
+        if ($order === null) {
+            $this->session->flash('error', $this->lang->t('admin.order_not_found'));
+
+            return Http::redirect($response, '/admin/richieste');
+        }
+        $snapshot = json_decode(is_string($order['cart_snapshot'] ?? null) ? $order['cart_snapshot'] : '[]', true);
+        $order['lines'] = is_array($snapshot) && is_array($snapshot['lines'] ?? null) ? $snapshot['lines'] : [];
+        // la ricevuta è un documento per il cliente: MAI offer_price al suo interno
+        $order = OrderMailer::stripCosts($order);
+
+        $locale = is_string($order['locale'] ?? null) && $order['locale'] !== '' ? $order['locale'] : 'it';
+        $pdf = $this->receipts->buildPdf($order, $locale);
+        $response->getBody()->write($pdf);
+
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $this->receipts->fileName($order, $locale) . '"')
+            ->withHeader('Content-Length', (string) strlen($pdf));
     }
 
     // ── Flag Recommended ─────────────────────────────────────────────

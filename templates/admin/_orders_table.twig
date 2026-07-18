@@ -5,9 +5,10 @@
                 <th class="px-4 py-2.5 font-medium">#</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.customer') }}</th>
-                <th class="px-4 py-2.5 font-medium">{{ t('admin.plan') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.country') }}</th>
+                <th class="px-4 py-2.5 font-medium">{{ t('admin.receipt') }}</th>
                 <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.items') }}</th>
-                <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.total') }}</th>
+                <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.total_net') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.emails') }}</th>
             </tr>
         </thead>
@@ -19,7 +20,13 @@
                     <td class="px-4 py-2.5">
                         {{ order.customer_name }}{% if order.company %} <span class="text-neutral-400">({{ order.company }})</span>{% endif %}
                     </td>
-                    <td class="px-4 py-2.5 uppercase font-semibold text-xs">{{ order.plan }}</td>
+                    <td class="px-4 py-2.5 font-semibold text-xs whitespace-nowrap">
+                        {{ order.country_code ?? 'IT' }}
+                        {% if order.vat_scheme is defined and order.vat_scheme %}
+                            <span class="text-neutral-400 font-normal">· {{ t('vat.scheme_short.' ~ order.vat_scheme) }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{{ order.receipt_number ?? '—' }}</td>
                     <td class="px-4 py-2.5 text-right">{{ order.total_items }}</td>
                     <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{{ order.total_amount|eur }}</td>
                     <td class="px-4 py-2.5 text-xs whitespace-nowrap">
@@ -28,7 +35,7 @@
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="7" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
+                <tr><td colspan="8" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
             {% endfor %}
         </tbody>
     </table>

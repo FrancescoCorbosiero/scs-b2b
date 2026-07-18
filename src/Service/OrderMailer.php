@@ -5,22 +5,26 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Support\Config;
+use App\Support\Lang;
 use PHPMailer\PHPMailer\PHPMailer;
 use Twig\Environment;
 
 /**
  * Email della richiesta d'ordine via PHPMailer/SMTP.
  *
- * - Admin: tabella completa; costo fornitore e margine SOLO se
- *   ADMIN_EMAIL_SHOW_COST=1 (default on).
- * - Cliente: riepilogo SENZA costi, margini o offer_price (Regola d'oro n.1:
- *   il template customer_order non riceve proprio quei dati).
+ * - Admin: tabella completa, SEMPRE in italiano; costo fornitore e margine
+ *   SOLO se ADMIN_EMAIL_SHOW_COST=1 (default on).
+ * - Cliente: riepilogo formale nel locale del cliente, SENZA costi, margini
+ *   o offer_price (Regola d'oro n.1: il template customer_order non riceve
+ *   proprio quei dati), con ricevuta pro-forma PDF in allegato.
  */
 final class OrderMailer
 {
     public function __construct(
         private readonly Config $config,
         private readonly Environment $twig,
+        private readonly Lang $lang,
+        private readonly ReceiptService $receipts,
     ) {
     }
 
@@ -29,10 +33,18 @@ final class OrderMailer
     {
         $showCost = $this->config->bool('ADMIN_EMAIL_SHOW_COST', true);
         $order = $showCost ? $order : self::stripCosts($order);
-        $html = $this->twig->render('emails/admin_order.twig', [
-            'order' => $order,
-            'show_cost' => $showCost,
-        ]);
+
+        // l'email amministratore resta in italiano, qualunque sia la lingua del cliente
+        $previousLocale = $this->lang->locale();
+        $this->lang->setLocale('it');
+        try {
+            $html = $this->twig->render('emails/admin_order.twig', [
+                'order' => $order,
+                'show_cost' => $showCost,
+            ]);
+        } finally {
+            $this->lang->setLocale($previousLocale);
+        }
         $subject = sprintf('Nuova richiesta ordine #%d — %s (%d pezzi)',
             (int) ($order['id'] ?? 0), (string) ($order['customer_name'] ?? ''), (int) ($order['total_items'] ?? 0));
 
@@ -52,18 +64,40 @@ final class OrderMailer
     {
         // difesa in profondità: il template cliente non deve MAI vedere i costi
         $order = self::stripCosts($order);
-        $html = $this->twig->render('emails/customer_order.twig', [
-            'order' => $order,
-            'contact_email' => $this->config->str('CONTACT_EMAIL'),
-            'contact_phone' => $this->config->str('CONTACT_PHONE'),
-            'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
+        $locale = is_string($order['locale'] ?? null) && $order['locale'] !== '' ? $order['locale'] : 'it';
+
+        $previousLocale = $this->lang->locale();
+        $this->lang->setLocale($locale);
+        try {
+            $html = $this->twig->render('emails/customer_order.twig', [
+                'order' => $order,
+                'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                'contact_email' => $this->config->str('CONTACT_EMAIL'),
+                'contact_phone' => $this->config->str('CONTACT_PHONE'),
+                'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
+            ]);
+        } finally {
+            $this->lang->setLocale($previousLocale);
+        }
+        $subject = $this->lang->tIn($locale, 'email.customer_subject', [
+            'id' => (int) ($order['id'] ?? 0),
+            'company' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
         ]);
-        $subject = sprintf('Richiesta ordine ricevuta #%d — %s',
-            (int) ($order['id'] ?? 0), $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'));
+
+        // ricevuta pro-forma in allegato: se la generazione fallisce l'email parte comunque
+        $attachment = null;
+        try {
+            $attachment = [
+                'content' => $this->receipts->buildPdf($order, $locale),
+                'name' => $this->receipts->fileName($order, $locale),
+            ];
+        } catch (\Throwable) {
+            $attachment = null;
+        }
 
         $email = $order['email'] ?? '';
         if (is_string($email) && $email !== '') {
-            $this->send($email, $subject, $html);
+            $this->send($email, $subject, $html, null, $attachment);
         }
     }
 
@@ -89,7 +123,8 @@ final class OrderMailer
         return $order;
     }
 
-    private function send(string $to, string $subject, string $html, ?string $replyTo = null): void
+    /** @param array{content: string, name: string}|null $attachment */
+    private function send(string $to, string $subject, string $html, ?string $replyTo = null, ?array $attachment = null): void
     {
         $host = $this->config->str('SMTP_HOST');
         if ($host === '') {
@@ -121,6 +156,9 @@ final class OrderMailer
         $mailer->addAddress($to);
         if ($replyTo !== null) {
             $mailer->addReplyTo($replyTo);
+        }
+        if ($attachment !== null) {
+            $mailer->addStringAttachment($attachment['content'], $attachment['name'], PHPMailer::ENCODING_BASE64, 'application/pdf');
         }
         $mailer->isHTML(true);
         $mailer->Subject = $subject;

@@ -11,80 +11,77 @@ use PHPUnit\Framework\TestCase;
 final class PricingServiceTest extends TestCase
 {
     /**
-     * Il caso del sample reale: offer 47, markup 30, IVA 22 → 74,542.
-     * Il feed mostra presented_price=74.54 (comportamento "none"),
-     * con rounding "whole" atteso 75 (vedi docs/08 § domanda aperta n.2).
+     * Il prezzo di listino è NETTO: niente IVA nella formula.
+     * Caso del sample reale: offer 47, margine 30% → 61,10.
      */
-    public function testSampleFixtureCase(): void
+    public function testPercentMarginWithoutVat(): void
     {
-        $none = new PricingService(30, 25, 20, 22, 'none');
-        self::assertSame('74.54', $none->pricesFor('47')['base']);
+        $none = new PricingService('none');
+        self::assertSame('61.10', $none->netPrice('47', 'percent', 30.0));
 
-        $whole = new PricingService(30, 25, 20, 22, 'whole');
-        self::assertSame('75.00', $whole->pricesFor('47')['base']);
+        $whole = new PricingService('whole');
+        self::assertSame('61.00', $whole->netPrice('47', 'percent', 30.0));
 
-        $half = new PricingService(30, 25, 20, 22, 'half');
-        self::assertSame('74.50', $half->pricesFor('47')['base']);
+        $half = new PricingService('half');
+        self::assertSame('61.00', $half->netPrice('47', 'percent', 30.0));
+    }
+
+    /** Margine fisso: "le Jordan a 3 euro fissi in più". */
+    public function testFixedMargin(): void
+    {
+        $service = new PricingService('none');
+        self::assertSame('50.00', $service->netPrice('47', 'fixed', 3.0));
+        self::assertSame('50.99', $service->netPrice('47.99', 'fixed', 3.0));
+
+        // il rounding di listino si applica anche al margine fisso
+        $whole = new PricingService('whole');
+        self::assertSame('51.00', $whole->netPrice('47.99', 'fixed', 3.0));
     }
 
     /**
-     * Edge case floating point: 47 × 1,25 × 1,22 = 71,675 esatto, ma in
-     * float binario è 71,674999… — la matematica intera deve dare 71,68.
+     * Edge case floating point: 47 × 1,225 = 57,575 esatto, ma in float
+     * binario è 57,574999… — la matematica intera deve dare 57,58.
      */
     public function testHalfCentEdgeCaseIsRoundedUp(): void
     {
-        $service = new PricingService(30, 25, 20, 22, 'none');
-        self::assertSame('71.68', $service->pricesFor('47')['pro']);
-    }
-
-    public function testAllPlansWithWholeRounding(): void
-    {
-        $service = new PricingService(30, 25, 20, 22, 'whole');
-        $prices = $service->pricesFor('47');
-        self::assertSame(['base' => '75.00', 'pro' => '72.00', 'max' => '69.00'], $prices);
+        $service = new PricingService('none');
+        self::assertSame('57.58', $service->netPrice('47', 'percent', 22.5));
     }
 
     /** @return list<array{string, string, string}> */
     public static function roundingProvider(): array
     {
         return [
-            // offer, modalità, atteso (base, markup 30%)
-            ['100', 'none', '158.60'],
-            ['100', 'whole', '159.00'],
-            ['100', 'half', '158.50'],
+            // offer, modalità, atteso (margine 30%)
+            ['100', 'none', '130.00'],
+            ['100.30', 'none', '130.39'],
+            ['100.30', 'whole', '130.00'],
+            ['100.30', 'half', '130.50'],
             ['0', 'whole', '0.00'],
-            ['0.01', 'none', '0.02'],   // 0,01 × 1,586 = 0,01586 → 0,02
-            ['999.99', 'none', '1585.98'],
-            ['38', 'whole', '60.00'],   // 38 × 1,586 = 60,268
-            ['160', 'whole', '254.00'], // 160 × 1,586 = 253,76
+            ['0.01', 'none', '0.01'],   // 0,013 → 0,01
+            ['999.99', 'none', '1299.99'],
+            ['38', 'whole', '49.00'],   // 49,40 → 49
+            ['38', 'half', '49.50'],
         ];
     }
 
     #[DataProvider('roundingProvider')]
     public function testRoundingModes(string $offer, string $mode, string $expected): void
     {
-        $service = new PricingService(30, 25, 20, 22, $mode);
-        self::assertSame($expected, $service->pricesFor($offer)['base']);
+        $service = new PricingService($mode);
+        self::assertSame($expected, $service->netPrice($offer, 'percent', 30.0));
     }
 
     public function testInvalidRoundingFallsBackToWhole(): void
     {
-        $service = new PricingService(30, 25, 20, 22, 'garbage');
-        self::assertSame('75.00', $service->pricesFor('47')['base']);
+        $service = new PricingService('garbage');
+        self::assertSame('61.00', $service->netPrice('47', 'percent', 30.0));
     }
 
-    public function testDecimalMarkupPercentages(): void
+    public function testNegativeMarginNeverGoesBelowZero(): void
     {
-        // markup 22,5% → 47 × 1,225 × 1,22 = 70,2415 → none: 70,24
-        $service = new PricingService(22.5, 22.5, 22.5, 22, 'none');
-        self::assertSame('70.24', $service->pricesFor('47')['base']);
-    }
-
-    public function testPriceForCustomMarkup(): void
-    {
-        // predisposizione markup_rules v2: override puntuale del markup
-        $service = new PricingService(30, 25, 20, 22, 'none');
-        self::assertSame('74.54', $service->priceFor('47', 30.0));
-        self::assertSame('68.81', $service->priceFor('47', 20.0));
+        $service = new PricingService('none');
+        self::assertSame('0.00', $service->netPrice('2', 'fixed', -5.0));
+        self::assertSame('1.00', $service->netPrice('2', 'percent', -50.0));
     }
 }

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Adapter\GoldenSneakersAdapter;
+use App\Repository\MarginRuleRepository;
 use App\Repository\ProductRepository;
+use App\Repository\SettingsRepository;
 use App\Repository\SyncLogRepository;
 use App\Service\FeedSyncService;
+use App\Service\MarginResolver;
 use App\Service\PricingService;
 use App\Support\Config;
 use App\Tests\Support\TestDb;
@@ -35,7 +38,7 @@ final class FeedSyncServiceTest extends TestCase
         @rmdir($this->workDir);
     }
 
-    private function serviceFor(string $fixturePath): FeedSyncService
+    private function serviceFor(string $fixturePath, string $rounding = 'whole'): FeedSyncService
     {
         $config = new Config([
             'ROOT_PATH' => $this->workDir,
@@ -48,7 +51,8 @@ final class FeedSyncServiceTest extends TestCase
             new GoldenSneakersAdapter($config, new NullLogger()),
             new ProductRepository($this->pdo),
             new SyncLogRepository($this->pdo),
-            new PricingService(30, 25, 20, 22, 'whole'),
+            new PricingService($rounding),
+            new MarginResolver(new MarginRuleRepository($this->pdo), new SettingsRepository($this->pdo)),
             $config,
             new NullLogger(),
         );
@@ -59,7 +63,7 @@ final class FeedSyncServiceTest extends TestCase
         return dirname(__DIR__, 2) . '/fixtures/goldensneakers-dev.json';
     }
 
-    public function testSyncFromFixturePopulatesProductsWithPlanPrices(): void
+    public function testSyncFromFixturePopulatesNetPrices(): void
     {
         $result = $this->serviceFor($this->realFixture())->run();
 
@@ -68,23 +72,20 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame(12, $result['products_created']);
         self::assertSame(0, $result['products_updated']);
 
-        // prezzi del sample reale: offer 47, rounding whole → 75 / 72 / 69
-        // (normalizzati a 2 decimali: SQLite non conserva gli zeri finali dei DECIMAL)
+        // sample reale: offer 47, margine default 30%, rounding whole → 61 (NETTO, senza IVA)
+        // (normalizzato a 2 decimali: SQLite non conserva gli zeri finali dei DECIMAL)
         $stmt = $this->pdo->query(
-            "SELECT s.price_base, s.price_pro, s.price_max FROM product_sizes s
+            "SELECT s.price FROM product_sizes s
              JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801' LIMIT 1"
         );
-        $prices = $stmt === false ? [] : $stmt->fetch();
-        self::assertSame(
-            ['75.00', '72.00', '69.00'],
-            array_values(array_map(static fn ($v): string => number_format((float) $v, 2, '.', ''), (array) $prices)),
-        );
+        $price = $stmt === false ? null : $stmt->fetchColumn();
+        self::assertSame('61.00', number_format((float) $price, 2, '.', ''));
 
-        // denormalizzazioni: total_quantity e min price
-        $stmt = $this->pdo->query("SELECT total_quantity, min_price_base FROM products WHERE sku = 'JS3801'");
+        // denormalizzazioni: total_quantity e min_price
+        $stmt = $this->pdo->query("SELECT total_quantity, min_price FROM products WHERE sku = 'JS3801'");
         $product = $stmt === false ? [] : $stmt->fetch();
         self::assertSame(3, (int) $product['total_quantity']);
-        self::assertSame('75.00', number_format((float) $product['min_price_base'], 2, '.', ''));
+        self::assertSame('61.00', number_format((float) $product['min_price'], 2, '.', ''));
 
         // sync_logs registrato
         $log = (new SyncLogRepository($this->pdo))->latest();
@@ -185,39 +186,58 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame('4067907638411', (string) $sizeRow['barcode']);
     }
 
-    public function testRepriceRecalculatesFromStoredOfferPrice(): void
+    public function testRepriceAppliesUpdatedDefaultMargin(): void
     {
         $this->serviceFor($this->realFixture())->run();
 
-        // nuove percentuali: markup base 50, rounding none → 47 × 1,50 × 1,22 = 86,01
-        $config = new Config([
-            'ROOT_PATH' => $this->workDir,
-            'FEED_SOURCE' => 'fixture',
-            'FEED_FIXTURE_PATH' => $this->realFixture(),
-        ]);
-        $service = new FeedSyncService(
-            $this->pdo,
-            new GoldenSneakersAdapter($config, new NullLogger()),
-            new ProductRepository($this->pdo),
-            new SyncLogRepository($this->pdo),
-            new PricingService(50, 25, 20, 22, 'none'),
-            $config,
-            new NullLogger(),
-        );
-        $result = $service->run(repriceOnly: true);
+        // il default cambia da /admin: 50% con rounding none → 47 × 1,50 = 70,50
+        $settings = new SettingsRepository($this->pdo);
+        $settings->set('default_margin_value', '50');
+
+        $result = $this->serviceFor($this->realFixture(), 'none')->run(repriceOnly: true);
 
         self::assertSame('ok', $result['status']);
         $stmt = $this->pdo->query(
-            "SELECT s.price_base FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801' LIMIT 1"
+            "SELECT s.price FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801' LIMIT 1"
         );
-        self::assertSame('86.01', number_format((float) ($stmt === false ? 0 : $stmt->fetchColumn()), 2, '.', ''));
+        self::assertSame('70.50', number_format((float) ($stmt === false ? 0 : $stmt->fetchColumn()), 2, '.', ''));
+    }
+
+    public function testRepriceAppliesBrandRuleOverDefault(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+
+        $brandStmt = $this->pdo->query("SELECT brand FROM products WHERE sku = 'JS3801'");
+        $brand = (string) ($brandStmt === false ? '' : $brandStmt->fetchColumn());
+        self::assertNotSame('', $brand);
+
+        // "le Jordan a 3 euro fissi in più": regola brand → offer 47 + 3 = 50
+        (new MarginRuleRepository($this->pdo))->insert(10, 'brand', $brand, 'fixed', 3.0);
+
+        $result = $this->serviceFor($this->realFixture(), 'none')->run(repriceOnly: true);
+
+        self::assertSame('ok', $result['status']);
+        $stmt = $this->pdo->query(
+            "SELECT s.price FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801' LIMIT 1"
+        );
+        self::assertSame('50.00', number_format((float) ($stmt === false ? 0 : $stmt->fetchColumn()), 2, '.', ''));
+
+        // gli altri brand restano al margine di default (30%)
+        $other = $this->pdo->query(
+            "SELECT s.price, s.offer_price FROM product_sizes s JOIN products p ON p.id = s.product_id
+             WHERE p.brand <> " . $this->pdo->quote($brand) . ' LIMIT 1'
+        );
+        $row = $other === false ? false : $other->fetch();
+        self::assertNotFalse($row);
+        $expected = (new PricingService('none'))->netPrice((string) $row['offer_price'], 'percent', 30.0);
+        self::assertSame($expected, number_format((float) $row['price'], 2, '.', ''));
     }
 
     /** @return list<array<string, mixed>> */
     private function dumpCatalog(): array
     {
         $stmt = $this->pdo->query(
-            'SELECT p.sku, p.name, p.is_active, p.total_quantity, s.size_eu, s.quantity, s.price_base, s.price_pro, s.price_max
+            'SELECT p.sku, p.name, p.is_active, p.total_quantity, s.size_eu, s.quantity, s.price
              FROM products p LEFT JOIN product_sizes s ON s.product_id = p.id
              ORDER BY p.sku, s.size_eu'
         );

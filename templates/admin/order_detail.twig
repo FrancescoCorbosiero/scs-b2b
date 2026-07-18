@@ -45,14 +45,32 @@
                 <p><span class="text-neutral-500">Email:</span> <a class="underline" href="mailto:{{ order.email }}">{{ order.email }}</a></p>
                 <p><span class="text-neutral-500">{{ t('contact.phone') }}:</span> {{ order.phone }}</p>
                 {% if order.notes %}<p><span class="text-neutral-500">{{ t('order.notes') }}:</span> {{ order.notes }}</p>{% endif %}
-                <p><span class="text-neutral-500">{{ t('admin.plan') }}:</span> <span class="uppercase font-bold">{{ order.plan }}</span></p>
+                <p><span class="text-neutral-500">{{ t('admin.country') }}:</span> <span class="font-bold">{{ order.country_code ?? 'IT' }}</span> — {{ t('country.' ~ (order.country_code ?? 'IT')) }}</p>
+                {% if order.vat_number %}<p><span class="text-neutral-500">{{ t('admin.vat_number') }}:</span> <span class="font-mono">{{ order.vat_number }}</span></p>{% endif %}
+                {% if order.plan %}<p><span class="text-neutral-500">{{ t('admin.plan_legacy') }}:</span> <span class="uppercase font-bold">{{ order.plan }}</span></p>{% endif %}
+                {% if order.locale is defined and order.locale %}<p><span class="text-neutral-500">{{ t('admin.language') }}:</span> <span class="uppercase">{{ order.locale }}</span></p>{% endif %}
                 <p class="text-xs text-neutral-400 pt-2">IP {{ order.ip_address }}</p>
             </div>
             <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.items') }}</span><strong>{{ order.total_items }}</strong></div>
-                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.total') }}</span><strong>{{ order.total_amount|eur }}</strong></div>
-                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.cost') }}</span><span>{{ total_cost|eur }}</span></div>
-                <div class="flex justify-between border-t border-neutral-100 pt-2"><span class="text-neutral-500">{{ t('admin.margin') }}</span><strong class="text-emerald-600">{{ margin|eur }}</strong></div>
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.total_net') }}</span><strong>{{ order.total_amount|eur }}</strong></div>
+                <div class="flex justify-between">
+                    <span class="text-neutral-500">{{ t('vat.scheme_short.' ~ (order.vat_scheme ?? 'domestic')) }}{% if (order.vat_rate ?? 0) > 0 %} ({{ order.vat_rate }}%){% endif %}</span>
+                    <span>{{ (order.vat_amount ?? '0')|eur }}</span>
+                </div>
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.total_gross') }}</span><strong>{{ ((order.total_gross is defined and order.total_gross > 0) ? order.total_gross : order.total_amount)|eur }}</strong></div>
+                <div class="flex justify-between border-t border-neutral-100 pt-2"><span class="text-neutral-500">{{ t('admin.cost') }}</span><span>{{ total_cost|eur }}</span></div>
+                <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.margin') }}</span><strong class="text-emerald-600">{{ margin|eur }}</strong></div>
+            </div>
+            <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-neutral-500">{{ t('admin.receipt') }}</span>
+                    <span class="font-mono text-xs">{{ order.receipt_number ?? '—' }}</span>
+                </div>
+                <a href="/admin/richieste/{{ order.id }}/ricevuta.pdf" target="_blank" rel="noopener"
+                   class="block text-center rounded-lg border border-neutral-300 font-semibold py-2 hover:bg-neutral-50">
+                    {{ t('admin.receipt_download') }}
+                </a>
             </div>
             <div class="bg-white rounded-xl border border-neutral-200 p-5 text-xs space-y-1">
                 <p class="{{ order.email_admin_sent ? 'text-emerald-600' : 'text-red-600' }}">{{ t('admin.email_admin') }}: {{ order.email_admin_sent ? t('admin.email_sent') : t('admin.email_failed') }}</p>

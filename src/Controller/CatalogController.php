@@ -6,7 +6,7 @@ namespace App\Controller;
 
 use App\Repository\ProductRepository;
 use App\Support\Config;
-use App\Support\Session;
+use App\Support\Lang;
 use App\Support\View;
 use App\Support\XlsxWriter;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -19,10 +19,10 @@ final class CatalogController
 
     public function __construct(
         private readonly View $view,
-        private readonly Session $session,
         private readonly ProductRepository $products,
         private readonly Config $config,
         private readonly XlsxWriter $xlsx,
+        private readonly Lang $lang,
     ) {
     }
 
@@ -32,11 +32,9 @@ final class CatalogController
         $filters = $this->parseFilters($query);
         $page = max(1, (int) ($query['page'] ?? 1));
         $perPage = max(1, $this->config->int('PRODUCTS_PER_PAGE', 24));
-        $plan = $this->session->plan();
 
         $result = $this->products->search(
             $filters,
-            $plan,
             $page,
             $perPage,
             $this->config->int('AVAILABILITY_HIGH_MIN', 60),
@@ -47,7 +45,7 @@ final class CatalogController
         foreach ($result['items'] as $item) {
             $ids[] = (int) $item['id'];
         }
-        $sizesByProduct = $this->products->sizesForProducts($ids, $plan);
+        $sizesByProduct = $this->products->sizesForProducts($ids);
 
         $totalPages = max(1, (int) ceil($result['total'] / $perPage));
 
@@ -69,17 +67,15 @@ final class CatalogController
 
     /**
      * Export Excel del risultato filtrato, una riga per taglia.
-     * Colonne: SKU, nome, brand, taglia EU/US, barcode, qty, prezzo del piano
-     * attivo. MAI offer_price, MAI i listini degli altri piani.
+     * Colonne: SKU, nome, brand, taglia EU/US, barcode, qty, prezzo netto
+     * di listino (VAT esclusa). MAI offer_price.
      */
     public function export(Request $request, Response $response): Response
     {
         $filters = $this->parseFilters($request->getQueryParams());
-        $plan = $this->session->plan();
 
         $result = $this->products->search(
             $filters,
-            $plan,
             1,
             self::EXPORT_MAX_ROWS,
             $this->config->int('AVAILABILITY_HIGH_MIN', 60),
@@ -92,9 +88,18 @@ final class CatalogController
             $ids[] = $id;
             $productsById[$id] = $item;
         }
-        $sizesByProduct = $this->products->sizesForProducts($ids, $plan);
+        $sizesByProduct = $this->products->sizesForProducts($ids);
 
-        $headers = ['SKU', 'Prodotto', 'Brand', 'Taglia EU', 'Taglia US', 'Barcode', 'Quantità', 'Prezzo (' . strtoupper($plan) . ', IVA incl.)'];
+        $headers = [
+            'SKU',
+            $this->lang->t('export.product'),
+            $this->lang->t('export.brand'),
+            $this->lang->t('export.size_eu'),
+            $this->lang->t('export.size_us'),
+            $this->lang->t('export.barcode'),
+            $this->lang->t('export.quantity'),
+            $this->lang->t('export.price_net'),
+        ];
         $rows = [];
         foreach ($ids as $id) {
             $product = $productsById[$id];

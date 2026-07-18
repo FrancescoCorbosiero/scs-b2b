@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Repository\VatRateRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Twig\Environment;
 
 /**
- * Rendering Twig con i global di layout (piano, carrello, CSRF, flash).
+ * Rendering Twig con i global di layout (paese, lingua, carrello, CSRF, flash).
  */
 final class View
 {
@@ -16,6 +17,8 @@ final class View
         private readonly Environment $twig,
         private readonly Session $session,
         private readonly Config $config,
+        private readonly Lang $lang,
+        private readonly VatRateRepository $vatRates,
     ) {
     }
 
@@ -26,7 +29,10 @@ final class View
         $uri = is_string($uri) ? $uri : '/';
         $whatsappDigits = (string) preg_replace('/[^0-9]/', '', $this->config->str('CONTACT_WHATSAPP'));
         $globals = [
-            'plan' => $this->session->plan(),
+            'locale' => $this->lang->locale(),
+            'locales' => Session::LOCALES,
+            'country' => $this->session->country(),
+            'countries' => $this->countries(),
             'size_system' => $this->session->sizeSystem(),
             'cart_count' => $this->session->cartItemCount(),
             'csrf_token' => $this->session->csrfToken(),
@@ -52,5 +58,37 @@ final class View
         $response->getBody()->write($this->twig->render($template, array_merge($globals, $data)));
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * Paesi per il selettore in header e nel form ordine, col nome tradotto
+     * nel locale corrente: IT sempre in testa (sort_order), poi alfabetico.
+     * Le aliquote standard sono dati pubblici: possono raggiungere il client.
+     *
+     * @return list<array{code: string, name: string, is_eu: bool, rate: float}>
+     */
+    private function countries(): array
+    {
+        try {
+            $rows = $this->vatRates->all();
+        } catch (\Throwable) {
+            // DB non raggiungibile (es. pagina di errore): il layout non deve rompersi
+            return [];
+        }
+        $countries = [];
+        foreach ($rows as $row) {
+            $countries[] = [
+                'code' => $row['country_code'],
+                'name' => $this->lang->t('country.' . $row['country_code']),
+                'is_eu' => $row['is_eu'],
+                'rate' => $row['vat_rate'],
+                'sort_order' => $row['sort_order'],
+            ];
+        }
+        usort($countries, static fn (array $a, array $b): int => [$a['sort_order'], $a['name']] <=> [$b['sort_order'], $b['name']]);
+
+        return array_map(static fn (array $c): array => [
+            'code' => $c['code'], 'name' => $c['name'], 'is_eu' => $c['is_eu'], 'rate' => $c['rate'],
+        ], $countries);
     }
 }

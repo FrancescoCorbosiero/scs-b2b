@@ -24,7 +24,7 @@ final class CartController
 
     public function index(Request $request, Response $response): Response
     {
-        $detail = $this->cart->detail($this->session->plan());
+        $detail = $this->cart->detail();
 
         return $this->view->render($response, 'cart/index.twig', [
             'cart' => $detail,
@@ -49,7 +49,7 @@ final class CartController
     /**
      * Aggiornamento quantità di una taglia. Risponde in JSON alle richieste
      * fetch (X-Requested-With), con redirect ai form senza JavaScript.
-     * Il JSON contiene SOLO quantità e totali del piano attivo.
+     * Il JSON contiene SOLO quantità e totali netti di listino (VAT esclusa).
      */
     public function update(Request $request, Response $response): Response
     {
@@ -61,7 +61,7 @@ final class CartController
         $applied = $sku !== '' && $sizeEu !== '' ? $this->cart->setQuantity($sku, $sizeEu, $qty) : 0;
 
         if ($request->getHeaderLine('X-Requested-With') === 'fetch') {
-            $detail = $this->cart->detail($this->session->plan());
+            $detail = $this->cart->detail();
             $productTotal = '0.00';
             $productItems = 0;
             foreach ($detail['products'] as $product) {

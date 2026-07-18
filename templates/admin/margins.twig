@@ -1,0 +1,146 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('admin.margins') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-2">{{ t('admin.margins') }}</h1>
+    <p class="text-sm text-neutral-500 mb-6">{{ t('margins.intro') }}</p>
+
+    <div class="grid lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 space-y-5">
+            {# ── Regole attive ── #}
+            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-neutral-50 text-neutral-500 text-left">
+                            <th class="px-4 py-2.5 font-medium">{{ t('margins.col_priority') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('margins.col_match') }}</th>
+                            <th class="px-4 py-2.5 font-medium text-right">{{ t('margins.col_margin') }}</th>
+                            <th class="px-4 py-2.5 font-medium text-right">{{ t('margins.col_products') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('margins.col_status') }}</th>
+                            <th class="px-4 py-2.5"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        {% for rule in rules %}
+                            <tr class="{{ rule.is_active ? '' : 'opacity-50' }}">
+                                <td class="px-4 py-2.5 font-mono text-xs">{{ rule.priority }}</td>
+                                <td class="px-4 py-2.5">
+                                    <span class="inline-flex items-center rounded-full bg-neutral-100 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase mr-1.5">{{ t('margins.match_' ~ rule.match_type) }}</span>
+                                    {{ rule.match_value }}
+                                </td>
+                                <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">
+                                    {% if rule.margin_type == 'percent' %}+{{ rule.margin_value }}%{% else %}{{ rule.margin_value >= 0 ? '+' }}{{ rule.margin_value|eur }}{% endif %}
+                                </td>
+                                <td class="px-4 py-2.5 text-right">{{ rule.matching_products }}</td>
+                                <td class="px-4 py-2.5">
+                                    <form method="post" action="/admin/margini/regole/{{ rule.id }}/attiva">
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <input type="hidden" name="active" value="{{ rule.is_active ? '0' : '1' }}">
+                                        <button type="submit" class="text-xs font-semibold underline {{ rule.is_active ? 'text-emerald-600' : 'text-neutral-400' }}">
+                                            {{ rule.is_active ? t('margins.status_active') : t('margins.status_inactive') }}
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="px-4 py-2.5 text-right">
+                                    <form method="post" action="/admin/margini/regole/{{ rule.id }}/elimina"
+                                          data-confirm="{{ t('margins.delete_confirm')|e('html_attr') }}">
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <button type="submit" class="text-xs font-semibold text-red-600 underline">{{ t('margins.delete') }}</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-neutral-400">{{ t('margins.no_rules') }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {# ── Nuova regola ── #}
+            <form method="post" action="/admin/margini/regole" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
+                <h2 class="font-bold">{{ t('margins.new_rule') }}</h2>
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <label for="r-match-type" class="block font-medium mb-1">{{ t('margins.field_match_type') }}</label>
+                        <select id="r-match-type" name="match_type" class="w-full rounded-lg border-neutral-300">
+                            <option value="brand">{{ t('margins.match_brand') }}</option>
+                            <option value="name">{{ t('margins.match_name') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="r-match-value" class="block font-medium mb-1">{{ t('margins.field_match_value') }}</label>
+                        <input type="text" id="r-match-value" name="match_value" required maxlength="128" list="brands-list"
+                               placeholder="{{ t('margins.field_match_value_placeholder') }}"
+                               class="w-full rounded-lg border-neutral-300">
+                        <datalist id="brands-list">
+                            {% for brand in brands %}<option value="{{ brand }}"></option>{% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label for="r-margin-type" class="block font-medium mb-1">{{ t('margins.field_margin_type') }}</label>
+                        <select id="r-margin-type" name="margin_type" class="w-full rounded-lg border-neutral-300">
+                            <option value="percent">{{ t('margins.type_percent') }}</option>
+                            <option value="fixed">{{ t('margins.type_fixed') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="r-margin-value" class="block font-medium mb-1">{{ t('margins.field_margin_value') }}</label>
+                        <input type="number" id="r-margin-value" name="margin_value" required step="0.01" min="-100" max="10000"
+                               class="w-full rounded-lg border-neutral-300">
+                    </div>
+                    <div>
+                        <label for="r-priority" class="block font-medium mb-1">{{ t('margins.field_priority') }}</label>
+                        <input type="number" id="r-priority" name="priority" value="100" step="1" min="1" max="9999"
+                               class="w-full rounded-lg border-neutral-300">
+                        <p class="mt-1 text-xs text-neutral-400">{{ t('margins.field_priority_hint') }}</p>
+                    </div>
+                </div>
+                <button type="submit" class="rounded-lg bg-neutral-900 text-white px-5 py-2 font-semibold hover:bg-neutral-700 text-sm">
+                    {{ t('margins.add_rule') }}
+                </button>
+            </form>
+        </div>
+
+        <aside class="space-y-5">
+            {# ── Margine di default ── #}
+            <form method="post" action="/admin/margini/default" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm">
+                <h2 class="font-bold">{{ t('margins.default_title') }}</h2>
+                <p class="text-xs text-neutral-500">{{ t('margins.default_hint') }}</p>
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <div class="flex gap-2">
+                    <select name="margin_type" class="rounded-lg border-neutral-300">
+                        <option value="percent" {{ default_margin_type == 'percent' ? 'selected' }}>{{ t('margins.type_percent') }}</option>
+                        <option value="fixed" {{ default_margin_type == 'fixed' ? 'selected' }}>{{ t('margins.type_fixed') }}</option>
+                    </select>
+                    <input type="number" name="margin_value" value="{{ default_margin_value }}" required step="0.01" min="-100" max="10000"
+                           class="w-24 rounded-lg border-neutral-300">
+                    <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 font-semibold hover:bg-neutral-700">{{ t('margins.save') }}</button>
+                </div>
+            </form>
+
+            {# ── Aliquote VAT ── #}
+            <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm">
+                <h2 class="font-bold mb-1">{{ t('margins.vat_title') }}</h2>
+                <p class="text-xs text-neutral-500 mb-3">{{ t('margins.vat_hint') }}</p>
+                <div class="max-h-96 overflow-y-auto divide-y divide-neutral-100">
+                    {% for rate in vat_rates %}
+                        <form method="post" action="/admin/margini/vat" class="flex items-center gap-2 py-1.5">
+                            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                            <input type="hidden" name="country" value="{{ rate.country_code }}">
+                            <span class="w-8 font-mono text-xs font-bold">{{ rate.country_code }}</span>
+                            <span class="flex-1 truncate text-xs">{{ t('country.' ~ rate.country_code) }}</span>
+                            {% if not rate.is_eu %}
+                                <span class="text-[10px] font-bold uppercase text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-1.5">{{ t('margins.vat_extra_eu') }}</span>
+                            {% endif %}
+                            <input type="number" name="vat_rate" value="{{ rate.vat_rate }}" step="0.1" min="0" max="100"
+                                   class="w-20 rounded-md border-neutral-300 text-right text-xs py-1">
+                            <button type="submit" class="text-xs font-semibold underline text-neutral-500 hover:text-neutral-900">{{ t('margins.save') }}</button>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+    </div>
+{% endblock %}

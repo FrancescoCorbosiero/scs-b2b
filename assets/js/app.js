@@ -49,6 +49,13 @@
             });
         });
 
+        // ── Conferma prima del submit (es. eliminazione regole margine) ──
+        document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                if (!window.confirm(form.getAttribute('data-confirm') || '')) e.preventDefault();
+            });
+        });
+
         // ── Fallback immagini prodotto ───────────────────────────────
         document.querySelectorAll('img[data-fallback]').forEach(function (img) {
             img.addEventListener('error', function () {
@@ -58,6 +65,42 @@
                 }
             }, { once: true });
         });
+
+        // ── Form ordine: anteprima VAT per paese (il server resta la verità) ──
+        var vatPreview = document.querySelector('[data-vat-preview]');
+        if (vatPreview) {
+            var vatCountries = [];
+            try { vatCountries = JSON.parse(vatPreview.getAttribute('data-countries') || '[]'); } catch (e) { vatCountries = []; }
+            var vatByCode = {};
+            vatCountries.forEach(function (c) { vatByCode[c.code] = c; });
+            var netCents = Math.round(parseFloat(vatPreview.getAttribute('data-net') || '0') * 100);
+            var countrySelect = document.getElementById('o-country');
+            var vatNumberInput = document.getElementById('o-vat-number');
+
+            var updateVatPreview = function () {
+                var code = countrySelect ? countrySelect.value : 'IT';
+                var entry = vatByCode[code] || { rate: 0, is_eu: true };
+                var hasVatNumber = vatNumberInput && vatNumberInput.value.trim() !== '';
+                var scheme, rate;
+                if (!entry.is_eu) { scheme = 'export'; rate = 0; }
+                else if (code !== 'IT' && hasVatNumber) { scheme = 'reverse'; rate = 0; }
+                else { scheme = code === 'IT' ? 'domestic' : 'eu'; rate = entry.rate; }
+                var vatCents = Math.round(netCents * rate / 100);
+
+                var label = (vatPreview.getAttribute('data-label-' + scheme) || '').replace(':rate', String(rate));
+                var labelEl = vatPreview.querySelector('[data-vat-label]');
+                if (labelEl) labelEl.textContent = label;
+                var amountEl = vatPreview.querySelector('[data-vat-amount]');
+                if (amountEl) amountEl.textContent = formatEur(vatCents / 100);
+                var grossEl = vatPreview.querySelector('[data-vat-gross]');
+                if (grossEl) grossEl.textContent = formatEur((netCents + vatCents) / 100);
+                var hintEl = vatPreview.querySelector('[data-vat-hint]');
+                if (hintEl) hintEl.textContent = vatPreview.getAttribute('data-hint-' + scheme) || '';
+            };
+            if (countrySelect) countrySelect.addEventListener('change', updateVatPreview);
+            if (vatNumberInput) vatNumberInput.addEventListener('input', updateVatPreview);
+            updateVatPreview();
+        }
 
         // ── Carrello: aggiornamento quantità via fetch ───────────────
         var csrfInput = document.querySelector('input[name="_csrf"]');

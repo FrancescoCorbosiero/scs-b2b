@@ -11,9 +11,9 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
   da /admin come flag manuale, oppure lasciare sempre 0 in v1)
 - `is_active` TINYINT default 1 (0 = sparito dal feed)
 - `total_quantity` INT — denormalizzato a sync (somma taglie) per filtri/ordinamenti
-- `min_price_base|pro|max` DECIMAL(10,2) — denormalizzati per filtro range prezzo e card
+- `min_price` DECIMAL(10,2) — prezzo netto minimo denormalizzato per filtro range prezzo e card
 - `created_at`, `updated_at`, `last_seen_at` (ultimo sync in cui era presente)
-- Indici: `sku`, `brand`, `is_active`, `total_quantity`
+- Indici: `sku`, `brand`, `is_active`, `total_quantity`, `min_price`
 
 ## `product_sizes`
 - `id` PK, `product_id` FK (ON DELETE CASCADE)
@@ -21,17 +21,23 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `size_us` VARCHAR(10), `barcode` VARCHAR(32)
 - `quantity` INT
 - `offer_price` DECIMAL(10,2) — **riservato**
-- `price_base`, `price_pro`, `price_max` DECIMAL(10,2) — precalcolati a sync
+- `price` DECIMAL(10,2) — prezzo netto di listino (VAT esclusa), precalcolato a sync
+  con le regole margine (docs/04)
 - `supplier_size_id` INT NULL — `id` riga del feed: `size_id` per l'API dropship (docs/09)
 - Unique: (`product_id`, `size_eu`)
 
 ## `order_requests`
 - `id` PK, `created_at`
 - `customer_name`, `company` NULL, `email`, `phone`, `notes` TEXT NULL
-- `plan` ENUM('base','pro','max')
-- `total_items` INT, `total_amount` DECIMAL(10,2)
+- `plan` VARCHAR(8) NULL — solo storico pre-migrazione 0003 (i piani non esistono più)
+- `locale` VARCHAR(5) — lingua del cliente al momento dell'ordine ('it'|'en')
+- `country_code` CHAR(2), `vat_number` VARCHAR(32) NULL
+- `vat_scheme` VARCHAR(20) — domestic | eu | reverse_charge | export (docs/04)
+- `vat_rate` DECIMAL(5,2), `vat_amount` DECIMAL(10,2), `total_gross` DECIMAL(10,2)
+- `receipt_number` VARCHAR(20) NULL — es. PF-2026-0001 (ricevuta pro-forma)
+- `total_items` INT, `total_amount` DECIMAL(10,2) — **imponibile netto** (VAT esclusa)
 - `cart_snapshot` JSON — righe complete: sku, nome, taglia EU/US, barcode, qty,
-  prezzo unitario del piano, subtotale (+ offer_price per riga, visibile solo lato admin)
+  prezzo unitario netto, subtotale (+ offer_price per riga, visibile solo lato admin)
 - `email_admin_sent`, `email_customer_sent` TINYINT — per capire i fallimenti SMTP
 - `ip_address`, `user_agent` — antiabuso
 
@@ -56,8 +62,23 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `lines_snapshot` TEXT — righe per la vista admin (sku, taglia, qty, costo)
 - `response_payload` TEXT NULL, `tracking_numbers` TEXT NULL (JSON)
 
-## `markup_rules` (opzionale, v2)
-Override percentuale per brand e piano. In v1 bastano i tre valori globali in `.env`;
-predisporre il PricingService perché aggiungere gli override non richieda refactoring.
+## `margin_rules` (gestione margini da /admin/margini — docs/04)
+- `id` PK, `priority` INT (crescente = valutata prima)
+- `match_type` ENUM('brand','name'), `match_value` VARCHAR(128)
+- `margin_type` ENUM('percent','fixed'), `margin_value` DECIMAL(8,2)
+- `is_active` TINYINT, `created_at`, `updated_at`
+- Indice: (`is_active`, `priority`)
+
+## `settings` (chiave/valore)
+- `setting_key` VARCHAR(64) PK, `setting_value` VARCHAR(255), `updated_at`
+- Oggi: `default_margin_type`, `default_margin_value` (margine di fallback)
+
+## `vat_rates` (aliquote per paese — docs/04)
+- `country_code` CHAR(2) PK, `vat_rate` DECIMAL(5,2)
+- `is_eu` TINYINT (0 = extra-UE → export), `sort_order` INT (IT in testa), `updated_at`
+- Seed migrazione 0003: UE-27 + GB + CH; modificabili da /admin/margini
+
+## `receipt_counters` (numerazione ricevute pro-forma)
+- `year` SMALLINT PK, `last_number` INT — progressivo per anno (PF-<anno>-<NNNN>)
 
 Il carrello NON è a DB: vive nella sessione server-side (vedi 06/07).

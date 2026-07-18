@@ -3,7 +3,7 @@
 {% block title %}{{ t('catalog.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    <div class="flex flex-wrap items-center gap-3 mb-4">
+    <div class="flex flex-wrap items-center gap-3 mb-2">
         <h1 class="text-2xl font-bold">{{ t('catalog.title') }}</h1>
         <span class="text-sm text-neutral-500">{{ t('catalog.results', {n: total}) }}</span>
         <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
@@ -12,6 +12,11 @@
             {{ t('catalog.export') }}
         </a>
     </div>
+
+    {# tutti i prezzi del catalogo sono netti: il VAT si applica solo alla richiesta d'ordine #}
+    <p class="mb-4 text-xs text-neutral-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        {{ t('catalog.vat_notice') }}
+    </p>
 
     {# ── Toolbar filtri: stato su query string → URL condivisibili ── #}
     <div x-data="{ filtersOpen: false }" class="mb-6">

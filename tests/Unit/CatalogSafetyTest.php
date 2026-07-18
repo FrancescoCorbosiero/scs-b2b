@@ -23,8 +23,8 @@ final class CatalogSafetyTest extends TestCase
     {
         $pdo = TestDb::create();
         TestDb::seedProduct($pdo, 'NK1001', 'Nike Dunk Low', 'Nike', [
-            ['size_eu' => '42', 'quantity' => 5, 'offer_price' => '47.00', 'price_base' => '100.00'],
-            ['size_eu' => '43', 'quantity' => 2, 'offer_price' => '47.00', 'price_base' => '100.00'],
+            ['size_eu' => '42', 'quantity' => 5, 'offer_price' => '47.00', 'price' => '100.00'],
+            ['size_eu' => '43', 'quantity' => 2, 'offer_price' => '47.00', 'price' => '100.00'],
         ]);
         $this->products = new ProductRepository($pdo);
     }
@@ -36,7 +36,7 @@ final class CatalogSafetyTest extends TestCase
 
     public function testSearchResultsNeverContainOfferPrice(): void
     {
-        $result = $this->products->search(self::FILTERS, 'base', 1, 24, 60, 20);
+        $result = $this->products->search(self::FILTERS, 1, 24, 60, 20);
 
         self::assertNotEmpty($result['items']);
         $json = json_encode($result, JSON_THROW_ON_ERROR);
@@ -44,18 +44,17 @@ final class CatalogSafetyTest extends TestCase
         self::assertStringNotContainsString('47', $json, 'Nemmeno il valore del costo deve comparire');
     }
 
-    public function testSizesForProductsExposeOnlyActivePlanPrice(): void
+    public function testSizesForProductsExposeOnlyNetPrice(): void
     {
-        $result = $this->products->search(self::FILTERS, 'base', 1, 24, 60, 20);
+        $result = $this->products->search(self::FILTERS, 1, 24, 60, 20);
         $ids = array_map(static fn (array $i): int => (int) $i['id'], $result['items']);
-        $sizes = $this->products->sizesForProducts($ids, 'base');
+        $sizes = $this->products->sizesForProducts($ids);
 
         $json = json_encode($sizes, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('offer_price', $json);
         foreach ($sizes as $productSizes) {
             foreach ($productSizes as $size) {
                 self::assertArrayHasKey('price', $size);
-                self::assertArrayNotHasKey('price_pro', $size, 'Solo il prezzo del piano attivo');
             }
         }
     }
@@ -69,7 +68,7 @@ final class CatalogSafetyTest extends TestCase
         $repo = new ProductRepository($pdo);
 
         foreach ([['alta', 'HIGH1'], ['media', 'MED1'], ['bassa', 'LOW1']] as [$band, $expected]) {
-            $result = $repo->search(['availability' => $band] + self::FILTERS, 'base', 1, 24, 60, 20);
+            $result = $repo->search(['availability' => $band] + self::FILTERS, 1, 24, 60, 20);
             self::assertCount(1, $result['items'], "Fascia {$band}");
             self::assertSame($expected, $result['items'][0]['sku']);
         }
@@ -78,7 +77,7 @@ final class CatalogSafetyTest extends TestCase
     public function testXlsxExportContainsCatalogColumnsButNoCost(): void
     {
         $writer = new XlsxWriter();
-        $headers = ['SKU', 'Prodotto', 'Brand', 'Taglia EU', 'Taglia US', 'Barcode', 'Quantità', 'Prezzo (BASE, IVA incl.)'];
+        $headers = ['SKU', 'Prodotto', 'Brand', 'Taglia EU', 'Taglia US', 'Barcode', 'Quantità', 'Prezzo (IVA esclusa)'];
         $path = $writer->write('Catalogo', $headers, [
             ['NK1001', 'Nike Dunk Low', 'Nike', '42', '8.5', '4067907638411', 5, 100.0],
         ]);
@@ -91,7 +90,7 @@ final class CatalogSafetyTest extends TestCase
             $zip->close();
 
             self::assertStringContainsString('NK1001', $sheet);
-            self::assertStringContainsString('Prezzo (BASE, IVA incl.)', $sheet);
+            self::assertStringContainsString('Prezzo (IVA esclusa)', $sheet);
             self::assertStringContainsString('Catalogo', $workbook);
             self::assertStringNotContainsString('offer', $sheet . $workbook);
         } finally {

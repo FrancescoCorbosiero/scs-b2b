@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Repository\VatRateRepository;
 use App\Service\PricingService;
 use App\Support\Config;
 use App\Support\Db;
@@ -68,5 +69,7 @@ return [
         $c->get(Environment::class),
         $c->get(Session::class),
         $c->get(Config::class),
+        $c->get(Lang::class),
+        $c->get(VatRateRepository::class),
     ),
 ];

@@ -29,9 +29,7 @@ final class TestDb
             is_recommended INTEGER NOT NULL DEFAULT 0,
             is_active INTEGER NOT NULL DEFAULT 1,
             total_quantity INTEGER NOT NULL DEFAULT 0,
-            min_price_base NUMERIC NULL,
-            min_price_pro NUMERIC NULL,
-            min_price_max NUMERIC NULL,
+            min_price NUMERIC NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             last_seen_at TEXT NULL
@@ -45,9 +43,7 @@ final class TestDb
             barcode TEXT NULL,
             quantity INTEGER NOT NULL DEFAULT 0,
             offer_price NUMERIC NOT NULL,
-            price_base NUMERIC NOT NULL,
-            price_pro NUMERIC NOT NULL,
-            price_max NUMERIC NOT NULL,
+            price NUMERIC NOT NULL DEFAULT 0,
             supplier_size_id INTEGER NULL,
             UNIQUE (product_id, size_eu)
         )');
@@ -60,7 +56,15 @@ final class TestDb
             email TEXT NOT NULL,
             phone TEXT NOT NULL,
             notes TEXT NULL,
-            plan TEXT NOT NULL,
+            plan TEXT NULL,
+            locale TEXT NOT NULL DEFAULT "it",
+            country_code TEXT NOT NULL DEFAULT "IT",
+            vat_number TEXT NULL,
+            vat_scheme TEXT NOT NULL DEFAULT "domestic",
+            vat_rate NUMERIC NOT NULL DEFAULT 0,
+            vat_amount NUMERIC NOT NULL DEFAULT 0,
+            total_gross NUMERIC NOT NULL DEFAULT 0,
+            receipt_number TEXT NULL,
             total_items INTEGER NOT NULL,
             total_amount NUMERIC NOT NULL,
             cart_snapshot TEXT NOT NULL,
@@ -107,38 +111,92 @@ final class TestDb
             tracking_numbers TEXT NULL
         )');
 
+        $pdo->exec('CREATE TABLE margin_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            priority INTEGER NOT NULL DEFAULT 100,
+            match_type TEXT NOT NULL,
+            match_value TEXT NOT NULL,
+            margin_type TEXT NOT NULL,
+            margin_value NUMERIC NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE settings (
+            setting_key TEXT PRIMARY KEY,
+            setting_value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE vat_rates (
+            country_code TEXT PRIMARY KEY,
+            vat_rate NUMERIC NOT NULL,
+            is_eu INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            updated_at TEXT NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE receipt_counters (
+            year INTEGER PRIMARY KEY,
+            last_number INTEGER NOT NULL DEFAULT 0
+        )');
+
+        self::seedDefaults($pdo);
+
         return $pdo;
     }
 
+    /** Margine di default e aliquote VAT minime (le stesse chiavi della migrazione 0003). */
+    private static function seedDefaults(PDO $pdo): void
+    {
+        $now = date('Y-m-d H:i:s');
+        $settings = $pdo->prepare('INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?, ?, ?)');
+        $settings->execute(['default_margin_type', 'percent', $now]);
+        $settings->execute(['default_margin_value', '30', $now]);
+
+        $rates = $pdo->prepare('INSERT INTO vat_rates (country_code, vat_rate, is_eu, sort_order, updated_at) VALUES (?, ?, ?, ?, ?)');
+        foreach ([
+            ['IT', '22.00', 1, 1], ['AT', '20.00', 1, 100], ['BE', '21.00', 1, 100], ['BG', '20.00', 1, 100],
+            ['CY', '19.00', 1, 100], ['CZ', '21.00', 1, 100], ['DE', '19.00', 1, 100], ['DK', '25.00', 1, 100],
+            ['EE', '24.00', 1, 100], ['ES', '21.00', 1, 100], ['FI', '25.50', 1, 100], ['FR', '20.00', 1, 100],
+            ['GR', '24.00', 1, 100], ['HR', '25.00', 1, 100], ['HU', '27.00', 1, 100], ['IE', '23.00', 1, 100],
+            ['LT', '21.00', 1, 100], ['LU', '17.00', 1, 100], ['LV', '21.00', 1, 100], ['MT', '18.00', 1, 100],
+            ['NL', '21.00', 1, 100], ['PL', '23.00', 1, 100], ['PT', '23.00', 1, 100], ['RO', '21.00', 1, 100],
+            ['SE', '25.00', 1, 100], ['SI', '22.00', 1, 100], ['SK', '23.00', 1, 100],
+            ['GB', '20.00', 0, 200], ['CH', '8.10', 0, 200],
+        ] as [$code, $rate, $isEu, $sort]) {
+            $rates->execute([$code, $rate, $isEu, $sort, $now]);
+        }
+    }
+
     /**
-     * Inserisce un prodotto con taglie. Prezzi già "per piano" precalcolati.
+     * Inserisce un prodotto con taglie (prezzo netto già calcolato).
      *
      * @param list<array{size_eu: string, size_us?: string, quantity: int,
-     *   offer_price?: string, price_base?: string, price_pro?: string, price_max?: string}> $sizes
+     *   offer_price?: string, price?: string}> $sizes
      */
     public static function seedProduct(PDO $pdo, string $sku, string $name, string $brand, array $sizes, bool $recommended = false): int
     {
         $now = date('Y-m-d H:i:s');
         $total = 0;
+        $minPrice = null;
         foreach ($sizes as $size) {
             $total += $size['quantity'];
+            $price = (float) ($size['price'] ?? '100.00');
+            $minPrice = $minPrice === null ? $price : min($minPrice, $price);
         }
         $stmt = $pdo->prepare(
             'INSERT INTO products (sku, name, brand, is_recommended, is_active, total_quantity,
-                min_price_base, min_price_pro, min_price_max, created_at, updated_at, last_seen_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)'
+                min_price, created_at, updated_at, last_seen_at)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
         );
-        $minBase = null;
-        foreach ($sizes as $size) {
-            $base = (float) ($size['price_base'] ?? '100.00');
-            $minBase = $minBase === null ? $base : min($minBase, $base);
-        }
-        $stmt->execute([$sku, $name, $brand, $recommended ? 1 : 0, $total, $minBase, $minBase, $minBase, $now, $now, $now]);
+        $stmt->execute([$sku, $name, $brand, $recommended ? 1 : 0, $total, $minPrice, $now, $now, $now]);
         $productId = (int) $pdo->lastInsertId();
 
         $sizeStmt = $pdo->prepare(
-            'INSERT INTO product_sizes (product_id, size_eu, size_us, barcode, quantity, offer_price, price_base, price_pro, price_max)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO product_sizes (product_id, size_eu, size_us, barcode, quantity, offer_price, price)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($sizes as $size) {
             $sizeStmt->execute([
@@ -148,9 +206,7 @@ final class TestDb
                 'BC' . $size['size_eu'],
                 $size['quantity'],
                 $size['offer_price'] ?? '50.00',
-                $size['price_base'] ?? '100.00',
-                $size['price_pro'] ?? '95.00',
-                $size['price_max'] ?? '90.00',
+                $size['price'] ?? '100.00',
             ]);
         }
 

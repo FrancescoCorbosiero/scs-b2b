@@ -1,11 +1,14 @@
-{# Email amministratore: tabella ordine completa. offer_price e margine SOLO se show_cost. #}
+{# Email amministratore (sempre in italiano): tabella ordine completa.
+   offer_price e margine SOLO se show_cost. I totali di listino sono netti (VAT esclusa). #}
 <div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 720px;">
     <h1 style="font-size: 20px;">Nuova richiesta d'ordine #{{ order.id }}</h1>
     <p style="margin: 4px 0;"><strong>Data:</strong> {{ order.created_at }}</p>
     <p style="margin: 4px 0;"><strong>Cliente:</strong> {{ order.customer_name }}{% if order.company %} — {{ order.company }}{% endif %}</p>
     <p style="margin: 4px 0;"><strong>Email:</strong> {{ order.email }} · <strong>Telefono:</strong> {{ order.phone }}</p>
     {% if order.notes %}<p style="margin: 4px 0;"><strong>Note:</strong> {{ order.notes }}</p>{% endif %}
-    <p style="margin: 4px 0;"><strong>Piano selezionato:</strong> {{ order.plan|upper }}</p>
+    <p style="margin: 4px 0;"><strong>Paese:</strong> {{ order.country_code }} — {{ t('country.' ~ order.country_code) }}
+       {% if order.vat_number %} · <strong>P.IVA:</strong> {{ order.vat_number }}{% endif %}</p>
+    {% if order.receipt_number %}<p style="margin: 4px 0;"><strong>Ricevuta pro-forma:</strong> {{ order.receipt_number }}</p>{% endif %}
 
     <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
         <thead>
@@ -16,7 +19,7 @@
                 <th align="left">Taglia US</th>
                 <th align="left">Barcode</th>
                 <th align="right">Qty</th>
-                <th align="right">Prezzo unit.</th>
+                <th align="right">Prezzo unit. (netto)</th>
                 <th align="right">Subtotale</th>
                 {% if show_cost %}
                     <th align="right">Costo unit.</th>
@@ -50,6 +53,12 @@
 
     <p style="font-size: 15px; margin-top: 14px;">
         <strong>Totale pezzi:</strong> {{ order.total_items }}<br>
-        <strong>Totale ({{ order.plan|upper }}, IVA inclusa):</strong> {{ order.total_amount|eur }}
+        <strong>Imponibile (VAT esclusa):</strong> {{ order.total_amount|eur }}<br>
+        <strong>VAT
+            {%- if order.vat_scheme == 'reverse_charge' %} (reverse charge, 0%)
+            {%- elseif order.vat_scheme == 'export' %} (export, 0%)
+            {%- else %} ({{ order.vat_rate }}%)
+            {%- endif %}:</strong> {{ order.vat_amount|eur }}<br>
+        <strong>Totale:</strong> {{ order.total_gross|eur }}
     </p>
 </div>

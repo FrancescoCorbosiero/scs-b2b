@@ -35,6 +35,23 @@
                     <input type="tel" id="o-phone" name="phone" required maxlength="32" value="{{ old.phone ?? '' }}"
                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
                 </div>
+                <div>
+                    <label for="o-country" class="block text-sm font-medium mb-1">{{ t('order.country') }}</label>
+                    <select id="o-country" name="country" required
+                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                        {% set selected_country = old.country ?? country %}
+                        {% for c in countries %}
+                            <option value="{{ c.code }}" {{ selected_country == c.code ? 'selected' }}>{{ c.name }} ({{ c.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="o-vat-number" class="block text-sm font-medium mb-1">{{ t('order.vat_number') }}</label>
+                    <input type="text" id="o-vat-number" name="vat_number" maxlength="32" value="{{ old.vat_number ?? '' }}"
+                           placeholder="{{ t('order.vat_number_placeholder') }}"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                    <p class="mt-1 text-xs text-neutral-400">{{ t('order.vat_number_hint') }}</p>
+                </div>
             </div>
             <div>
                 <label for="o-notes" class="block text-sm font-medium mb-1">{{ t('order.notes') }}</label>
@@ -47,7 +64,18 @@
         </form>
 
         <aside class="mt-6 lg:mt-0">
-            <div class="bg-white rounded-xl border border-neutral-200 p-5">
+            <div class="bg-white rounded-xl border border-neutral-200 p-5"
+                 data-vat-preview
+                 data-countries="{{ countries|json_encode|e('html_attr') }}"
+                 data-net="{{ cart.total_amount }}"
+                 data-label-domestic="{{ t('vat.label_rate')|e('html_attr') }}"
+                 data-label-eu="{{ t('vat.label_rate')|e('html_attr') }}"
+                 data-label-reverse="{{ t('vat.label_reverse')|e('html_attr') }}"
+                 data-label-export="{{ t('vat.label_export')|e('html_attr') }}"
+                 data-hint-domestic="{{ t('vat.hint_domestic')|e('html_attr') }}"
+                 data-hint-eu="{{ t('vat.hint_eu')|e('html_attr') }}"
+                 data-hint-reverse="{{ t('vat.hint_reverse')|e('html_attr') }}"
+                 data-hint-export="{{ t('vat.hint_export')|e('html_attr') }}">
                 <h2 class="font-bold mb-3">{{ t('order.summary_title') }}</h2>
                 <ul class="divide-y divide-neutral-100 text-sm">
                     {% for product in cart.products %}
@@ -64,10 +92,21 @@
                         {% endfor %}
                     {% endfor %}
                 </ul>
-                <div class="border-t border-neutral-200 mt-2 pt-3 flex justify-between font-bold">
-                    <span>{{ t('cart.total_amount', {plan: t('plan.' ~ plan)}) }}</span>
-                    <span>{{ cart.total_amount|eur }}</span>
+                <div class="border-t border-neutral-200 mt-2 pt-3 space-y-1.5 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-neutral-500">{{ t('cart.total_net') }}</span>
+                        <span class="font-semibold">{{ cart.total_amount|eur }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-neutral-500" data-vat-label>—</span>
+                        <span data-vat-amount>—</span>
+                    </div>
+                    <div class="flex justify-between font-bold border-t border-neutral-200 pt-2">
+                        <span>{{ t('order.total_estimated') }}</span>
+                        <span data-vat-gross>{{ cart.total_amount|eur }}</span>
+                    </div>
                 </div>
+                <p class="text-xs text-neutral-400 mt-2" data-vat-hint></p>
                 <p class="text-xs text-neutral-400 mt-2">{{ t('cart.total_items') }}: {{ cart.total_items }}</p>
             </div>
         </aside>
