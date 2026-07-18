@@ -34,6 +34,7 @@ final class View
             'country' => $this->session->country(),
             'countries' => $this->countries(),
             'size_system' => $this->session->sizeSystem(),
+            'grid_size' => $this->session->gridSize(),
             'cart_count' => $this->session->cartItemCount(),
             'csrf_token' => $this->session->csrfToken(),
             'is_catalog_authed' => $this->session->isCatalogAuthed(),

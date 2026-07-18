@@ -78,6 +78,10 @@
             {% if status == 'pending' %}
                 <div class="bg-white rounded-xl border border-amber-200 p-5 text-sm space-y-3">
                     <p class="text-amber-800 text-xs">{{ t('admin.pending_hint') }}</p>
+                    <a href="/admin/richieste/{{ order.id }}/modifica"
+                       class="block text-center rounded-lg border border-neutral-300 font-semibold py-2 hover:bg-neutral-50">
+                        {{ t('admin.edit_link') }}
+                    </a>
                     <form method="post" action="/admin/richieste/{{ order.id }}/conferma"
                           data-confirm="{{ t('admin.confirm_prompt')|e('html_attr') }}">
                         <input type="hidden" name="_csrf" value="{{ csrf_token }}">

@@ -134,6 +134,71 @@ final class AdminController
         return Http::redirect($response, '/admin/richieste/' . $id);
     }
 
+    /**
+     * Riallineamento righe di una richiesta in attesa (stock cambiato durante
+     * l'attesa del bonifico): quantità modificabili, 0 = rimuovi riga.
+     *
+     * @param array<string, string> $args
+     */
+    public function orderEdit(Request $request, Response $response, array $args): Response
+    {
+        $order = $this->orders->find((int) ($args['id'] ?? 0));
+        if ($order === null) {
+            $this->session->flash('error', $this->lang->t('admin.order_not_found'));
+
+            return Http::redirect($response, '/admin/richieste');
+        }
+        if (($order['status'] ?? 'pending') !== 'pending') {
+            $this->session->flash('error', $this->lang->t('admin.order_not_pending'));
+
+            return Http::redirect($response, '/admin/richieste/' . (int) $order['id']);
+        }
+        $snapshot = json_decode(is_string($order['cart_snapshot'] ?? null) ? $order['cart_snapshot'] : '[]', true);
+        $lines = is_array($snapshot) && is_array($snapshot['lines'] ?? null) ? array_values($snapshot['lines']) : [];
+
+        // stock corrente per taglia, mostrato accanto a ogni riga
+        $stock = [];
+        foreach ($lines as $line) {
+            $sku = is_array($line) ? (string) ($line['sku'] ?? '') : '';
+            if ($sku !== '' && !isset($stock[$sku])) {
+                foreach ($this->products->sizesForSku($sku) as $size) {
+                    $stock[$sku][$size['size_eu']] = $size['quantity'];
+                }
+            }
+        }
+
+        return $this->view->render($response, 'admin/order_edit.twig', [
+            'order' => $order,
+            'lines' => $lines,
+            'stock' => $stock,
+        ]);
+    }
+
+    /** @param array<string, string> $args */
+    public function orderEditSave(Request $request, Response $response, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $body = (array) ($request->getParsedBody() ?? []);
+        $quantities = is_array($body['qty'] ?? null) ? $body['qty'] : [];
+        $renotify = ($body['renotify'] ?? '') === '1';
+
+        $result = $this->orderService->adminUpdate($id, $quantities, $renotify);
+        if (!$result['ok']) {
+            $this->session->flash('error', (string) $result['error']);
+
+            return Http::redirect($response, '/admin/richieste/' . $id . '/modifica');
+        }
+        if ($result['email_sent'] === false) {
+            $this->session->flash('error', $this->lang->t('admin.edit_saved_email_failed'));
+        } else {
+            $this->session->flash('success', $this->lang->t(
+                $result['email_sent'] === true ? 'admin.edit_saved_notified' : 'admin.edit_saved'
+            ));
+        }
+
+        return Http::redirect($response, '/admin/richieste/' . $id);
+    }
+
     /** @param array<string, string> $args */
     public function orderCancel(Request $request, Response $response, array $args): Response
     {

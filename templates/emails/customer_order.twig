@@ -3,9 +3,13 @@
    ricevuta pro-forma arriva con l'email di conferma (customer_confirmed).
    MAI costi fornitore o margini qui (il dato non arriva proprio al template). #}
 <div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
-    <h1 style="font-size: 20px;">{{ t('email.customer_title', {id: order.id}) }}</h1>
+    <h1 style="font-size: 20px;">{{ t(is_update ? 'email.updated_title' : 'email.customer_title', {id: order.id}) }}</h1>
     <p>{{ t('email.customer_greeting', {name: order.customer_name}) }}</p>
-    <p>{{ t('email.customer_body') }}</p>
+    {% if is_update %}
+        <p>{{ t('email.updated_intro') }}</p>
+    {% else %}
+        <p>{{ t('email.customer_body') }}</p>
+    {% endif %}
     <p style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px;">
         <strong>{{ t('email.payment_required_notice') }}</strong>
     </p>

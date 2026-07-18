@@ -248,6 +248,79 @@ final class OrderService
         return ['ok' => true, 'error' => null, 'email_sent' => $emailSent];
     }
 
+    /**
+     * Riallineamento admin delle quantità (es. stock cambiato durante l'attesa
+     * del bonifico): ricalcola subtotali, imponibile, VAT e totale mantenendo i
+     * prezzi unitari quotati alla richiesta. Con $renotify invia al cliente le
+     * istruzioni di pagamento aggiornate. Solo per richieste 'pending'.
+     *
+     * @param array<int, mixed> $quantities indice riga snapshot => nuova qty (0 = rimuovi)
+     * @return array{ok: bool, error: string|null, email_sent: bool|null}
+     */
+    public function adminUpdate(int $orderId, array $quantities, bool $renotify): array
+    {
+        $order = $this->orders->find($orderId);
+        if ($order === null) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_found'), 'email_sent' => null];
+        }
+        if (($order['status'] ?? 'pending') !== 'pending') {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending'), 'email_sent' => null];
+        }
+
+        $snapshot = json_decode(is_string($order['cart_snapshot'] ?? null) ? $order['cart_snapshot'] : '[]', true);
+        $rawLines = is_array($snapshot) && is_array($snapshot['lines'] ?? null) ? $snapshot['lines'] : [];
+
+        $lines = [];
+        $totalItems = 0;
+        $totalCents = 0;
+        foreach (array_values($rawLines) as $i => $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+            $qty = is_numeric($quantities[$i] ?? null) ? max(0, (int) $quantities[$i]) : 0;
+            if ($qty < 1) {
+                continue;
+            }
+            $unitCents = CartService::cents((string) ($line['unit_price'] ?? '0'));
+            $line['qty'] = $qty;
+            $line['subtotal'] = CartService::money($unitCents * $qty);
+            $lines[] = $line;
+            $totalItems += $qty;
+            $totalCents += $unitCents * $qty;
+        }
+        if ($lines === []) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.edit_error_empty'), 'email_sent' => null];
+        }
+
+        $totalAmount = CartService::money($totalCents);
+        $vatAmount = VatService::vatAmount($totalAmount, (float) ($order['vat_rate'] ?? 0));
+        $totalGross = VatService::grossTotal($totalAmount, $vatAmount);
+        $snapshotJson = (string) json_encode(['lines' => $lines], JSON_UNESCAPED_UNICODE);
+
+        if (!$this->orders->updateTotalsAndSnapshot($orderId, $totalItems, $totalAmount, $vatAmount, $totalGross, $snapshotJson)) {
+            return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending'), 'email_sent' => null];
+        }
+        $this->logger->info('Richiesta riallineata da admin', ['order_id' => $orderId, 'total_items' => $totalItems]);
+
+        $emailSent = null;
+        if ($renotify) {
+            $order['total_items'] = $totalItems;
+            $order['total_amount'] = $totalAmount;
+            $order['vat_amount'] = $vatAmount;
+            $order['total_gross'] = $totalGross;
+            $order['lines'] = $lines;
+            try {
+                $this->mailer->sendCustomerEmail($order, isUpdate: true);
+                $emailSent = true;
+            } catch (\Throwable $e) {
+                $emailSent = false;
+                $this->logger->error('Invio email aggiornamento fallito', ['order_id' => $orderId, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return ['ok' => true, 'error' => null, 'email_sent' => $emailSent];
+    }
+
     /** @return array{ok: bool, error: string|null} */
     public function cancel(int $orderId): array
     {

@@ -32,6 +32,7 @@ return static function (App $app): void {
         $group->post('/paese', [PreferenceController::class, 'setCountry']);
         $group->post('/lingua', [PreferenceController::class, 'setLocale']);
         $group->post('/taglie', [PreferenceController::class, 'setSizeSystem']);
+        $group->post('/griglia', [PreferenceController::class, 'setGridSize']);
 
         $group->get('/carrello', [CartController::class, 'index']);
         $group->post('/carrello/aggiungi', [CartController::class, 'add']);
@@ -56,6 +57,10 @@ return static function (App $app): void {
         // ciclo di vita: conferma (pagamento ricevuto → ricevuta) / annulla
         $group->post('/richieste/{id:[0-9]+}/conferma', [AdminController::class, 'orderConfirm']);
         $group->post('/richieste/{id:[0-9]+}/annulla', [AdminController::class, 'orderCancel']);
+
+        // riallineamento righe (stock cambiato durante l'attesa del bonifico)
+        $group->get('/richieste/{id:[0-9]+}/modifica', [AdminController::class, 'orderEdit']);
+        $group->post('/richieste/{id:[0-9]+}/modifica', [AdminController::class, 'orderEditSave']);
 
         // ordine dropship GoldenSneakers: 3 step di conferma (docs/09)
         $group->get('/richieste/{id:[0-9]+}/dropship', [DropshipController::class, 'prepare']);

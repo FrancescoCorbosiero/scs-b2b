@@ -163,6 +163,48 @@ final class OrderLifecycleTest extends TestCase
         self::assertFalse($this->service->confirm($id)['ok'], 'Una richiesta annullata non è confermabile');
     }
 
+    public function testAdminUpdateRecalculatesTotalsAndVat(): void
+    {
+        $id = $this->seedPendingOrder();
+
+        // da 6 a 3 pezzi: prezzo unitario quotato invariato, totali e VAT ricalcolati
+        $result = $this->service->adminUpdate($id, [0 => 3], renotify: false);
+
+        self::assertTrue($result['ok']);
+        self::assertNull($result['email_sent'], 'Senza rinotifica non parte alcuna email');
+
+        $order = $this->orders->find($id);
+        // normalizzati a 2 decimali: SQLite non conserva gli zeri finali dei DECIMAL
+        $money = static fn (mixed $v): string => number_format((float) $v, 2, '.', '');
+        self::assertSame(3, (int) $order['total_items']);
+        self::assertSame('305.01', $money($order['total_amount']));
+        self::assertSame('67.10', $money($order['vat_amount']));
+        self::assertSame('372.11', $money($order['total_gross']));
+        $snapshot = json_decode((string) $order['cart_snapshot'], true);
+        self::assertSame(3, $snapshot['lines'][0]['qty']);
+        self::assertSame('305.01', $snapshot['lines'][0]['subtotal']);
+        self::assertSame('101.67', $snapshot['lines'][0]['unit_price'], 'Prezzo quotato invariato');
+    }
+
+    public function testAdminUpdateRejectsEmptyResult(): void
+    {
+        $id = $this->seedPendingOrder();
+        $result = $this->service->adminUpdate($id, [0 => 0], renotify: false);
+
+        self::assertFalse($result['ok'], 'Tutte le righe a 0 → errore, meglio annullare la richiesta');
+        $order = $this->orders->find($id);
+        self::assertSame(6, (int) $order['total_items'], 'Nessuna modifica applicata');
+    }
+
+    public function testAdminUpdateOnlyWorksWhilePending(): void
+    {
+        $id = $this->seedPendingOrder();
+        $this->service->confirm($id);
+
+        $result = $this->service->adminUpdate($id, [0 => 1], renotify: false);
+        self::assertFalse($result['ok']);
+    }
+
     public function testAutoDropshipUsesCustomerAddress(): void
     {
         $productId = TestDb::seedProduct($this->pdo, 'JS3801', 'adidas Gazelle', 'Adidas', [

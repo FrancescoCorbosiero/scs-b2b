@@ -53,7 +53,10 @@ ricevuta pro-forma spostata all'email di conferma (numero assegnato lì);
 indirizzo di spedizione nel form ordine; **auto-dropship alla richiesta**
 dietro flag `AUTO_DROPSHIP_ON_REQUEST` (kill-switch; vedi docs/09); dati
 bancari in /contatti e nel modal al checkout; navigazione brand con sidebar
-sticky/chips mobile; nuovo numero di telefono/WhatsApp (+39 392 772 0691).
+sticky/chips mobile; nuovo numero di telefono/WhatsApp (+39 392 772 0691);
+countdown di ripensamento 15s con "Annulla" prima dell'invio reale;
+riallineamento righe da /admin con rinotifica cliente; densità griglia
+catalogo selezionabile (grande/media/compatta).
 Migrazione: 0004_order_lifecycle.sql.
 
 ## Domande aperte (chiedere al proprietario, NON assumere)

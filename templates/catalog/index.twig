@@ -122,6 +122,23 @@
                                 </button>
                             {% endfor %}
                         </div>
+                        {# densità griglia: card grandi / medie / compatte (persiste in sessione) #}
+                        <div class="flex items-center gap-1">
+                            <span class="text-neutral-500 mr-1">{{ t('catalog.grid_label') }}:</span>
+                            {% for gs in ['lg', 'md', 'sm'] %}
+                                <button type="submit" form="grid-size-form" name="grid_size" value="{{ gs }}"
+                                        title="{{ t('catalog.grid_' ~ gs) }}" aria-label="{{ t('catalog.grid_' ~ gs) }}"
+                                        class="p-1.5 rounded-md border {{ grid_size == gs ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50 text-neutral-500' }}">
+                                    {% if gs == 'lg' %}
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="14" rx="1"/><rect x="8.5" y="1" width="6.5" height="14" rx="1"/></svg>
+                                    {% elseif gs == 'md' %}
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="1"/><rect x="1" y="8.5" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1"/></svg>
+                                    {% else %}
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="4" height="4" rx="0.5"/><rect x="6" y="1" width="4" height="4" rx="0.5"/><rect x="11" y="1" width="4" height="4" rx="0.5"/><rect x="1" y="6" width="4" height="4" rx="0.5"/><rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11" y="6" width="4" height="4" rx="0.5"/><rect x="1" y="11" width="4" height="4" rx="0.5"/><rect x="6" y="11" width="4" height="4" rx="0.5"/><rect x="11" y="11" width="4" height="4" rx="0.5"/></svg>
+                                    {% endif %}
+                                </button>
+                            {% endfor %}
+                        </div>
                         <div class="flex items-center gap-2">
                             <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 py-2 font-semibold hover:bg-neutral-700">{{ t('catalog.apply_filters') }}</button>
                             <a href="/" class="text-neutral-500 hover:text-neutral-700 underline">{{ t('catalog.reset_filters') }}</a>
@@ -132,6 +149,10 @@
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                     <input type="hidden" name="redirect" value="{{ current_uri }}">
                 </form>
+                <form id="grid-size-form" method="post" action="/griglia">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <input type="hidden" name="redirect" value="{{ current_uri }}">
+                </form>
             </div>
 
             {% if items is empty %}
@@ -139,7 +160,13 @@
                     {{ t('catalog.no_results') }}
                 </div>
             {% else %}
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {# classi per densità scritte per esteso: il JIT di Tailwind le deve vedere #}
+                {% set grid_classes = {
+                    'lg': 'grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5',
+                    'md': 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4',
+                    'sm': 'grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3',
+                } %}
+                <div class="{{ grid_classes[grid_size] ?? grid_classes['md'] }}">
                     {% for item in items %}
                         {% set sizes = sizes_by_product[item.id] ?? [] %}
                         <article class="bg-white rounded-xl border border-neutral-200 overflow-hidden flex flex-col">

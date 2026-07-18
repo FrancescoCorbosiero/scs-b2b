@@ -11,6 +11,7 @@ namespace App\Support;
 final class Session
 {
     public const SIZE_SYSTEMS = ['eu', 'us'];
+    public const GRID_SIZES = ['sm', 'md', 'lg'];
     public const LOCALES = ['it', 'en'];
     public const DEFAULT_LOCALE = 'it';
     public const DEFAULT_COUNTRY = 'IT';
@@ -138,6 +139,21 @@ final class Session
     {
         if (in_array($system, self::SIZE_SYSTEMS, true)) {
             $_SESSION['size_system'] = $system;
+        }
+    }
+
+    /** Densità della griglia catalogo: sm (compatta) | md (default) | lg (card grandi). */
+    public function gridSize(): string
+    {
+        $size = $_SESSION['grid_size'] ?? 'md';
+
+        return in_array($size, self::GRID_SIZES, true) ? $size : 'md';
+    }
+
+    public function setGridSize(string $size): void
+    {
+        if (in_array($size, self::GRID_SIZES, true)) {
+            $_SESSION['grid_size'] = $size;
         }
     }
 
