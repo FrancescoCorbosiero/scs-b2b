@@ -1,0 +1,62 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('account.my_orders') }} — {{ t('app.title') }}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-wrap items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold">{{ t('account.my_orders') }}</h1>
+        <a href="/account" class="ml-auto text-sm underline text-neutral-500 hover:text-neutral-900">{{ t('account.title') }}</a>
+    </div>
+
+    {% if orders is empty %}
+        <div class="bg-white rounded-xl border border-neutral-200 p-10 text-center text-neutral-500">
+            <p class="mb-4">{{ t('account.no_orders') }}</p>
+            <a href="/" class="inline-block rounded-lg bg-neutral-900 text-white px-5 py-2.5 font-semibold hover:bg-neutral-700">{{ t('cart.go_catalog') }}</a>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto max-w-5xl">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-neutral-50 text-neutral-500 text-left">
+                        <th class="px-4 py-2.5 font-medium">#</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('account.col_status') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('cart.total_items') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('email.total_net') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('email.total_gross') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('account.col_receipt') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    {% for order in orders %}
+                        {% set st = order.status ?? 'pending' %}
+                        <tr class="hover:bg-neutral-50">
+                            <td class="px-4 py-2.5 font-semibold">#{{ order.id }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">{{ order.created_at|date('d/m/Y') }}</td>
+                            <td class="px-4 py-2.5">
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border whitespace-nowrap
+                                    {{ st == 'confirmed' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                     : st == 'cancelled' ? 'bg-red-50 border-red-200 text-red-700'
+                                     : 'bg-amber-50 border-amber-200 text-amber-800' }}">
+                                    {{ t('order_status.' ~ st) }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2.5 text-right">{{ order.total_items }}</td>
+                            <td class="px-4 py-2.5 text-right whitespace-nowrap">{{ order.total_amount|eur }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{{ ((order.total_gross ?? 0) > 0 ? order.total_gross : order.total_amount)|eur }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">
+                                {% if st == 'confirmed' and order.receipt_number %}
+                                    <a href="/account/ordini/{{ order.id }}/ricevuta.pdf" target="_blank" rel="noopener"
+                                       class="underline font-semibold">{{ order.receipt_number }}</a>
+                                {% else %}
+                                    <span class="text-neutral-400">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="mt-3 text-xs text-neutral-500 max-w-5xl">{{ t('account.orders_hint') }}</p>
+    {% endif %}
+{% endblock %}

@@ -10,7 +10,21 @@ Ovunque i prezzi sono **VAT esclusa**, con dicitura esplicita (banner
 catalogo + footer).
 
 ## /login
-Campo password unico + "ricordami". Rate limited (vedi 07). Nessun hint sulla password.
+Login con **account personale** (email + password) e, finché
+`GUEST_LOGIN_ENABLED=1`, modalità ospite con la password condivisa
+(toggle nella stessa pagina). "Password dimenticata?" → `/password-dimenticata`
+(risposta neutra). Rate limited (vedi 07). Gli account si creano solo da
+`/admin/clienti` con invito via email (link monouso 72h per impostare la
+password su `/account/imposta-password`).
+
+## /account (area personale — richiede account, non ospite)
+- **Profilo**: nome, azienda, telefono, indirizzo, paese, P.IVA, lingua
+  (email modificabile solo dall'admin) → precompila il checkout; al login le
+  preferenze paese/lingua del profilo diventano quelle della sessione.
+- **Cambio password** (con verifica dell'attuale).
+- **/account/ordini**: richieste con stato e totali; **ricevuta pro-forma PDF**
+  scaricabile per gli ordini confermati (ownership verificata per user_id o
+  email; mai offer_price).
 
 ## / (Catalogo)
 
@@ -122,6 +136,10 @@ coordinate da `BANK_*` (con `BANK_IBAN` vuoto: invito a contattarci).
 ## /admin (password dedicata `ADMIN_PASSWORD_HASH`)
 
 Minimale, server-rendered (sempre in italiano):
+- **/admin/clienti — gestione account**: lista con stato (attivo / invito in
+  attesa / disattivato), ultimo accesso e conteggio ordini; creazione con
+  invio automatico dell'invito nella lingua del cliente; reinvio invito o
+  reset; disattivazione immediata (le sessioni attive decadono).
 - Elenco richieste d'ordine (stato del ciclo con badge e filtro, data, cliente,
   paese/regime VAT, numero ricevuta, pezzi, imponibile, stato invio email) con
   paginazione; dashboard con contatore "in attesa di pagamento"; dettaglio con

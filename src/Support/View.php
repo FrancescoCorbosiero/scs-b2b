@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Repository\UserRepository;
 use App\Repository\VatRateRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Twig\Environment;
 
 /**
- * Rendering Twig con i global di layout (paese, lingua, carrello, CSRF, flash).
+ * Rendering Twig con i global di layout (utente, paese, lingua, carrello, CSRF, flash).
  */
 final class View
 {
@@ -19,6 +20,7 @@ final class View
         private readonly Config $config,
         private readonly Lang $lang,
         private readonly VatRateRepository $vatRates,
+        private readonly UserRepository $users,
     ) {
     }
 
@@ -29,6 +31,7 @@ final class View
         $uri = is_string($uri) ? $uri : '/';
         $whatsappDigits = (string) preg_replace('/[^0-9]/', '', $this->config->str('CONTACT_WHATSAPP'));
         $globals = [
+            'current_user' => $this->currentUser(),
             'locale' => $this->lang->locale(),
             'locales' => Session::LOCALES,
             'country' => $this->session->country(),
@@ -66,6 +69,26 @@ final class View
         $response->getBody()->write($this->twig->render($template, array_merge($globals, $data)));
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /** @return array{id: int, name: string, email: string}|null utente loggato (null = ospite) */
+    private function currentUser(): ?array
+    {
+        $userId = $this->session->userId();
+        if ($userId === null) {
+            return null;
+        }
+        try {
+            $user = $this->users->findActive($userId);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $user === null ? null : [
+            'id' => (int) $user['id'],
+            'name' => (string) $user['name'],
+            'email' => (string) $user['email'],
+        ];
     }
 
     /**

@@ -3,16 +3,23 @@
 {% block title %}{{ t('login.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    <div class="max-w-sm mx-auto mt-10 sm:mt-16">
+    <div class="max-w-sm mx-auto mt-10 sm:mt-16" x-data="{ guest: false }">
         <img src="/logo.png" alt="{{ company_name }}" class="mx-auto mb-8 w-56 sm:w-72 max-w-full h-auto">
         <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
             <h1 class="text-xl font-bold mb-1">{{ t('login.title') }}</h1>
             <p class="text-sm text-neutral-500 mb-6">{{ t('login.intro') }}</p>
-            <form method="post" action="/login" class="space-y-4">
+
+            {# ── Login con account personale ── #}
+            <form method="post" action="/login" class="space-y-4" x-show="!guest">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <div>
+                    <label for="email" class="block text-sm font-medium mb-1">{{ t('login.email') }}</label>
+                    <input type="email" id="email" name="email" required autofocus autocomplete="username"
+                           class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
                     <label for="password" class="block text-sm font-medium mb-1">{{ t('login.password') }}</label>
-                    <input type="password" id="password" name="password" required autofocus autocomplete="current-password"
+                    <input type="password" id="password" name="password" required autocomplete="current-password"
                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <label class="flex items-center gap-2 text-sm text-neutral-600">
@@ -22,7 +29,36 @@
                 <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
                     {{ t('login.submit') }}
                 </button>
+                <p class="text-center text-sm">
+                    <a href="/password-dimenticata" class="underline text-neutral-500 hover:text-neutral-900">{{ t('login.forgot') }}</a>
+                </p>
             </form>
+
+            {# ── Modalità ospite (password condivisa, transizione) ── #}
+            {% if guest_login_enabled %}
+                <form method="post" action="/login" class="space-y-4" x-show="guest" x-cloak>
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <div>
+                        <label for="guest-password" class="block text-sm font-medium mb-1">{{ t('login.guest_password') }}</label>
+                        <input type="password" id="guest-password" name="password" required autocomplete="off"
+                               class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-neutral-600">
+                        <input type="checkbox" name="remember" value="1" class="rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+                        {{ t('login.remember') }}
+                    </label>
+                    <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                        {{ t('login.submit') }}
+                    </button>
+                </form>
+                <button type="button" @click="guest = !guest"
+                        class="mt-4 w-full text-center text-xs underline text-neutral-400 hover:text-neutral-700"
+                        x-text="guest ? {{ t('login.use_account')|json_encode }} : {{ t('login.use_guest')|json_encode }}">
+                    {{ t('login.use_guest') }}
+                </button>
+            {% endif %}
+
+            <p class="mt-5 text-xs text-neutral-400">{{ t('login.no_account_hint') }}</p>
         </div>
     </div>
 {% endblock %}

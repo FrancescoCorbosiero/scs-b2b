@@ -71,10 +71,28 @@ final class Session
         return ($_SESSION['auth_catalog'] ?? false) === true;
     }
 
+    /** Login ospite (password condivisa): accesso al catalogo senza account. */
     public function loginCatalog(): void
     {
         $this->regenerate();
         $_SESSION['auth_catalog'] = true;
+        unset($_SESSION['user_id']);
+    }
+
+    /** Login con account personale: implica anche l'accesso al catalogo. */
+    public function loginUser(int $userId): void
+    {
+        $this->regenerate();
+        $_SESSION['auth_catalog'] = true;
+        $_SESSION['user_id'] = $userId;
+    }
+
+    /** ID dell'account loggato; null in modalità ospite. */
+    public function userId(): ?int
+    {
+        $id = $_SESSION['user_id'] ?? null;
+
+        return is_int($id) && $id > 0 ? $id : null;
     }
 
     // ── Auth admin (flag separato, mai riusare quella catalogo) ─────
@@ -92,7 +110,11 @@ final class Session
 
     public function logout(string $scope): void
     {
-        unset($_SESSION[$scope === 'admin' ? 'auth_admin' : 'auth_catalog']);
+        if ($scope === 'admin') {
+            unset($_SESSION['auth_admin']);
+        } else {
+            unset($_SESSION['auth_catalog'], $_SESSION['user_id']);
+        }
         $this->regenerate();
     }
 

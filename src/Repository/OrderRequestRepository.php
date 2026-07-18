@@ -18,7 +18,7 @@ final class OrderRequestRepository
      * La richiesta nasce 'pending' e SENZA numero ricevuta: entrambi arrivano
      * con la conferma admin (pagamento ricevuto), vedi docs/06.
      *
-     * @param array{customer_name: string, company: string|null, email: string, phone: string,
+     * @param array{user_id: int|null, customer_name: string, company: string|null, email: string, phone: string,
      *   address_street: string|null, address_city: string|null, address_zip: string|null,
      *   notes: string|null, locale: string, country_code: string, vat_number: string|null,
      *   vat_scheme: string, vat_rate: string, vat_amount: string, total_gross: string,
@@ -28,13 +28,14 @@ final class OrderRequestRepository
     public function insert(array $data): int
     {
         $stmt = $this->pdo->prepare(
-            'INSERT INTO order_requests (created_at, customer_name, company, email, phone,
+            'INSERT INTO order_requests (user_id, created_at, customer_name, company, email, phone,
                 address_street, address_city, address_zip, notes, status,
                 locale, country_code, vat_number, vat_scheme, vat_rate, vat_amount, total_gross,
                 total_items, total_amount, cart_snapshot, email_admin_sent, email_customer_sent, ip_address, user_agent)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
         );
         $stmt->execute([
+            $data['user_id'] ?? null,
             date('Y-m-d H:i:s'),
             $data['customer_name'],
             $data['company'],
@@ -119,6 +120,27 @@ final class OrderRequestRepository
         $column = $which === 'admin' ? 'email_admin_sent' : 'email_customer_sent';
         $stmt = $this->pdo->prepare("UPDATE order_requests SET {$column} = 1 WHERE id = ?");
         $stmt->execute([$id]);
+    }
+
+    /**
+     * Ordini dell'area personale: quelli agganciati all'account + gli storici
+     * pre-account con la stessa email.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function forUser(int $userId, string $email): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id, created_at, status, receipt_number, country_code, vat_scheme,
+                    total_items, total_amount, vat_amount, total_gross
+             FROM order_requests
+             WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?))
+             ORDER BY id DESC LIMIT 200'
+        );
+        $stmt->execute([$userId, $email]);
+
+        /** @var list<array<string, mixed>> */
+        return $stmt->fetchAll();
     }
 
     /** Antispam: richieste inviate da un IP nell'ultima ora. */

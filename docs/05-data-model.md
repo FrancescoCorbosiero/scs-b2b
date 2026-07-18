@@ -26,8 +26,21 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `supplier_size_id` INT NULL — `id` riga del feed: `size_id` per l'API dropship (docs/09)
 - Unique: (`product_id`, `size_eu`)
 
+## `users` (account clienti — M9, docs/07)
+- `id` PK, `email` UNIQUE, `password_hash` NULL (NULL = invito non completato)
+- `name`, `company` NULL, `phone` NULL, `vat_number` NULL
+- `address_street|city|zip` NULL, `country_code`, `locale` — precompilano il checkout
+- `is_active` TINYINT, `created_at`, `updated_at`, `last_login_at` NULL
+
+## `user_tokens` (invito/reset — monouso, a scadenza)
+- `id` PK, `user_id` FK (CASCADE), `token_hash` CHAR(64) UNIQUE (sha256: il
+  chiaro esiste solo nel link email), `purpose` ENUM('invite','reset')
+- `expires_at`, `used_at` NULL, `created_at`
+
 ## `order_requests`
-- `id` PK, `created_at`
+- `id` PK, `user_id` FK NULL (ON DELETE SET NULL) — account del cliente;
+  NULL per gli ordini ospite/storici (l'area personale li matcha per email)
+- `created_at`
 - `customer_name`, `company` NULL, `email`, `phone`, `notes` TEXT NULL
 - `address_street`, `address_city`, `address_zip` — indirizzo di spedizione
   (alimenta anche l'auto-dropship, docs/09)
