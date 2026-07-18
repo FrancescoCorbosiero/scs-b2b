@@ -1,0 +1,116 @@
+{# Ricevuta pro-forma (PDF via dompdf): documento NON fiscale, nel locale del cliente.
+   MAI offer_price qui dentro (le righe arrivano già ripulite con stripCosts). #}
+<!doctype html>
+<html lang="{{ locale ?? 'it' }}">
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #171717; margin: 24px; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #737373; margin: 0 0 6px; }
+        .header { width: 100%; margin-bottom: 18px; }
+        .header td { vertical-align: top; }
+        .muted { color: #737373; }
+        .box { border: 1px solid #d4d4d4; padding: 10px; }
+        table.lines { width: 100%; border-collapse: collapse; margin-top: 14px; }
+        table.lines th, table.lines td { border: 1px solid #d4d4d4; padding: 5px 6px; }
+        table.lines th { background: #f5f5f5; text-align: left; font-size: 10px; text-transform: uppercase; }
+        .right { text-align: right; }
+        table.totals { border-collapse: collapse; margin-top: 12px; margin-left: auto; }
+        table.totals td { padding: 3px 8px; }
+        .totals .grand td { border-top: 1px solid #171717; font-weight: bold; font-size: 13px; }
+        .note { margin-top: 14px; font-size: 9.5px; color: #525252; }
+        .docmeta { font-size: 12px; }
+    </style>
+</head>
+<body>
+    <table class="header">
+        <tr>
+            <td style="width: 55%;">
+                <h1>{{ company.name }}</h1>
+                <div class="muted">
+                    {{ company.address }}<br>
+                    {{ company.vat }}<br>
+                    {{ company.email }} · {{ company.phone }}<br>
+                    {{ company.site }}
+                </div>
+            </td>
+            <td style="width: 45%;" class="right">
+                <h1>{{ t('receipt.title') }}</h1>
+                <div class="docmeta">
+                    <strong>{{ t('receipt.number') }}:</strong> {{ order.receipt_number ?: t('receipt.number_pending', {id: order.id}) }}<br>
+                    <strong>{{ t('receipt.date') }}:</strong> {{ order.created_at|date('d/m/Y') }}<br>
+                    <strong>{{ t('receipt.order_ref') }}:</strong> #{{ order.id }}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="box">
+        <h2>{{ t('receipt.customer') }}</h2>
+        <strong>{{ order.customer_name }}</strong>{% if order.company %} — {{ order.company }}{% endif %}<br>
+        {{ order.email }} · {{ order.phone }}<br>
+        {{ t('receipt.country') }}: {{ t('country.' ~ (order.country_code ?? 'IT')) }} ({{ order.country_code ?? 'IT' }})
+        {% if order.vat_number %}<br>{{ t('receipt.vat_number') }}: {{ order.vat_number }}{% endif %}
+    </div>
+
+    <table class="lines">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>{{ t('email.col_product') }}</th>
+                <th>{{ t('email.col_size_eu') }}</th>
+                <th>{{ t('email.col_size_us') }}</th>
+                <th>Barcode</th>
+                <th class="right">{{ t('email.col_qty') }}</th>
+                <th class="right">{{ t('email.col_unit_price') }}</th>
+                <th class="right">{{ t('email.col_subtotal') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in order.lines %}
+                <tr>
+                    <td>{{ line.sku }}</td>
+                    <td>{{ line.name }}</td>
+                    <td>{{ line.size_eu }}</td>
+                    <td>{{ line.size_us }}</td>
+                    <td>{{ line.barcode }}</td>
+                    <td class="right">{{ line.qty }}</td>
+                    <td class="right">{{ line.unit_price|eur }}</td>
+                    <td class="right">{{ line.subtotal|eur }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="totals">
+        <tr>
+            <td class="muted">{{ t('email.total_items') }}</td>
+            <td class="right">{{ order.total_items }}</td>
+        </tr>
+        <tr>
+            <td class="muted">{{ t('email.total_net') }}</td>
+            <td class="right">{{ order.total_amount|eur }}</td>
+        </tr>
+        <tr>
+            <td class="muted">
+                {% if order.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
+                {% elseif order.vat_scheme == 'export' %}{{ t('vat.label_export') }}
+                {% else %}{{ t('vat.label_rate', {rate: order.vat_rate ?? 0}) }}{% endif %}
+            </td>
+            <td class="right">{{ (order.vat_amount ?? '0.00')|eur }}</td>
+        </tr>
+        <tr class="grand">
+            <td>{{ t('email.total_gross') }}</td>
+            <td class="right">{{ ((order.total_gross is defined and order.total_gross > 0) ? order.total_gross : order.total_amount)|eur }}</td>
+        </tr>
+    </table>
+
+    {% if order.vat_scheme == 'reverse_charge' %}
+        <p class="note">{{ t('vat.note_reverse') }}</p>
+    {% elseif order.vat_scheme == 'export' %}
+        <p class="note">{{ t('vat.note_export') }}</p>
+    {% endif %}
+    <p class="note">{{ t('receipt.disclaimer') }}</p>
+</body>
+</html>

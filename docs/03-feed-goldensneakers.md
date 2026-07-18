@@ -59,7 +59,7 @@ Il token non va mai committato né loggato.
   toccare il DB; in caso di errore HTTP/parsing, abortire senza modifiche.
 - Upsert per `sku` + replace dello stock taglie; i prodotti spariti dal feed vanno
   marcati `is_active = 0`, non cancellati (le richieste d'ordine passate li referenziano).
-- Precalcolare a sync i 3 prezzi per piano (vedi `04-pricing.md`).
+- Precalcolare a sync il prezzo netto di listino con le regole margine (vedi `04-pricing.md`).
 - Registrare ogni run in `sync_logs`: iniziato/finito, righe lette, prodotti
   creati/aggiornati/disattivati, errori.
 - Timeout HTTP ragionevole (es. 60s), retry singolo con backoff, User-Agent identificativo.

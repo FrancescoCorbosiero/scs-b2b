@@ -8,16 +8,19 @@ declare(strict_types=1);
  *
  * Uso: php bin/sync-feed.php [--reprice]
  *   --reprice  ricalcola solo i prezzi dai valori offer_price già in DB
- *              (dopo un cambio di MARKUP_BASE/PRO/MAX, VAT_PERCENTAGE o
- *              PRICE_ROUNDING in .env)
+ *              (dopo una modifica alle regole margine in /admin/margini o
+ *              a PRICE_ROUNDING in .env; /admin lo esegue già da sé al salvataggio)
  *
  * Exit code: 0 = ok, 1 = errore, 2 = saltato (altro sync in corso).
  */
 
 use App\Adapter\GoldenSneakersAdapter;
+use App\Repository\MarginRuleRepository;
 use App\Repository\ProductRepository;
+use App\Repository\SettingsRepository;
 use App\Repository\SyncLogRepository;
 use App\Service\FeedSyncService;
+use App\Service\MarginResolver;
 use App\Service\PricingService;
 use App\Support\Config;
 use App\Support\Db;
@@ -43,6 +46,7 @@ $service = new FeedSyncService(
     new ProductRepository($pdo),
     new SyncLogRepository($pdo),
     PricingService::fromConfig($config),
+    new MarginResolver(new MarginRuleRepository($pdo), new SettingsRepository($pdo)),
     $config,
     $logger,
 );

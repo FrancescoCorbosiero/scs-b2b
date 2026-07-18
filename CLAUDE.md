@@ -1,8 +1,11 @@
 # B2B Sneakers Catalog — b2b.shoesclothingstore.com
 
-Piattaforma catalogo sneakers B2B in sola lettura, protetta da password condivisa.
-Gli utenti sfogliano il catalogo (stock per taglia, prezzi per piano), compongono un
-carrello e inviano una **richiesta d'ordine via email** — non esiste checkout/pagamento.
+Piattaforma catalogo sneakers B2B in sola lettura, protetta da password condivisa,
+valida in tutta Europa (UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
+Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
+compongono un carrello e inviano una **richiesta d'ordine via email** con ricevuta
+pro-forma PDF — non esiste checkout/pagamento. Il VAT si calcola alla richiesta
+in base al paese di residenza (reverse charge per B2B UE con P.IVA).
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).
 
 ## Come usare questa documentazione
@@ -34,12 +37,16 @@ Variabili d'ambiente: `.env.example` (documentato riga per riga).
 ## Regole d'oro (non negoziabili)
 
 1. **`offer_price` (prezzo wholesale del fornitore) non deve MAI raggiungere il client**:
-   non in HTML, non in JSON, non in export, non in email al cliente. I prezzi esposti
-   sono solo quelli precalcolati per piano (vedi `docs/04-pricing.md`).
+   non in HTML, non in JSON, non in export, non in email al cliente, non nella
+   ricevuta pro-forma. L'unico prezzo esposto è il netto di listino precalcolato
+   con le regole margine admin (vedi `docs/04-pricing.md`).
 2. Il sito è interamente dietro login a password condivisa e **non indicizzabile**
    (noindex + robots.txt).
 3. La fonte di verità del catalogo è il feed GoldenSneakers: nessun CRUD prodotti.
-4. Tutte le stringhe UI in italiano, centralizzate in `lang/it.php`.
+4. Tutte le stringhe UI centralizzate e multi-lingua: `lang/it.php` (fonte di
+   verità, default) + `lang/en.php` (stesse chiavi; fallback sull'italiano).
+   Area admin ed email admin solo in italiano; email cliente e ricevuta nel
+   locale del cliente. **I prezzi si mostrano sempre VAT esclusa.**
 5. Prepared statements ovunque, escaping sistematico dell'output, CSRF su ogni POST.
 6. Se una spec è ambigua o manca un dato (vedi `docs/08-roadmap.md` § Domande aperte):
    **chiedi, non assumere**.

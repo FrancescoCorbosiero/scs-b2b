@@ -100,9 +100,10 @@
                         <strong data-summary-items>{{ cart.total_items }}</strong>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-neutral-500">{{ t('cart.total_amount', {plan: t('plan.' ~ plan)}) }}</span>
+                        <span class="text-neutral-500">{{ t('cart.total_net') }}</span>
                         <strong class="text-lg" data-summary-total>{{ cart.total_amount|eur }}</strong>
                     </div>
+                    <p class="text-xs text-neutral-500">{{ t('cart.vat_note', {country: t('country.' ~ country)}) }}</p>
                     <div class="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2 text-xs text-neutral-600">
                         {{ t('cart.minimum_notice', {min: min_order_items}) }}
                         <span data-minimum-warning class="{{ meets_minimum ? 'hidden' }} block mt-1 text-amber-700 font-medium">

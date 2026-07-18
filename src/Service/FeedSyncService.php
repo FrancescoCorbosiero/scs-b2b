@@ -19,7 +19,8 @@ use Psr\Log\LoggerInterface;
  * - Transazionale: il payload viene scaricato e validato TUTTO prima di toccare
  *   il DB; qualsiasi errore → rollback, il catalogo resta com'era.
  * - I prodotti spariti dal feed vengono disattivati (mai cancellati).
- * - I 3 prezzi per piano sono precalcolati qui, a livello taglia.
+ * - Il prezzo netto (VAT esclusa) è precalcolato qui, a livello taglia, con
+ *   il margine risolto dalle regole admin (MarginResolver).
  * - Lock su file per evitare run concorrenti (cron + "Sincronizza ora").
  */
 final class FeedSyncService
@@ -30,6 +31,7 @@ final class FeedSyncService
         private readonly ProductRepository $products,
         private readonly SyncLogRepository $syncLogs,
         private readonly PricingService $pricing,
+        private readonly MarginResolver $margins,
         private readonly Config $config,
         private readonly LoggerInterface $logger,
     ) {
@@ -83,28 +85,24 @@ final class FeedSyncService
             foreach ($grouped as $sku => $product) {
                 // gli SKU numerici diventano chiavi int in PHP: si ricasta
                 $sku = (string) $sku;
-                $prices = [];
+                $margin = $this->margins->resolve($product['brand'], $product['name']);
                 $sizes = [];
                 $totalQuantity = 0;
-                $min = ['base' => null, 'pro' => null, 'max' => null];
+                $min = null;
                 foreach ($product['sizes'] as $size) {
-                    $prices = $this->pricing->pricesFor($size['offer_price']);
+                    $price = $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']);
                     $sizes[] = [
                         'size_eu' => $size['size_eu'],
                         'size_us' => $size['size_us'],
                         'barcode' => $size['barcode'],
                         'quantity' => $size['quantity'],
                         'offer_price' => $size['offer_price'],
-                        'price_base' => $prices['base'],
-                        'price_pro' => $prices['pro'],
-                        'price_max' => $prices['max'],
+                        'price' => $price,
                         'supplier_size_id' => $size['supplier_size_id'],
                     ];
                     $totalQuantity += $size['quantity'];
-                    foreach (['base', 'pro', 'max'] as $plan) {
-                        if ($min[$plan] === null || (float) $prices[$plan] < (float) $min[$plan]) {
-                            $min[$plan] = $prices[$plan];
-                        }
+                    if ($min === null || (float) $price < (float) $min) {
+                        $min = $price;
                     }
                 }
 
@@ -115,9 +113,7 @@ final class FeedSyncService
                     'size_mapper' => $product['size_mapper'],
                     'image_url' => $product['image_url'],
                     'total_quantity' => $totalQuantity,
-                    'min_price_base' => $min['base'],
-                    'min_price_pro' => $min['pro'],
-                    'min_price_max' => $min['max'],
+                    'min_price' => $min,
                 ], $seenAt);
                 $this->products->replaceSizes($result['id'], $sizes);
                 $seenIds[] = $result['id'];
@@ -142,7 +138,8 @@ final class FeedSyncService
     }
 
     /**
-     * Ricalcola i 3 prezzi da offer_price già in DB (dopo un cambio percentuali in .env).
+     * Ricalcola i prezzi da offer_price già in DB (dopo una modifica alle
+     * regole margine da /admin/margini, senza riscaricare il feed).
      *
      * @return array{status: string, rows_read: int, products_created: int,
      *   products_updated: int, products_deactivated: int, message: string|null}
@@ -153,10 +150,17 @@ final class FeedSyncService
         $counters = ['rows_read' => 0, 'products_created' => 0, 'products_updated' => 0, 'products_deactivated' => 0];
 
         try {
+            $this->margins->clearCache();
             $this->pdo->beginTransaction();
+            $marginByProduct = [];
             foreach ($this->products->allSizesWithCost() as $size) {
-                $prices = $this->pricing->pricesFor($size['offer_price']);
-                $this->products->updateSizePrices($size['id'], $prices['base'], $prices['pro'], $prices['max']);
+                // il margine dipende solo da brand/nome: si risolve una volta per prodotto
+                $margin = $marginByProduct[$size['product_id']]
+                    ??= $this->margins->resolve($size['brand'], $size['name']);
+                $this->products->updateSizePrice(
+                    $size['id'],
+                    $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']),
+                );
                 $counters['rows_read']++;
             }
             $this->products->refreshMinPrices();

@@ -1,20 +1,23 @@
-{# Email cliente: riepilogo SENZA costi fornitore né margini (il dato non arriva proprio qui). #}
+{# Email cliente (locale del cliente): riepilogo formale SENZA costi fornitore né margini
+   (il dato non arriva proprio qui). Ricevuta pro-forma PDF in allegato. #}
 <div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
-    <h1 style="font-size: 20px;">Richiesta ordine ricevuta #{{ order.id }}</h1>
-    <p>Ciao {{ order.customer_name }},</p>
-    <p>abbiamo ricevuto la tua richiesta d'ordine. Ti ricontatteremo al più presto per confermare
-       disponibilità e dettagli. <strong>Nessun pagamento è dovuto ora.</strong></p>
+    <h1 style="font-size: 20px;">{{ t('email.customer_title', {id: order.id}) }}</h1>
+    <p>{{ t('email.customer_greeting', {name: order.customer_name}) }}</p>
+    <p>{{ t('email.customer_body') }} <strong>{{ t('email.customer_no_payment') }}</strong></p>
+    {% if order.receipt_number %}
+        <p style="font-size: 13px; color: #525252;">{{ t('email.customer_receipt_note', {number: order.receipt_number}) }}</p>
+    {% endif %}
 
     <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
         <thead>
             <tr style="background: #f5f5f5;">
                 <th align="left">SKU</th>
-                <th align="left">Prodotto</th>
-                <th align="left">Taglia EU</th>
-                <th align="left">Taglia US</th>
-                <th align="right">Qty</th>
-                <th align="right">Prezzo unit.</th>
-                <th align="right">Subtotale</th>
+                <th align="left">{{ t('email.col_product') }}</th>
+                <th align="left">{{ t('email.col_size_eu') }}</th>
+                <th align="left">{{ t('email.col_size_us') }}</th>
+                <th align="right">{{ t('email.col_qty') }}</th>
+                <th align="right">{{ t('email.col_unit_price') }}</th>
+                <th align="right">{{ t('email.col_subtotal') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -32,12 +35,40 @@
         </tbody>
     </table>
 
-    <p style="font-size: 15px; margin-top: 14px;">
-        <strong>Totale pezzi:</strong> {{ order.total_items }}<br>
-        <strong>Totale (IVA inclusa):</strong> {{ order.total_amount|eur }}
-    </p>
+    <table cellpadding="4" cellspacing="0" style="font-size: 14px; margin-top: 14px; margin-left: auto;">
+        <tr>
+            <td style="color: #525252;">{{ t('email.total_items') }}</td>
+            <td align="right"><strong>{{ order.total_items }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #525252;">{{ t('email.total_net') }}</td>
+            <td align="right"><strong>{{ order.total_amount|eur }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #525252;">
+                {% if order.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
+                {% elseif order.vat_scheme == 'export' %}{{ t('vat.label_export') }}
+                {% else %}{{ t('vat.label_rate', {rate: order.vat_rate}) }}{% endif %}
+            </td>
+            <td align="right">{{ order.vat_amount|eur }}</td>
+        </tr>
+        <tr>
+            <td style="color: #171717; border-top: 1px solid #d4d4d4;"><strong>{{ t('email.total_gross') }}</strong></td>
+            <td align="right" style="border-top: 1px solid #d4d4d4;"><strong>{{ order.total_gross|eur }}</strong></td>
+        </tr>
+    </table>
+
+    {% if order.vat_scheme == 'reverse_charge' %}
+        <p style="color: #525252; font-size: 12px;">{{ t('vat.note_reverse') }}</p>
+    {% elseif order.vat_scheme == 'export' %}
+        <p style="color: #525252; font-size: 12px;">{{ t('vat.note_export') }}</p>
+    {% endif %}
+    <p style="color: #525252; font-size: 12px;">{{ t('email.customer_vat_disclaimer', {country: t('country.' ~ order.country_code)}) }}</p>
+
+    <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>
 
     <p style="color: #525252; font-size: 13px; margin-top: 18px;">
-        Per qualsiasi domanda: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}
+        {{ t('email.customer_contacts') }}: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}
     </p>
 </div>

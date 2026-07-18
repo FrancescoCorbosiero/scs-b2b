@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="{{ locale }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,9 +20,10 @@
                 <img src="/logo.png" alt="{{ company_name }}" class="h-7 sm:h-8 w-auto">
                 <span class="font-bold text-base tracking-tight text-amber-400">Admin</span>
             </a>
-            <nav class="flex items-center gap-1">
+            <nav class="flex flex-wrap items-center gap-1">
                 <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin' ? 'bg-neutral-700' }}">{{ t('admin.dashboard') }}</a>
                 <a href="/admin/richieste" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste' ? 'bg-neutral-700' }}">{{ t('admin.orders') }}</a>
+                <a href="/admin/margini" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/margini' ? 'bg-neutral-700' }}">{{ t('admin.margins') }}</a>
                 <a href="/admin/sync" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/sync' ? 'bg-neutral-700' }}">{{ t('admin.sync') }}</a>
                 <a href="/admin/recommended" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/recommended' ? 'bg-neutral-700' }}">{{ t('admin.recommended') }}</a>
             </nav>
@@ -49,14 +50,26 @@
             </nav>
 
             <div class="ml-auto flex items-center gap-2">
-                <form method="post" action="/piano" class="flex items-center gap-2 text-sm">
+                {# paese di residenza: determina il VAT applicato alla richiesta d'ordine #}
+                <form method="post" action="/paese" class="hidden sm:flex items-center gap-2 text-sm">
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                     <input type="hidden" name="redirect" value="{{ current_uri }}">
-                    <label for="plan-select" class="sr-only">{{ t('nav.plan_label') }}</label>
-                    <select id="plan-select" name="plan" data-autosubmit
+                    <label for="country-select" class="sr-only">{{ t('nav.country_label') }}</label>
+                    <select id="country-select" name="country" data-autosubmit
+                            class="rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7 focus:ring-amber-400 focus:border-amber-400 max-w-[11rem]">
+                        {% for c in countries %}
+                            <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.code }} — {{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <form method="post" action="/lingua" class="flex items-center gap-2 text-sm">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <input type="hidden" name="redirect" value="{{ current_uri }}">
+                    <label for="locale-select" class="sr-only">{{ t('nav.language_label') }}</label>
+                    <select id="locale-select" name="locale" data-autosubmit
                             class="rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7 focus:ring-amber-400 focus:border-amber-400">
-                        {% for p in ['base', 'pro', 'max'] %}
-                            <option value="{{ p }}" {{ plan == p ? 'selected' }}>{{ t('nav.plan_label') }}: {{ t('plan.' ~ p) }}</option>
+                        {% for l in locales %}
+                            <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.' ~ l) }}</option>
                         {% endfor %}
                     </select>
                 </form>
@@ -73,6 +86,17 @@
             <a href="/" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.catalog') }}</a>
             <a href="/carrello" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.cart') }} ({{ cart_count }})</a>
             <a href="/contatti" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.contacts') }}</a>
+            <form method="post" action="/paese" class="sm:hidden px-3 py-2">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <input type="hidden" name="redirect" value="{{ current_uri }}">
+                <label for="country-select-m" class="block text-xs text-neutral-400 mb-1">{{ t('nav.country_label') }}</label>
+                <select id="country-select-m" name="country" data-autosubmit
+                        class="w-full rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7">
+                    {% for c in countries %}
+                        <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.code }} — {{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
             <form method="post" action="/logout">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <button type="submit" class="w-full text-left px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.logout') }}</button>
@@ -93,7 +117,7 @@
 
 <footer class="border-t border-neutral-200 bg-white">
     <div class="max-w-7xl mx-auto px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_included') }}</p>
+        <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}</p>
         <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
     </div>
 </footer>

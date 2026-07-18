@@ -35,26 +35,39 @@ HTTP); la modalità live richiede la checklist in docs/09.
 ✔ Done (anteprima) quando: flusso a 3 step funzionante end-to-end in
 simulazione, payload conforme all'API, `supplier_size_id` popolato dal sync.
 
+**M7 — Catalogo europeo (luglio 2026) ✔**
+Prezzi VAT esclusa con dicitura esplicita; selettore paese (UE-27 + UK/CH,
+default IT) e calcolo VAT alla richiesta d'ordine (domestic / aliquota paese /
+reverse charge con P.IVA / export); multi-lingua IT/EN (default IT); listino
+unico con regole margine gestite da /admin/margini (per brand o nome, percento
+o fisso, + default) al posto dei piani Base/Pro/Max; email cliente formale
+localizzata con ricevuta pro-forma PDF (dompdf) numerata PF-<anno>-<NNNN>.
+Migrazione: 0003_europe.sql (al deploy: `php bin/migrate.php` poi un
+`--reprice`/sync per passare ai prezzi netti).
+
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
-1. **Percentuali dei 3 piani**: Base / Pro / Max = ? / ? / ? %
-   (in `.env.example` ci sono 30/25/20 come placeholder).
+1. **Margine di default**: la migrazione parte da **30%** (continuità col
+   vecchio piano Base, ma ora al NETTO dell'IVA rimossa) — confermare o
+   modificare da /admin/margini (l'esempio citato dal titolare era "flat 5%").
 2. Il **rounding**: comportamento da verificare empiricamente. Anomalia già
-   riscontrata sul sample: `offer_price=47` → 47 × 1,30 × 1,22 = 74,542, ma il feed
-   riporta `presented_price=74.54` nonostante `rounding_type=whole` nell'URL
-   (nessun arrotondamento all'intero). O il sample è stato estratto con parametri
-   diversi, o il parametro non agisce come atteso. Chiedere al proprietario quale
-   prezzo finale vuole (74,54 o 75) e testare l'API live prima di fissare
-   `PRICE_ROUNDING`.
+   riscontrata sul sample: il feed riporta `presented_price` senza
+   arrotondamento all'intero nonostante `rounding_type=whole` nell'URL.
+   `PRICE_ROUNDING=whole` oggi arrotonda il prezzo netto all'intero: confermare.
 3. L'endpoint flat è **paginato**? Rate limit? → verificare su Swagger col token.
 4. Badge "Recommended": in v1 flag manuale da /admin — confermare che vada bene
    o se esiste un campo del fornitore da usare.
 5. SMTP: host/porta/user reali (il proprietario li inserirà direttamente in `.env`).
 6. Serve un testo legale/privacy sul form ordine (i dati restano a uso interno)?
+7. **P.IVA / reverse charge**: oggi la validazione è solo sul formato (niente
+   VIES). Serve la verifica VIES automatica in futuro?
 
 ## Valori già decisi (non richiedere di nuovo)
 
-- Ordine minimo: **5 pezzi** · IVA: **22%** · Valuta: **EUR** · Taglie primarie: **EU**
+- Ordine minimo: **5 pezzi** · Valuta: **EUR** · Taglie primarie: **EU**
+- Prezzi di listino: **VAT esclusa**; aliquote per paese in tabella `vat_rates`
+  (UE-27 + UK/CH), extra-UE = export 0%; reverse charge con P.IVA UE valida
+- Lingue: **IT (default) + EN**; area admin ed email admin solo in italiano
 - Email ordini: **info@shoesclothingstore.com** · Dominio: **b2b.shoesclothingstore.com**
 - PHP host: **8.3.6** · Deploy: **Docker Compose dietro Caddy Docker Proxy**
   (network esterna `caddy`, config via label, TLS gestito da Caddy — vedi 02)

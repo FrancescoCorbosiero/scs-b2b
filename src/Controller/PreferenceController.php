@@ -4,25 +4,39 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\VatService;
 use App\Support\Http;
 use App\Support\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * Preferenze persistite in sessione: piano prezzi e sistema taglie (EU/US).
+ * Preferenze persistite in sessione: paese di residenza, lingua e sistema taglie (EU/US).
  */
 final class PreferenceController
 {
-    public function __construct(private readonly Session $session)
-    {
+    public function __construct(
+        private readonly Session $session,
+        private readonly VatService $vat,
+    ) {
     }
 
-    public function setPlan(Request $request, Response $response): Response
+    public function setCountry(Request $request, Response $response): Response
     {
         $body = (array) ($request->getParsedBody() ?? []);
-        $plan = is_string($body['plan'] ?? null) ? $body['plan'] : '';
-        $this->session->setPlan($plan);
+        $country = is_string($body['country'] ?? null) ? strtoupper(trim($body['country'])) : '';
+        if ($this->vat->isValidCountry($country)) {
+            $this->session->setCountry($country);
+        }
+
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+    }
+
+    public function setLocale(Request $request, Response $response): Response
+    {
+        $body = (array) ($request->getParsedBody() ?? []);
+        $locale = is_string($body['locale'] ?? null) ? $body['locale'] : '';
+        $this->session->setLocale($locale);
 
         return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
     }

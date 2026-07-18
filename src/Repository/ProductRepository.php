@@ -33,8 +33,7 @@ final class ProductRepository
 
     /**
      * @param array{sku: string, name: string, brand: string, size_mapper: string,
-     *   image_url: string|null, total_quantity: int,
-     *   min_price_base: string|null, min_price_pro: string|null, min_price_max: string|null} $data
+     *   image_url: string|null, total_quantity: int, min_price: string|null} $data
      * @return array{id: int, created: bool}
      */
     public function upsertProduct(array $data, string $seenAt): array
@@ -43,12 +42,12 @@ final class ProductRepository
         if ($id === null) {
             $stmt = $this->pdo->prepare(
                 'INSERT INTO products (sku, name, brand, size_mapper, image_url, is_active, total_quantity,
-                    min_price_base, min_price_pro, min_price_max, created_at, updated_at, last_seen_at)
-                 VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)'
+                    min_price, created_at, updated_at, last_seen_at)
+                 VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $data['sku'], $data['name'], $data['brand'], $data['size_mapper'], $data['image_url'],
-                $data['total_quantity'], $data['min_price_base'], $data['min_price_pro'], $data['min_price_max'],
+                $data['total_quantity'], $data['min_price'],
                 $seenAt, $seenAt, $seenAt,
             ]);
 
@@ -57,13 +56,12 @@ final class ProductRepository
 
         $stmt = $this->pdo->prepare(
             'UPDATE products SET name = ?, brand = ?, size_mapper = ?, image_url = ?, is_active = 1,
-                total_quantity = ?, min_price_base = ?, min_price_pro = ?, min_price_max = ?,
-                updated_at = ?, last_seen_at = ?
+                total_quantity = ?, min_price = ?, updated_at = ?, last_seen_at = ?
              WHERE id = ?'
         );
         $stmt->execute([
             $data['name'], $data['brand'], $data['size_mapper'], $data['image_url'],
-            $data['total_quantity'], $data['min_price_base'], $data['min_price_pro'], $data['min_price_max'],
+            $data['total_quantity'], $data['min_price'],
             $seenAt, $seenAt, $id,
         ]);
 
@@ -74,8 +72,7 @@ final class ProductRepository
      * Sostituisce integralmente le taglie di un prodotto (il feed è la fonte di verità).
      *
      * @param list<array{size_eu: string, size_us: string, barcode: string, quantity: int,
-     *   offer_price: string, price_base: string, price_pro: string, price_max: string,
-     *   supplier_size_id?: int|null}> $sizes
+     *   offer_price: string, price: string, supplier_size_id?: int|null}> $sizes
      */
     public function replaceSizes(int $productId, array $sizes): void
     {
@@ -84,13 +81,13 @@ final class ProductRepository
 
         $insert = $this->pdo->prepare(
             'INSERT INTO product_sizes (product_id, size_eu, size_us, barcode, quantity, offer_price,
-                price_base, price_pro, price_max, supplier_size_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                price, supplier_size_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($sizes as $size) {
             $insert->execute([
                 $productId, $size['size_eu'], $size['size_us'], $size['barcode'], $size['quantity'],
-                $size['offer_price'], $size['price_base'], $size['price_pro'], $size['price_max'],
+                $size['offer_price'], $size['price'],
                 $size['supplier_size_id'] ?? null,
             ]);
         }
@@ -125,42 +122,45 @@ final class ProductRepository
     }
 
     /**
-     * Tutte le taglie con offer_price, per il ricalcolo prezzi (--reprice). SOLO USO INTERNO.
+     * Tutte le taglie con offer_price + brand/nome del prodotto, per il
+     * ricalcolo prezzi (--reprice) con le regole margine. SOLO USO INTERNO.
      *
-     * @return list<array{id: int, product_id: int, offer_price: string}>
+     * @return list<array{id: int, product_id: int, offer_price: string, brand: string, name: string}>
      */
     public function allSizesWithCost(): array
     {
-        $stmt = $this->pdo->query('SELECT id, product_id, offer_price FROM product_sizes ORDER BY product_id, id');
+        $stmt = $this->pdo->query(
+            'SELECT s.id, s.product_id, s.offer_price, p.brand, p.name
+             FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
+             ORDER BY s.product_id, s.id'
+        );
         $rows = [];
         foreach ($stmt === false ? [] : $stmt->fetchAll() as $row) {
             $rows[] = [
                 'id' => (int) $row['id'],
                 'product_id' => (int) $row['product_id'],
                 'offer_price' => (string) $row['offer_price'],
+                'brand' => (string) $row['brand'],
+                'name' => (string) $row['name'],
             ];
         }
 
         return $rows;
     }
 
-    public function updateSizePrices(int $sizeId, string $base, string $pro, string $max): void
+    public function updateSizePrice(int $sizeId, string $price): void
     {
-        $stmt = $this->pdo->prepare(
-            'UPDATE product_sizes SET price_base = ?, price_pro = ?, price_max = ? WHERE id = ?'
-        );
-        $stmt->execute([$base, $pro, $max, $sizeId]);
+        $stmt = $this->pdo->prepare('UPDATE product_sizes SET price = ? WHERE id = ?');
+        $stmt->execute([$price, $sizeId]);
     }
 
-    /** Ricalcola i minimi denormalizzati sui prodotti (dopo un reprice). */
+    /** Ricalcola il minimo denormalizzato sui prodotti (dopo un reprice). */
     public function refreshMinPrices(): void
     {
         // sintassi portabile MySQL/SQLite: niente alias sulla tabella target
         $this->pdo->exec(
             'UPDATE products SET
-                min_price_base = (SELECT MIN(price_base) FROM product_sizes WHERE product_sizes.product_id = products.id),
-                min_price_pro  = (SELECT MIN(price_pro)  FROM product_sizes WHERE product_sizes.product_id = products.id),
-                min_price_max  = (SELECT MIN(price_max)  FROM product_sizes WHERE product_sizes.product_id = products.id)'
+                min_price = (SELECT MIN(price) FROM product_sizes WHERE product_sizes.product_id = products.id)'
         );
     }
 
@@ -230,9 +230,8 @@ final class ProductRepository
      *   price_min: float|null, price_max: float|null, sort: string} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
-    public function search(array $filters, string $plan, int $page, int $perPage, int $highMin, int $lowMax): array
+    public function search(array $filters, int $page, int $perPage, int $highMin, int $lowMax): array
     {
-        $priceCol = self::planColumn($plan);
         $where = ['p.is_active = 1'];
         $params = [];
 
@@ -265,19 +264,19 @@ final class ProductRepository
                 break;
         }
         if ($filters['price_min'] !== null) {
-            $where[] = "p.{$priceCol} >= ?";
+            $where[] = 'p.min_price >= ?';
             $params[] = $filters['price_min'];
         }
         if ($filters['price_max'] !== null) {
-            $where[] = "p.{$priceCol} <= ?";
+            $where[] = 'p.min_price <= ?';
             $params[] = $filters['price_max'];
         }
 
         $whereSql = implode(' AND ', $where);
         $orderSql = match ($filters['sort']) {
             'nome' => 'p.name ASC',
-            'prezzo_asc' => "p.{$priceCol} ASC, p.name ASC",
-            'prezzo_desc' => "p.{$priceCol} DESC, p.name ASC",
+            'prezzo_asc' => 'p.min_price ASC, p.name ASC',
+            'prezzo_desc' => 'p.min_price DESC, p.name ASC',
             'disponibilita' => 'p.total_quantity DESC, p.name ASC',
             default => 'p.is_recommended DESC, p.name ASC',
         };
@@ -289,7 +288,7 @@ final class ProductRepository
         $offset = max(0, ($page - 1) * $perPage);
         $stmt = $this->pdo->prepare(
             "SELECT p.id, p.sku, p.name, p.brand, p.size_mapper, p.image_url, p.is_recommended,
-                    p.total_quantity, p.{$priceCol} AS price_from
+                    p.total_quantity, p.min_price AS price_from
              FROM products p WHERE {$whereSql} ORDER BY {$orderSql} LIMIT {$perPage} OFFSET {$offset}"
         );
         $stmt->execute($params);
@@ -300,20 +299,19 @@ final class ProductRepository
     }
 
     /**
-     * Taglie per una lista di prodotti, senza offer_price, col solo prezzo del piano attivo.
+     * Taglie per una lista di prodotti, senza offer_price, col prezzo di listino netto.
      *
      * @param list<int> $productIds
      * @return array<int, list<array{size_eu: string, size_us: string, barcode: string, quantity: int, price: string}>>
      */
-    public function sizesForProducts(array $productIds, string $plan): array
+    public function sizesForProducts(array $productIds): array
     {
         if ($productIds === []) {
             return [];
         }
-        $priceCol = self::sizePlanColumn($plan);
         $placeholders = implode(',', array_fill(0, count($productIds), '?'));
         $stmt = $this->pdo->prepare(
-            "SELECT product_id, size_eu, size_us, barcode, quantity, {$priceCol} AS price
+            "SELECT product_id, size_eu, size_us, barcode, quantity, price
              FROM product_sizes WHERE product_id IN ({$placeholders})
              ORDER BY product_id, CAST(size_eu AS DECIMAL(6,2)), size_eu"
         );
@@ -358,15 +356,14 @@ final class ProductRepository
     }
 
     /**
-     * Taglie di un prodotto con i tre prezzi di listino (pubblici) ma senza offer_price.
+     * Taglie di un prodotto col prezzo di listino (pubblico) ma senza offer_price.
      *
-     * @return list<array{size_eu: string, size_us: string, barcode: string, quantity: int,
-     *   price_base: string, price_pro: string, price_max: string}>
+     * @return list<array{size_eu: string, size_us: string, barcode: string, quantity: int, price: string}>
      */
     public function sizesForSku(string $sku): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT s.size_eu, s.size_us, s.barcode, s.quantity, s.price_base, s.price_pro, s.price_max
+            'SELECT s.size_eu, s.size_us, s.barcode, s.quantity, s.price
              FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
              WHERE p.sku = ? AND p.is_active = 1
              ORDER BY CAST(s.size_eu AS DECIMAL(6,2)), s.size_eu'
@@ -379,9 +376,7 @@ final class ProductRepository
                 'size_us' => (string) $row['size_us'],
                 'barcode' => (string) $row['barcode'],
                 'quantity' => (int) $row['quantity'],
-                'price_base' => (string) $row['price_base'],
-                'price_pro' => (string) $row['price_pro'],
-                'price_max' => (string) $row['price_max'],
+                'price' => (string) $row['price'],
             ];
         }
 
@@ -394,23 +389,5 @@ final class ProductRepository
         $stmt->execute([$recommended ? 1 : 0, date('Y-m-d H:i:s'), $sku]);
 
         return $stmt->rowCount() > 0;
-    }
-
-    private static function planColumn(string $plan): string
-    {
-        return match ($plan) {
-            'pro' => 'min_price_pro',
-            'max' => 'min_price_max',
-            default => 'min_price_base',
-        };
-    }
-
-    private static function sizePlanColumn(string $plan): string
-    {
-        return match ($plan) {
-            'pro' => 'price_pro',
-            'max' => 'price_max',
-            default => 'price_base',
-        };
     }
 }

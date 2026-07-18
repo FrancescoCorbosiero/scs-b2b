@@ -110,14 +110,14 @@ final class CartService
     }
 
     /**
-     * Vista completa del carrello per il piano attivo. MAI offer_price qui.
+     * Vista completa del carrello a prezzi netti (VAT esclusa). MAI offer_price qui.
      *
      * @return array{products: list<array{sku: string, name: string, brand: string,
      *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
      *   quantity_stock: int, price: string, qty: int, row_total: string}>,
      *   product_items: int, product_total: string}>, total_items: int, total_amount: string}
      */
-    public function detail(string $plan): array
+    public function detail(): array
     {
         $cart = $this->session->cart();
         $productsOut = [];
@@ -137,11 +137,7 @@ final class CartService
             $productCents = 0;
             $productItems = 0;
             foreach ($sizes as $size) {
-                $price = match ($plan) {
-                    'pro' => $size['price_pro'],
-                    'max' => $size['price_max'],
-                    default => $size['price_base'],
-                };
+                $price = $size['price'];
                 $qty = $quantities[$size['size_eu']] ?? 0;
                 $qty = min($qty, $size['quantity']);
                 $rowCents = self::cents($price) * $qty;

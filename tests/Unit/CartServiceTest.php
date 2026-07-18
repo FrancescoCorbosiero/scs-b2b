@@ -20,9 +20,9 @@ final class CartServiceTest extends TestCase
         $_SESSION = [];
         $pdo = TestDb::create();
         TestDb::seedProduct($pdo, 'NK1001', 'Nike Dunk Low', 'Nike', [
-            ['size_eu' => '42', 'quantity' => 5, 'price_base' => '100.00', 'price_pro' => '95.00', 'price_max' => '90.00'],
-            ['size_eu' => '43', 'quantity' => 0, 'price_base' => '100.00', 'price_pro' => '95.00', 'price_max' => '90.00'],
-            ['size_eu' => '44', 'quantity' => 2, 'price_base' => '100.00', 'price_pro' => '95.00', 'price_max' => '90.00'],
+            ['size_eu' => '42', 'quantity' => 5, 'price' => '100.00'],
+            ['size_eu' => '43', 'quantity' => 0, 'price' => '100.00'],
+            ['size_eu' => '44', 'quantity' => 2, 'price' => '100.00'],
         ]);
         $config = new Config(['MIN_ORDER_ITEMS' => '5']);
         $this->cart = new CartService(new Session($config), new ProductRepository($pdo), $config);
@@ -57,17 +57,14 @@ final class CartServiceTest extends TestCase
         self::assertTrue($this->cart->meetsMinimum(), '5 pezzi = minimo raggiunto');
     }
 
-    public function testTakeAllAndTotalsPerPlan(): void
+    public function testTakeAllAndNetTotals(): void
     {
         $this->cart->takeAll('NK1001');
         self::assertSame(7, $this->cart->totalItems(), '5 + 0 + 2 pezzi');
 
-        $base = $this->cart->detail('base');
-        self::assertSame('700.00', $base['total_amount']);
-
-        $max = $this->cart->detail('max');
-        self::assertSame('630.00', $max['total_amount'], 'Cambio piano ricalcola i prezzi, non le quantità');
-        self::assertSame(7, $max['total_items']);
+        $detail = $this->cart->detail();
+        self::assertSame('700.00', $detail['total_amount'], 'Totale netto: 7 × 100,00 (VAT esclusa)');
+        self::assertSame(7, $detail['total_items']);
     }
 
     public function testRevalidateShrinksCartWhenStockDrops(): void
@@ -98,7 +95,7 @@ final class CartServiceTest extends TestCase
     {
         $pdo = TestDb::create();
         TestDb::seedProduct($pdo, '394215', 'SKU numerico', 'Nike', [
-            ['size_eu' => '42', 'quantity' => 5, 'price_base' => '100.00'],
+            ['size_eu' => '42', 'quantity' => 5, 'price' => '100.00'],
         ]);
         $config = new Config(['MIN_ORDER_ITEMS' => '5']);
         $cart = new CartService(new Session($config), new ProductRepository($pdo), $config);
@@ -106,7 +103,7 @@ final class CartServiceTest extends TestCase
         self::assertTrue($cart->addProduct('394215'));
         self::assertSame(5, $cart->setQuantity('394215', '42', 9));
 
-        $detail = $cart->detail('base');
+        $detail = $cart->detail();
         self::assertCount(1, $detail['products']);
         self::assertSame('394215', $detail['products'][0]['sku']);
         self::assertSame('500.00', $detail['total_amount']);
@@ -116,7 +113,7 @@ final class CartServiceTest extends TestCase
     public function testDetailNeverExposesOfferPrice(): void
     {
         $this->cart->takeAll('NK1001');
-        $detail = $this->cart->detail('base');
+        $detail = $this->cart->detail();
 
         $json = json_encode($detail, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('offer_price', $json, 'Regola d\'oro n.1: mai offer_price verso il client');

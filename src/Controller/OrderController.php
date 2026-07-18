@@ -33,7 +33,7 @@ final class OrderController
 
             return Http::redirect($response, '/carrello');
         }
-        $detail = $this->cart->detail($this->session->plan());
+        $detail = $this->cart->detail();
 
         return $this->view->render($response, 'order/form.twig', [
             'cart' => $detail,
@@ -55,7 +55,7 @@ final class OrderController
                 return Http::redirect($response, '/carrello');
             }
             $this->session->set('order_form_old', array_intersect_key($body, array_flip([
-                'customer_name', 'company', 'email', 'phone', 'notes',
+                'customer_name', 'company', 'email', 'phone', 'notes', 'country', 'vat_number',
             ])));
 
             return Http::redirect($response, '/richiesta-ordine');

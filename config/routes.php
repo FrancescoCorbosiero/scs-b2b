@@ -29,7 +29,8 @@ return static function (App $app): void {
     $app->group('', function (RouteCollectorProxy $group): void {
         $group->get('/', [CatalogController::class, 'index']);
         $group->get('/export.xlsx', [CatalogController::class, 'export']);
-        $group->post('/piano', [PreferenceController::class, 'setPlan']);
+        $group->post('/paese', [PreferenceController::class, 'setCountry']);
+        $group->post('/lingua', [PreferenceController::class, 'setLocale']);
         $group->post('/taglie', [PreferenceController::class, 'setSizeSystem']);
 
         $group->get('/carrello', [CartController::class, 'index']);
@@ -64,5 +65,16 @@ return static function (App $app): void {
         $group->post('/sync/run', [AdminController::class, 'syncRun']);
         $group->get('/recommended', [AdminController::class, 'recommended']);
         $group->post('/recommended', [AdminController::class, 'recommendedToggle']);
+
+        // gestione margini: regole per brand/nome, margine default, aliquote VAT
+        $group->get('/margini', [AdminController::class, 'margins']);
+        $group->post('/margini/regole', [AdminController::class, 'marginRuleCreate']);
+        $group->post('/margini/regole/{id:[0-9]+}/attiva', [AdminController::class, 'marginRuleToggle']);
+        $group->post('/margini/regole/{id:[0-9]+}/elimina', [AdminController::class, 'marginRuleDelete']);
+        $group->post('/margini/default', [AdminController::class, 'marginDefaultSave']);
+        $group->post('/margini/vat', [AdminController::class, 'vatRateSave']);
+
+        // ricevuta pro-forma della richiesta (rigenerata dallo snapshot)
+        $group->get('/richieste/{id:[0-9]+}/ricevuta.pdf', [AdminController::class, 'receiptPdf']);
     })->add(AdminAuthMiddleware::class);
 };
