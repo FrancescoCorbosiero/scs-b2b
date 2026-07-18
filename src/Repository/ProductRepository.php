@@ -342,6 +342,25 @@ final class ProductRepository
         return $brands;
     }
 
+    /**
+     * Brand attivi con numero di prodotti (per la navigazione brand del catalogo).
+     *
+     * @return list<array{brand: string, products: int}>
+     */
+    public function activeBrandsWithCounts(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT brand, COUNT(*) AS products FROM products
+             WHERE is_active = 1 AND brand <> '' GROUP BY brand ORDER BY brand"
+        );
+        $brands = [];
+        foreach ($stmt === false ? [] : $stmt->fetchAll() as $row) {
+            $brands[] = ['brand' => (string) $row['brand'], 'products' => (int) $row['products']];
+        }
+
+        return $brands;
+    }
+
     /** @return array<string, mixed>|null */
     public function findActiveBySku(string $sku): ?array
     {

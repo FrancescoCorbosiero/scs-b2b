@@ -99,6 +99,27 @@ simulazione: risposta fittizia, nessuna chiamata).
 | `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (da verificare su Swagger) |
 | `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli (da verificare su Swagger) |
 
+## Auto-dropship alla richiesta d'ordine (M8)
+
+Con `AUTO_DROPSHIP_ON_REQUEST=1`, alla richiesta del cliente parte subito
+`DropshipOrderService::autoCreateFromRequest()`: ordine creato con l'indirizzo
+di spedizione del cliente (nuovi campi del form) e le righe dello snapshot
+clampate allo stock, saltando il flusso a 3 conferme (che resta per l'uso
+manuale da /admin). Motivazione: bloccare lo stock del fornitore PRIMA che
+arrivi il bonifico (il "delta" del pagamento).
+
+⚠ **Rischio accettato dal titolare** (decisione del 18/07/2026): chiunque
+abbia la password condivisa del catalogo può innescare la chiamata autenticata
+al fornitore. Paracadute in atto:
+- flag `.env` dedicato = kill-switch immediato (default 0);
+- in `DROPSHIP_MODE=simulation` nessuna chiamata parte (e live oggi è
+  comunque rifiutato dal client);
+- restano rate limit richieste (3/ora/IP) e ordine minimo;
+- l'esito (o il fallimento, che non blocca mai la richiesta) è riportato
+  nell'email admin per il monitoraggio.
+Prima di attivare il live con auto-dropship, valutare password per cliente
+o approvazione admin entro una finestra temporale.
+
 ## Per attivare la modalità live (checklist futura)
 
 1. Verificare su Swagger (col token) path esatti, method e codici d'errore

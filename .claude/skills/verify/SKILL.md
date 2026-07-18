@@ -61,7 +61,10 @@ php -S 127.0.0.1:8090 -t public router.php
 - Ogni POST richiede `_csrf` (estrarlo dall'HTML della pagina precedente) e il
   cookie `b2b_session` (curl: `-b jar -c jar`).
 - Richiesta ordine: minimo 5 pezzi (`MIN_ORDER_ITEMS`); usare un prodotto con
-  stock alto (es. NK1001) + `POST /carrello/prendi-tutto`.
+  stock alto (es. NK1001) + `POST /carrello/prendi-tutto`. Campi obbligatori:
+  nome, email, telefono, indirizzo (address_street/address_city/address_zip),
+  country. La richiesta nasce `pending`: conferma/annulla da
+  `POST /admin/richieste/{id}/conferma|annulla`.
 - SMTP assente: l'invio email fallisce ma è catturato, la richiesta si salva.
 - Login admin: attenzione al lockout (5 errori/15min per IP+scope) — diagnosi
   con `php bin/check-auth.php`.

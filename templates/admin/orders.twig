@@ -3,18 +3,34 @@
 {% block title %}{{ t('admin.orders') }} — {{ t('admin.title') }}{% endblock %}
 
 {% block content %}
-    <h1 class="text-2xl font-bold mb-6">{{ t('admin.orders') }} <span class="text-neutral-400 font-normal text-lg">({{ total }})</span></h1>
+    <h1 class="text-2xl font-bold mb-4">{{ t('admin.orders') }} <span class="text-neutral-400 font-normal text-lg">({{ total }})</span></h1>
+
+    {# filtro per stato del ciclo ordine #}
+    <nav class="mb-4 flex flex-wrap gap-2 text-sm">
+        <a href="/admin/richieste"
+           class="rounded-full px-3.5 py-1.5 border font-semibold {{ status_filter is null ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50' }}">
+            {{ t('admin.filter_all') }}
+        </a>
+        {% for st in ['pending', 'confirmed', 'cancelled'] %}
+            <a href="/admin/richieste?stato={{ st }}"
+               class="rounded-full px-3.5 py-1.5 border font-semibold {{ status_filter == st ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50' }}">
+                {{ t('order_status.' ~ st) }}
+                <span class="text-xs font-normal opacity-70">({{ orders_by_status[st] ?? 0 }})</span>
+            </a>
+        {% endfor %}
+    </nav>
 
     {% include 'admin/_orders_table.twig' with { orders: orders } %}
 
     {% if total_pages > 1 %}
         <nav class="mt-6 flex items-center justify-center gap-2 text-sm">
+            {% set status_qs = status_filter ? '&stato=' ~ status_filter : '' %}
             {% if page > 1 %}
-                <a href="/admin/richieste?page={{ page - 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
+                <a href="/admin/richieste?page={{ page - 1 }}{{ status_qs }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
             {% endif %}
             <span class="text-neutral-500 px-2">{{ t('catalog.page_of', {page: page, total: total_pages}) }}</span>
             {% if page < total_pages %}
-                <a href="/admin/richieste?page={{ page + 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
+                <a href="/admin/richieste?page={{ page + 1 }}{{ status_qs }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
             {% endif %}
         </nav>
     {% endif %}

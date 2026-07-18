@@ -1,0 +1,48 @@
+{# Email cliente alla CONFERMA admin (pagamento ricevuto), nel locale del
+   cliente, con la ricevuta pro-forma PDF in allegato. MAI costi o margini. #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
+    <h1 style="font-size: 20px;">{{ t('email.confirmed_title', {id: order.id}) }}</h1>
+    <p>{{ t('email.customer_greeting', {name: order.customer_name}) }}</p>
+    <p>{{ t('email.confirmed_body') }}</p>
+    {% if order.receipt_number %}
+        <p style="font-size: 13px; color: #525252;">{{ t('email.confirmed_receipt_note', {number: order.receipt_number}) }}</p>
+    {% endif %}
+
+    <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
+        <thead>
+            <tr style="background: #f5f5f5;">
+                <th align="left">SKU</th>
+                <th align="left">{{ t('email.col_product') }}</th>
+                <th align="left">{{ t('email.col_size_eu') }}</th>
+                <th align="right">{{ t('email.col_qty') }}</th>
+                <th align="right">{{ t('email.col_subtotal') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in order.lines %}
+                <tr>
+                    <td>{{ line.sku }}</td>
+                    <td>{{ line.name }}</td>
+                    <td>{{ line.size_eu }}</td>
+                    <td align="right">{{ line.qty }}</td>
+                    <td align="right"><strong>{{ line.subtotal|eur }}</strong></td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="font-size: 15px; margin-top: 14px;">
+        <strong>{{ t('email.total_items') }}:</strong> {{ order.total_items }}<br>
+        <strong>{{ t('email.total_net') }}:</strong> {{ order.total_amount|eur }}<br>
+        <strong>{{ t('email.total_gross') }}:</strong> {{ order.total_gross|eur }}
+    </p>
+
+    <p>{{ t('email.confirmed_next') }}</p>
+
+    <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>
+
+    <p style="color: #525252; font-size: 13px; margin-top: 18px;">
+        {{ t('email.customer_contacts') }}: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}
+    </p>
+</div>

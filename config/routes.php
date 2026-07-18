@@ -53,6 +53,10 @@ return static function (App $app): void {
         $group->get('/richieste', [AdminController::class, 'orders']);
         $group->get('/richieste/{id:[0-9]+}', [AdminController::class, 'orderDetail']);
 
+        // ciclo di vita: conferma (pagamento ricevuto → ricevuta) / annulla
+        $group->post('/richieste/{id:[0-9]+}/conferma', [AdminController::class, 'orderConfirm']);
+        $group->post('/richieste/{id:[0-9]+}/annulla', [AdminController::class, 'orderCancel']);
+
         // ordine dropship GoldenSneakers: 3 step di conferma (docs/09)
         $group->get('/richieste/{id:[0-9]+}/dropship', [DropshipController::class, 'prepare']);
         $group->post('/richieste/{id:[0-9]+}/dropship/riepilogo', [DropshipController::class, 'review']);

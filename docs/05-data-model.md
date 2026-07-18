@@ -29,6 +29,10 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 ## `order_requests`
 - `id` PK, `created_at`
 - `customer_name`, `company` NULL, `email`, `phone`, `notes` TEXT NULL
+- `address_street`, `address_city`, `address_zip` — indirizzo di spedizione
+  (alimenta anche l'auto-dropship, docs/09)
+- `status` VARCHAR(16) — pending | confirmed | cancelled (+ `confirmed_at`,
+  `cancelled_at`); la ricevuta e il suo numero esistono solo da 'confirmed'
 - `plan` VARCHAR(8) NULL — solo storico pre-migrazione 0003 (i piani non esistono più)
 - `locale` VARCHAR(5) — lingua del cliente al momento dell'ordine ('it'|'en')
 - `country_code` CHAR(2), `vat_number` VARCHAR(32) NULL

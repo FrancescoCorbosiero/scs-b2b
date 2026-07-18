@@ -15,6 +15,7 @@ use App\Service\AuthService;
 use App\Service\DropshipOrderService;
 use App\Service\FeedSyncService;
 use App\Service\OrderMailer;
+use App\Service\OrderService;
 use App\Service\PricingService;
 use App\Service\ReceiptService;
 use App\Support\ClientIp;
@@ -43,6 +44,7 @@ final class AdminController
         private readonly SettingsRepository $settings,
         private readonly VatRateRepository $vatRates,
         private readonly ReceiptService $receipts,
+        private readonly OrderService $orderService,
     ) {
     }
 
@@ -85,6 +87,7 @@ final class AdminController
 
         return $this->view->render($response, 'admin/dashboard.twig', [
             'orders_total' => $this->orders->countAll(),
+            'orders_by_status' => $this->orders->countByStatus(),
             'recent_orders' => $recentOrders['items'],
             'last_sync' => $this->syncLogs->latest(),
         ]);
@@ -94,16 +97,55 @@ final class AdminController
 
     public function orders(Request $request, Response $response): Response
     {
-        $page = max(1, (int) (($request->getQueryParams()['page'] ?? 1)));
+        $query = $request->getQueryParams();
+        $page = max(1, (int) ($query['page'] ?? 1));
+        $status = is_string($query['stato'] ?? null) ? $query['stato'] : '';
+        $status = in_array($status, OrderRequestRepository::STATUSES, true) ? $status : null;
         $perPage = 20;
-        $result = $this->orders->paginate($page, $perPage);
+        $result = $this->orders->paginate($page, $perPage, $status);
 
         return $this->view->render($response, 'admin/orders.twig', [
             'orders' => $result['items'],
             'total' => $result['total'],
             'page' => $page,
             'total_pages' => max(1, (int) ceil($result['total'] / $perPage)),
+            'status_filter' => $status,
+            'orders_by_status' => $this->orders->countByStatus(),
         ]);
+    }
+
+    /**
+     * Conferma (pagamento ricevuto): numero ricevuta + email al cliente con PDF.
+     *
+     * @param array<string, string> $args
+     */
+    public function orderConfirm(Request $request, Response $response, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $result = $this->orderService->confirm($id);
+        if (!$result['ok']) {
+            $this->session->flash('error', (string) $result['error']);
+        } elseif ($result['email_sent']) {
+            $this->session->flash('success', $this->lang->t('admin.order_confirmed'));
+        } else {
+            $this->session->flash('error', $this->lang->t('admin.order_confirmed_email_failed'));
+        }
+
+        return Http::redirect($response, '/admin/richieste/' . $id);
+    }
+
+    /** @param array<string, string> $args */
+    public function orderCancel(Request $request, Response $response, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $result = $this->orderService->cancel($id);
+        if (!$result['ok']) {
+            $this->session->flash('error', (string) $result['error']);
+        } else {
+            $this->session->flash('success', $this->lang->t('admin.order_cancelled'));
+        }
+
+        return Http::redirect($response, '/admin/richieste/' . $id);
     }
 
     /** @param array<string, string> $args */

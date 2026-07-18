@@ -25,6 +25,13 @@
         {% endif %}
     </div>
 
+    {# ── Pagamenti: bonifico bancario (unico canale attuale) ── #}
+    <div class="mt-6 max-w-4xl bg-white rounded-xl border border-neutral-200 p-5">
+        <h2 class="font-bold mb-1">{{ t('payment.section_title') }}</h2>
+        <p class="text-sm text-neutral-500 mb-3">{{ t('payment.section_intro') }}</p>
+        {% include '_bank_details.twig' with { reference: null } %}
+    </div>
+
     <div class="mt-6 max-w-4xl bg-white rounded-xl border border-neutral-200 p-5 text-sm text-neutral-600 space-y-1">
         <p class="font-semibold text-neutral-900">{{ contact.company }}</p>
         <p>{{ t('contact.address') }}: {{ contact.address }}</p>

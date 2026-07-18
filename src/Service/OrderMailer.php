@@ -10,13 +10,17 @@ use PHPMailer\PHPMailer\PHPMailer;
 use Twig\Environment;
 
 /**
- * Email della richiesta d'ordine via PHPMailer/SMTP.
+ * Email del ciclo ordine via PHPMailer/SMTP (docs/06).
  *
- * - Admin: tabella completa, SEMPRE in italiano; costo fornitore e margine
- *   SOLO se ADMIN_EMAIL_SHOW_COST=1 (default on).
- * - Cliente: riepilogo formale nel locale del cliente, SENZA costi, margini
- *   o offer_price (Regola d'oro n.1: il template customer_order non riceve
- *   proprio quei dati), con ricevuta pro-forma PDF in allegato.
+ * - Admin: tabella completa + esito auto-dropship, SEMPRE in italiano; costo
+ *   fornitore e margine SOLO se ADMIN_EMAIL_SHOW_COST=1 (default on).
+ * - Cliente alla richiesta: istruzioni di pagamento via bonifico nel locale
+ *   del cliente, con l'avviso esplicito che l'ordine è confermato SOLO
+ *   all'arrivo del pagamento. NIENTE ricevuta a questo stadio.
+ * - Cliente alla conferma admin: email di conferma con la ricevuta pro-forma
+ *   PDF in allegato.
+ * Mai costi, margini o offer_price verso il cliente (Regola d'oro n.1:
+ * i template cliente non ricevono proprio quei dati).
  */
 final class OrderMailer
 {
@@ -28,8 +32,11 @@ final class OrderMailer
     ) {
     }
 
-    /** @param array<string, mixed> $order */
-    public function sendAdminEmail(array $order): void
+    /**
+     * @param array<string, mixed> $order
+     * @param array{ok: bool, dropship_id: int|null, message: string|null, simulated: bool|null}|null $autoDropship
+     */
+    public function sendAdminEmail(array $order, ?array $autoDropship = null): void
     {
         $showCost = $this->config->bool('ADMIN_EMAIL_SHOW_COST', true);
         $order = $showCost ? $order : self::stripCosts($order);
@@ -41,6 +48,7 @@ final class OrderMailer
             $html = $this->twig->render('emails/admin_order.twig', [
                 'order' => $order,
                 'show_cost' => $showCost,
+                'auto_dropship' => $autoDropship,
             ]);
         } finally {
             $this->lang->setLocale($previousLocale);
@@ -59,7 +67,11 @@ final class OrderMailer
         );
     }
 
-    /** @param array<string, mixed> $order */
+    /**
+     * Email alla richiesta: istruzioni di pagamento (bonifico), nessun allegato.
+     *
+     * @param array<string, mixed> $order
+     */
     public function sendCustomerEmail(array $order): void
     {
         // difesa in profondità: il template cliente non deve MAI vedere i costi
@@ -71,6 +83,7 @@ final class OrderMailer
         try {
             $html = $this->twig->render('emails/customer_order.twig', [
                 'order' => $order,
+                'bank' => $this->bankDetails(),
                 'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
                 'contact_email' => $this->config->str('CONTACT_EMAIL'),
                 'contact_phone' => $this->config->str('CONTACT_PHONE'),
@@ -80,6 +93,40 @@ final class OrderMailer
             $this->lang->setLocale($previousLocale);
         }
         $subject = $this->lang->tIn($locale, 'email.customer_subject', [
+            'id' => (int) ($order['id'] ?? 0),
+            'company' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+        ]);
+
+        $email = $order['email'] ?? '';
+        if (is_string($email) && $email !== '') {
+            $this->send($email, $subject, $html);
+        }
+    }
+
+    /**
+     * Email alla conferma admin (pagamento ricevuto): ricevuta pro-forma PDF allegata.
+     *
+     * @param array<string, mixed> $order
+     */
+    public function sendCustomerConfirmedEmail(array $order): void
+    {
+        $order = self::stripCosts($order);
+        $locale = is_string($order['locale'] ?? null) && $order['locale'] !== '' ? $order['locale'] : 'it';
+
+        $previousLocale = $this->lang->locale();
+        $this->lang->setLocale($locale);
+        try {
+            $html = $this->twig->render('emails/customer_confirmed.twig', [
+                'order' => $order,
+                'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                'contact_email' => $this->config->str('CONTACT_EMAIL'),
+                'contact_phone' => $this->config->str('CONTACT_PHONE'),
+                'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
+            ]);
+        } finally {
+            $this->lang->setLocale($previousLocale);
+        }
+        $subject = $this->lang->tIn($locale, 'email.confirmed_subject', [
             'id' => (int) ($order['id'] ?? 0),
             'company' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
         ]);
@@ -99,6 +146,17 @@ final class OrderMailer
         if (is_string($email) && $email !== '') {
             $this->send($email, $subject, $html, null, $attachment);
         }
+    }
+
+    /** @return array{holder: string, name: string, iban: string, bic: string} */
+    private function bankDetails(): array
+    {
+        return [
+            'holder' => $this->config->str('BANK_ACCOUNT_HOLDER'),
+            'name' => $this->config->str('BANK_NAME'),
+            'iban' => $this->config->str('BANK_IBAN'),
+            'bic' => $this->config->str('BANK_BIC'),
+        ];
     }
 
     /**

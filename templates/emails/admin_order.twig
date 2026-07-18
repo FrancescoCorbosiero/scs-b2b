@@ -8,7 +8,24 @@
     {% if order.notes %}<p style="margin: 4px 0;"><strong>Note:</strong> {{ order.notes }}</p>{% endif %}
     <p style="margin: 4px 0;"><strong>Paese:</strong> {{ order.country_code }} — {{ t('country.' ~ order.country_code) }}
        {% if order.vat_number %} · <strong>P.IVA:</strong> {{ order.vat_number }}{% endif %}</p>
-    {% if order.receipt_number %}<p style="margin: 4px 0;"><strong>Ricevuta pro-forma:</strong> {{ order.receipt_number }}</p>{% endif %}
+    {% if order.address_street %}
+        <p style="margin: 4px 0;"><strong>Spedizione:</strong> {{ order.address_street }}, {{ order.address_zip }} {{ order.address_city }} ({{ order.country_code }})</p>
+    {% endif %}
+    <p style="margin: 8px 0; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px;">
+        <strong>In attesa di pagamento (bonifico).</strong> Alla ricezione, conferma la richiesta da
+        /admin/richieste/{{ order.id }}: partirà l'email di conferma al cliente con la ricevuta pro-forma.
+    </p>
+    {% if auto_dropship is defined and auto_dropship %}
+        <p style="margin: 8px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid {{ auto_dropship.ok ? '#a7f3d0' : '#fecaca' }}; background: {{ auto_dropship.ok ? '#ecfdf5' : '#fef2f2' }};">
+            {% if auto_dropship.ok %}
+                <strong>Ordine dropship automatico #{{ auto_dropship.dropship_id }} creato presso GoldenSneakers</strong>
+                {{ auto_dropship.simulated ? '(SIMULAZIONE: nessuna chiamata reale inviata).' : '(modalità LIVE).' }}
+            {% else %}
+                <strong>Ordine dropship automatico NON creato:</strong> {{ auto_dropship.message }}
+                — gestiscilo manualmente da /admin/richieste/{{ order.id }}/dropship.
+            {% endif %}
+        </p>
+    {% endif %}
 
     <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px; width: 100%;">
         <thead>
