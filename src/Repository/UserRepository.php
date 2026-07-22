@@ -75,6 +75,20 @@ final class UserRepository
         return $stmt->rowCount() > 0;
     }
 
+    /** Il cambio paese dal selettore in header persiste sul profilo (utenti loggati). */
+    public function setCountryCode(int $id, string $countryCode): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE users SET country_code = ?, updated_at = ? WHERE id = ?');
+        $stmt->execute([strtoupper($countryCode), date('Y-m-d H:i:s'), $id]);
+    }
+
+    /** Il cambio lingua dallo switcher in header persiste sul profilo (utenti loggati). */
+    public function setLocale(int $id, string $locale): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE users SET locale = ?, updated_at = ? WHERE id = ?');
+        $stmt->execute([$locale, date('Y-m-d H:i:s'), $id]);
+    }
+
     public function touchLastLogin(int $id): void
     {
         $stmt = $this->pdo->prepare('UPDATE users SET last_login_at = ? WHERE id = ?');

@@ -25,9 +25,12 @@ dove il margine viene dalle **regole admin** (`/admin/margini`, tabella
    `default_margin_type` + `default_margin_value`).
 
 Ogni regola (e il default) è `percent` (`offer × (1 + m/100)`) oppure `fixed`
-(`offer + m` in EUR). Caso d'uso di riferimento del titolare: *"le Air Force 1
-al 7%, le Jordan a 3 euro fissi in più, tutto il resto flat al 5%"* = due
-regole + default.
+(`offer + m` in EUR).
+
+**Valori di partenza indicati dal titolare (19/07/2026, migrazione 0006)**:
+default **5%** per i brand nuovi/non elencati; Adidas 5%; Jordan, Nike,
+Timberland, Ugg, Yeezy **+3€**; Autry, Asics, Puma, Vans, Birkenstock,
+New Balance, In, Saucony **+2€**. Tutto modificabile da /admin/margini.
 
 - `PRICE_ROUNDING` (`.env`): `whole` (intero, default) | `half` (0,50) | `none`.
 - Il calcolo avviene **solo nel nostro backend** da `offer_price` grezzo

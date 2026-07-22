@@ -101,7 +101,19 @@
                     </div>
                     <div class="flex justify-between text-sm">
                         <span class="text-neutral-500">{{ t('cart.total_net') }}</span>
-                        <strong class="text-lg" data-summary-total>{{ cart.total_amount|eur }}</strong>
+                        <strong data-summary-total>{{ cart.total_amount|eur }}</strong>
+                    </div>
+                    {# stima VAT sul paese in header: si aggiorna con le quantità (JS) #}
+                    <div class="flex justify-between text-sm" data-vat-rate="{{ cart_vat.rate }}">
+                        <span class="text-neutral-500">
+                            {% if cart_vat.scheme == 'export' %}{{ t('vat.label_export') }}{% else %}{{ t('vat.label_rate', {rate: cart_vat.rate}) }} · {{ cart_vat.country }}{% endif %}
+                            <span class="text-neutral-400">({{ t('cart.estimate') }})</span>
+                        </span>
+                        <span data-summary-vat>{{ cart_vat.amount|eur }}</span>
+                    </div>
+                    <div class="flex justify-between text-sm border-t border-neutral-200 pt-2">
+                        <span class="font-semibold">{{ t('order.total_estimated') }}</span>
+                        <strong class="text-lg" data-summary-gross>{{ cart_vat.gross|eur }}</strong>
                     </div>
                     <p class="text-xs text-neutral-500">{{ t('cart.vat_note', {country: t('country.' ~ country)}) }}</p>
                     <div class="rounded-lg bg-neutral-50 border border-neutral-200 px-3 py-2 text-xs text-neutral-600">

@@ -58,6 +58,8 @@ final class OrderController
             return [];
         }
 
+        // NB: niente 'country' qui — il paese lo decide il selettore in header
+        // (sessione), che altrimenti verrebbe silenziosamente sovrascritto dal profilo
         return array_filter([
             'customer_name' => (string) $user['name'],
             'company' => (string) ($user['company'] ?? ''),
@@ -66,7 +68,6 @@ final class OrderController
             'address_street' => (string) ($user['address_street'] ?? ''),
             'address_city' => (string) ($user['address_city'] ?? ''),
             'address_zip' => (string) ($user['address_zip'] ?? ''),
-            'country' => (string) $user['country_code'],
             'vat_number' => (string) ($user['vat_number'] ?? ''),
         ], static fn (string $v): bool => $v !== '');
     }

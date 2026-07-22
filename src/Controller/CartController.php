@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\CartService;
+use App\Service\VatService;
 use App\Support\Http;
 use App\Support\Lang;
 use App\Support\Session;
@@ -18,6 +19,7 @@ final class CartController
         private readonly View $view,
         private readonly Session $session,
         private readonly CartService $cart,
+        private readonly VatService $vat,
         private readonly Lang $lang,
     ) {
     }
@@ -26,8 +28,20 @@ final class CartController
     {
         $detail = $this->cart->detail();
 
+        // stima VAT sul paese selezionato in header (senza P.IVA: il reverse
+        // charge eventuale si applica al checkout) — feedback visivo immediato
+        $vat = $this->vat->resolve($this->session->country(), null);
+        $vatAmount = VatService::vatAmount($detail['total_amount'], $vat['rate']);
+
         return $this->view->render($response, 'cart/index.twig', [
             'cart' => $detail,
+            'cart_vat' => [
+                'country' => $vat['country_code'],
+                'scheme' => $vat['scheme'],
+                'rate' => $vat['rate'],
+                'amount' => $vatAmount,
+                'gross' => VatService::grossTotal($detail['total_amount'], $vatAmount),
+            ],
             'min_order_items' => $this->cart->minOrderItems(),
             'meets_minimum' => $detail['total_items'] >= $this->cart->minOrderItems(),
         ]);
