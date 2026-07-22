@@ -185,6 +185,18 @@
                     var total = document.querySelector('[data-summary-total]');
                     if (total) total.textContent = formatEur(data.total_amount);
 
+                    // stima VAT/totale lordo dal rate del paese selezionato
+                    var rateEl = document.querySelector('[data-vat-rate]');
+                    if (rateEl) {
+                        var rate = parseFloat(rateEl.getAttribute('data-vat-rate')) || 0;
+                        var netCents = Math.round(parseFloat(data.total_amount) * 100);
+                        var vatCents = Math.round(netCents * rate / 100);
+                        var vatEl = document.querySelector('[data-summary-vat]');
+                        if (vatEl) vatEl.textContent = formatEur(vatCents / 100);
+                        var grossEl = document.querySelector('[data-summary-gross]');
+                        if (grossEl) grossEl.textContent = formatEur((netCents + vatCents) / 100);
+                    }
+
                     var badge = document.querySelector('[data-cart-badge]');
                     if (badge) {
                         badge.textContent = data.total_items;

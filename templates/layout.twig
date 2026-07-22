@@ -57,27 +57,33 @@
 
             <div class="ml-auto flex items-center gap-2">
                 {# paese di residenza: determina il VAT applicato alla richiesta d'ordine #}
-                <form method="post" action="/paese" class="hidden sm:flex items-center gap-2 text-sm">
+                <form method="post" action="/paese" class="hidden sm:block">
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                     <input type="hidden" name="redirect" value="{{ current_uri }}">
-                    <label for="country-select" class="sr-only">{{ t('nav.country_label') }}</label>
-                    <select id="country-select" name="country" data-autosubmit
-                            class="rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7 focus:ring-amber-400 focus:border-amber-400 max-w-[11rem]">
-                        {% for c in countries %}
-                            <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.code }} — {{ c.name }}</option>
-                        {% endfor %}
-                    </select>
+                    <label for="country-select" title="{{ t('nav.country_hint') }}"
+                           class="flex items-center rounded-md bg-neutral-800 border border-neutral-600 focus-within:ring-1 focus-within:ring-amber-400 focus-within:border-amber-400">
+                        <span class="pl-2.5 pr-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-r border-neutral-600 py-2">{{ t('nav.country_short') }}</span>
+                        <select id="country-select" name="country" data-autosubmit
+                                class="bg-transparent border-0 text-white text-sm py-1.5 pl-2 pr-8 focus:ring-0 max-w-[11rem]">
+                            {% for c in countries %}
+                                <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.flag }} {{ c.code }} — {{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
                 </form>
-                <form method="post" action="/lingua" class="flex items-center gap-2 text-sm">
+                <form method="post" action="/lingua">
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                     <input type="hidden" name="redirect" value="{{ current_uri }}">
-                    <label for="locale-select" class="sr-only">{{ t('nav.language_label') }}</label>
-                    <select id="locale-select" name="locale" data-autosubmit
-                            class="rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7 focus:ring-amber-400 focus:border-amber-400">
-                        {% for l in locales %}
-                            <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.' ~ l) }}</option>
-                        {% endfor %}
-                    </select>
+                    <label for="locale-select" title="{{ t('nav.language_label') }}"
+                           class="flex items-center rounded-md bg-neutral-800 border border-neutral-600 focus-within:ring-1 focus-within:ring-amber-400 focus-within:border-amber-400">
+                        <span class="pl-2.5 pr-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-r border-neutral-600 py-2">{{ t('nav.language_short') }}</span>
+                        <select id="locale-select" name="locale" data-autosubmit
+                                class="bg-transparent border-0 text-white text-sm py-1.5 pl-2 pr-8 focus:ring-0">
+                            {% for l in locales %}
+                                <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.flag_' ~ l) }} {{ t('lang.' ~ l) }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
                 </form>
                 <form method="post" action="/logout" class="hidden md:block">
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -98,11 +104,11 @@
             <form method="post" action="/paese" class="sm:hidden px-3 py-2">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <input type="hidden" name="redirect" value="{{ current_uri }}">
-                <label for="country-select-m" class="block text-xs text-neutral-400 mb-1">{{ t('nav.country_label') }}</label>
+                <label for="country-select-m" class="block text-xs text-neutral-400 mb-1">{{ t('nav.country_label') }} — {{ t('nav.country_hint') }}</label>
                 <select id="country-select-m" name="country" data-autosubmit
                         class="w-full rounded-md bg-neutral-800 border border-neutral-600 text-white text-sm py-1.5 pl-2 pr-7">
                     {% for c in countries %}
-                        <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.code }} — {{ c.name }}</option>
+                        <option value="{{ c.code }}" {{ country == c.code ? 'selected' }}>{{ c.flag }} {{ c.code }} — {{ c.name }}</option>
                     {% endfor %}
                 </select>
             </form>

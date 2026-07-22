@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Repository\UserRepository;
 use App\Service\VatService;
 use App\Support\Http;
 use App\Support\Session;
@@ -11,13 +12,17 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * Preferenze persistite in sessione: paese di residenza, lingua e sistema taglie (EU/US).
+ * Preferenze persistite in sessione: paese di residenza, lingua, sistema
+ * taglie (EU/US) e densità griglia. Per gli utenti loggati, paese e lingua
+ * si salvano anche sul profilo (altrimenti al login successivo il profilo
+ * riporterebbe la sessione ai vecchi valori).
  */
 final class PreferenceController
 {
     public function __construct(
         private readonly Session $session,
         private readonly VatService $vat,
+        private readonly UserRepository $users,
     ) {
     }
 
@@ -27,6 +32,10 @@ final class PreferenceController
         $country = is_string($body['country'] ?? null) ? strtoupper(trim($body['country'])) : '';
         if ($this->vat->isValidCountry($country)) {
             $this->session->setCountry($country);
+            $userId = $this->session->userId();
+            if ($userId !== null) {
+                $this->users->setCountryCode($userId, $country);
+            }
         }
 
         return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
@@ -37,6 +46,10 @@ final class PreferenceController
         $body = (array) ($request->getParsedBody() ?? []);
         $locale = is_string($body['locale'] ?? null) ? $body['locale'] : '';
         $this->session->setLocale($locale);
+        $userId = $this->session->userId();
+        if ($userId !== null && in_array($locale, Session::LOCALES, true)) {
+            $this->users->setLocale($userId, $locale);
+        }
 
         return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
     }
