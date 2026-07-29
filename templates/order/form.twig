@@ -105,6 +105,7 @@
                  data-vat-preview
                  data-countries="{{ countries|json_encode|e('html_attr') }}"
                  data-net="{{ cart.total_amount }}"
+                 data-shipping="{{ shipping.amount }}"
                  data-label-domestic="{{ t('vat.label_rate')|e('html_attr') }}"
                  data-label-eu="{{ t('vat.label_rate')|e('html_attr') }}"
                  data-label-reverse="{{ t('vat.label_reverse')|e('html_attr') }}"
@@ -135,14 +136,28 @@
                         <span class="font-semibold">{{ cart.total_amount|eur }}</span>
                     </div>
                     <div class="flex justify-between">
+                        <span class="text-neutral-500">{{ t('cart.shipping') }}</span>
+                        <span class="font-semibold {{ shipping.free ? 'text-emerald-600' }}">
+                            {{ shipping.free ? t('cart.shipping_free') : shipping.amount|eur }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
                         <span class="text-neutral-500" data-vat-label>—</span>
                         <span data-vat-amount>—</span>
                     </div>
                     <div class="flex justify-between font-bold border-t border-neutral-200 pt-2">
                         <span>{{ t('order.total_estimated') }}</span>
-                        <span data-vat-gross>{{ cart.total_amount|eur }}</span>
+                        {# senza JS resta l'imponibile merce + spedizione (il VAT lo calcola il server) #}
+                        <span data-vat-gross>{{ (cart.total_amount + shipping.amount)|eur }}</span>
                     </div>
                 </div>
+                {% if not shipping.free %}
+                    <p class="text-xs text-neutral-500 mt-2">
+                        {{ shipping.items_to_free == 1
+                            ? t('cart.shipping_to_free_one')
+                            : t('cart.shipping_to_free', {n: shipping.items_to_free}) }}
+                    </p>
+                {% endif %}
                 <p class="text-xs text-neutral-400 mt-2" data-vat-hint></p>
                 <p class="text-xs text-neutral-400 mt-2">{{ t('cart.total_items') }}: {{ cart.total_items }}</p>
             </div>

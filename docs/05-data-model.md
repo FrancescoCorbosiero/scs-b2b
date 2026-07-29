@@ -53,6 +53,10 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `vat_rate` DECIMAL(5,2), `vat_amount` DECIMAL(10,2), `total_gross` DECIMAL(10,2)
 - `receipt_number` VARCHAR(20) NULL — es. PF-2026-0001 (ricevuta pro-forma)
 - `total_items` INT, `total_amount` DECIMAL(10,2) — **imponibile netto** (VAT esclusa)
+- `shipping_amount` DECIMAL(10,2) — spedizione netta (VAT esclusa): 0 da
+  `FREE_SHIPPING_MIN_ITEMS` paia in su, altrimenti `SHIPPING_FEE`. È spesa
+  accessoria: `vat_amount` si calcola su `total_amount + shipping_amount` e
+  `total_gross` = imponibile + spedizione + VAT (righe pre-migrazione 0007: 0,00)
 - `cart_snapshot` JSON — righe complete: sku, nome, taglia EU/US, barcode, qty,
   prezzo unitario netto, subtotale (+ offer_price per riga, visibile solo lato admin)
 - `email_admin_sent`, `email_customer_sent` TINYINT — per capire i fallimenti SMTP

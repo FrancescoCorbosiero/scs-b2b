@@ -67,6 +67,10 @@
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.items') }}</span><strong>{{ order.total_items }}</strong></div>
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.total_net') }}</span><strong>{{ order.total_amount|eur }}</strong></div>
                 <div class="flex justify-between">
+                    <span class="text-neutral-500">{{ t('cart.shipping') }}</span>
+                    <span>{{ (order.shipping_amount ?? 0) > 0 ? (order.shipping_amount|eur) : t('cart.shipping_free') }}</span>
+                </div>
+                <div class="flex justify-between">
                     <span class="text-neutral-500">{{ t('vat.scheme_short.' ~ (order.vat_scheme ?? 'domestic')) }}{% if (order.vat_rate ?? 0) > 0 %} ({{ order.vat_rate }}%){% endif %}</span>
                     <span>{{ (order.vat_amount ?? '0')|eur }}</span>
                 </div>
@@ -131,13 +135,20 @@
                     {% if dropship_orders is empty %}
                         <p class="text-xs text-neutral-500">{{ t('dropship.card_none') }}</p>
                     {% else %}
-                        <ul class="space-y-1 text-xs">
+                        {# ogni ordine dropship è una scheda interamente cliccabile #}
+                        <ul class="space-y-1.5 text-xs">
                             {% for ds in dropship_orders %}
                                 <li>
-                                    <a class="underline font-semibold" href="/admin/dropship/{{ ds.id }}">#{{ ds.id }}</a>
-                                    — {{ t('dropship.status.' ~ ds.status) }}
-                                    {% if ds.mode == 'simulation' %}· {{ t('dropship.simulation_badge') }}{% endif %}
-                                    · {{ ds.created_at }}
+                                    <a href="/admin/dropship/{{ ds.id }}"
+                                       class="group flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-amber-50/60 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
+                                        <span class="font-semibold">#{{ ds.id }}</span>
+                                        <span class="text-neutral-500 min-w-0 flex-1 leading-snug">
+                                            {{ t('dropship.status.' ~ ds.status) }}
+                                            {% if ds.mode == 'simulation' %}· {{ t('dropship.simulation_badge') }}{% endif %}
+                                            · {{ ds.created_at }}
+                                        </span>
+                                        <svg class="w-4 h-4 ml-auto shrink-0 text-neutral-400 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                    </a>
                                 </li>
                             {% endfor %}
                         </ul>

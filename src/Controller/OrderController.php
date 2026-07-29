@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Repository\UserRepository;
 use App\Service\CartService;
 use App\Service\OrderService;
+use App\Service\ShippingService;
 use App\Support\ClientIp;
 use App\Support\Http;
 use App\Support\Lang;
@@ -22,6 +23,7 @@ final class OrderController
         private readonly Session $session,
         private readonly CartService $cart,
         private readonly OrderService $orders,
+        private readonly ShippingService $shipping,
         private readonly UserRepository $users,
         private readonly ClientIp $clientIp,
         private readonly Lang $lang,
@@ -45,6 +47,7 @@ final class OrderController
 
         return $this->view->render($response, 'order/form.twig', [
             'cart' => $detail,
+            'shipping' => $this->shipping->quote($detail['total_items']),
             'old' => $old,
         ]);
     }

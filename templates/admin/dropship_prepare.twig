@@ -20,9 +20,16 @@
     {% if existing is not empty %}
         <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-amber-50 border-amber-200 text-amber-900">
             {{ t('dropship.existing_warning') }}
-            {% for ds in existing %}
-                <a class="underline font-semibold" href="/admin/dropship/{{ ds.id }}">#{{ ds.id }} ({{ t('dropship.status.' ~ ds.status) }}{{ ds.mode == 'simulation' ? ' · ' ~ t('dropship.simulation_badge') }})</a>{{ not loop.last ? ',' }}
-            {% endfor %}
+            <span class="mt-2 flex flex-wrap gap-2">
+                {% for ds in existing %}
+                    <a href="/admin/dropship/{{ ds.id }}"
+                       class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white/70 px-3 py-1.5 font-semibold hover:bg-white hover:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
+                        #{{ ds.id }}
+                        <span class="font-normal text-amber-800">({{ t('dropship.status.' ~ ds.status) }}{{ ds.mode == 'simulation' ? ' · ' ~ t('dropship.simulation_badge') }})</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                    </a>
+                {% endfor %}
+            </span>
         </div>
     {% endif %}
 

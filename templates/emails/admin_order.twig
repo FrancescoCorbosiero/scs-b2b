@@ -71,6 +71,7 @@
     <p style="font-size: 15px; margin-top: 14px;">
         <strong>Totale pezzi:</strong> {{ order.total_items }}<br>
         <strong>Imponibile (VAT esclusa):</strong> {{ order.total_amount|eur }}<br>
+        <strong>Spedizione:</strong> {{ (order.shipping_amount ?? 0) > 0 ? (order.shipping_amount|eur) : 'gratuita' }}<br>
         <strong>VAT
             {%- if order.vat_scheme == 'reverse_charge' %} (reverse charge, 0%)
             {%- elseif order.vat_scheme == 'export' %} (export, 0%)

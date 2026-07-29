@@ -93,6 +93,10 @@
             <td class="right">{{ order.total_amount|eur }}</td>
         </tr>
         <tr>
+            <td class="muted">{{ t('email.shipping') }}</td>
+            <td class="right">{{ (order.shipping_amount ?? 0) > 0 ? (order.shipping_amount|eur) : t('cart.shipping_free') }}</td>
+        </tr>
+        <tr>
             <td class="muted">
                 {% if order.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
                 {% elseif order.vat_scheme == 'export' %}{{ t('vat.label_export') }}

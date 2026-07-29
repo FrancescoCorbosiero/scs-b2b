@@ -59,7 +59,11 @@ alla richiesta d'ordine, in base al paese di residenza (`VatService`):
   sostanziale resta al titolare in fase di conferma.
 - Il paese si sceglie dal selettore in header (default IT, persiste in
   sessione) e si conferma nel form ordine; il form mostra un'anteprima live
-  di imponibile/VAT/totale (il server resta l'unica verità).
+  di imponibile/spedizione/VAT/totale (il server resta l'unica verità).
+- La **spedizione** (`ShippingService`, docs/06 § /carrello) è netta e segue lo
+  stesso regime dei beni perché accessoria alla cessione (art. 12 DPR 633/72 ·
+  art. 78 Dir. 2006/112/CE): l'imponibile è `merce + spedizione`, quindi in
+  reverse charge/export resta a VAT 0% come il resto dell'ordine.
 
 ## Precalcolo (nessun costo runtime)
 

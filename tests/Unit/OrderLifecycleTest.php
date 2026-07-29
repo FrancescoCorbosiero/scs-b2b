@@ -13,6 +13,7 @@ use App\Service\DropshipOrderService;
 use App\Service\OrderMailer;
 use App\Service\OrderService;
 use App\Service\ReceiptService;
+use App\Service\ShippingService;
 use App\Service\VatService;
 use App\Repository\VatRateRepository;
 use App\Support\Config;
@@ -77,6 +78,7 @@ final class OrderLifecycleTest extends TestCase
             $this->orders,
             new OrderMailer($config, $twig, $lang, $receipts, new SmtpMailer($config)),
             new VatService(new VatRateRepository($this->pdo)),
+            new ShippingService($config),
             $receipts,
             $this->dropship,
             $session,
@@ -107,10 +109,12 @@ final class OrderLifecycleTest extends TestCase
             'vat_number' => null,
             'vat_scheme' => 'domestic',
             'vat_rate' => '22.00',
-            'vat_amount' => '134.20',
-            'total_gross' => '744.20',
+            // 6 paia < 7: spedizione 10,00 nell'imponibile (620,00 × 22%)
+            'vat_amount' => '136.40',
+            'total_gross' => '756.40',
             'total_items' => 6,
             'total_amount' => '610.00',
+            'shipping_amount' => '10.00',
             'cart_snapshot' => (string) json_encode(['lines' => [[
                 'sku' => 'JS3801', 'name' => 'adidas Gazelle', 'brand' => 'Adidas',
                 'size_eu' => '42', 'size_us' => '8.5', 'barcode' => 'BC42',
@@ -179,12 +183,31 @@ final class OrderLifecycleTest extends TestCase
         $money = static fn (mixed $v): string => number_format((float) $v, 2, '.', '');
         self::assertSame(3, (int) $order['total_items']);
         self::assertSame('305.01', $money($order['total_amount']));
-        self::assertSame('67.10', $money($order['vat_amount']));
-        self::assertSame('372.11', $money($order['total_gross']));
+        // sempre sotto le 7 paia: spedizione 10,00 nell'imponibile (315,01 × 22%)
+        self::assertSame('10.00', $money($order['shipping_amount']));
+        self::assertSame('69.30', $money($order['vat_amount']));
+        self::assertSame('384.31', $money($order['total_gross']));
         $snapshot = json_decode((string) $order['cart_snapshot'], true);
         self::assertSame(3, $snapshot['lines'][0]['qty']);
         self::assertSame('305.01', $snapshot['lines'][0]['subtotal']);
         self::assertSame('101.67', $snapshot['lines'][0]['unit_price'], 'Prezzo quotato invariato');
+    }
+
+    /** Salendo alla soglia la spedizione sparisce (e l'imponibile con lei). */
+    public function testAdminUpdateMakesShippingFreeFromThreshold(): void
+    {
+        $id = $this->seedPendingOrder();
+
+        $result = $this->service->adminUpdate($id, [0 => 7], renotify: false);
+
+        self::assertTrue($result['ok']);
+        $order = $this->orders->find($id);
+        $money = static fn (mixed $v): string => number_format((float) $v, 2, '.', '');
+        self::assertSame(7, (int) $order['total_items']);
+        self::assertSame('711.69', $money($order['total_amount']));
+        self::assertSame('0.00', $money($order['shipping_amount']), '7 paia: spedizione gratuita');
+        self::assertSame('156.57', $money($order['vat_amount']));
+        self::assertSame('868.26', $money($order['total_gross']));
     }
 
     public function testAdminUpdateRejectsEmptyResult(): void

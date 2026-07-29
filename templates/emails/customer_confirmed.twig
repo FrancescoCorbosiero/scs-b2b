@@ -34,6 +34,7 @@
     <p style="font-size: 15px; margin-top: 14px;">
         <strong>{{ t('email.total_items') }}:</strong> {{ order.total_items }}<br>
         <strong>{{ t('email.total_net') }}:</strong> {{ order.total_amount|eur }}<br>
+        <strong>{{ t('email.shipping') }}:</strong> {{ (order.shipping_amount ?? 0) > 0 ? (order.shipping_amount|eur) : t('cart.shipping_free') }}<br>
         <strong>{{ t('email.total_gross') }}:</strong> {{ order.total_gross|eur }}
     </p>
 

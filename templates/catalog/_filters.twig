@@ -1,0 +1,131 @@
+{# Pannello filtri: rail fisso su desktop, drawer a scorrimento su mobile.
+   È un solo blocco DOM (niente input duplicati): i campi appartengono al form
+   GET #catalog-filters via attributo form=, così lo stato resta nell'URL. #}
+<div class="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-3 lg:hidden">
+    <span class="font-bold">{{ t('catalog.filters_title') }}</span>
+    <button type="button" @click="filtersOpen = false"
+            class="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+            aria-label="{{ t('catalog.filters_close') }}">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+</div>
+
+<div class="space-y-4 p-4 lg:p-0">
+    {# ── Brand ───────────────────────────────────────────────── #}
+    <section class="overflow-hidden rounded-2xl border border-neutral-200 bg-white" x-data="{ bq: '' }">
+        <h2 class="flex items-center justify-between px-4 pb-2 pt-4 text-xs font-bold uppercase tracking-wide text-neutral-400">
+            {{ t('catalog.brands_title') }}
+            <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-500">{{ brands|length }}</span>
+        </h2>
+        {% if brands|length > 6 %}
+            <div class="px-3 pb-2">
+                <input type="search" x-model="bq" placeholder="{{ t('catalog.brands_search') }}"
+                       class="w-full rounded-lg border-neutral-200 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+            </div>
+        {% endif %}
+        <nav class="scs-thin-scroll max-h-72 overflow-y-auto pb-2">
+            <a href="{{ brand_base_qs ? '/?' ~ brand_base_qs : '/' }}" x-show="bq === ''"
+               class="flex items-center justify-between gap-2 px-4 py-2 text-sm transition-colors {{ filters.brand == '' ? 'bg-neutral-900 font-semibold text-white' : 'text-neutral-700 hover:bg-neutral-50' }}">
+                <span>{{ t('catalog.brands_all') }}</span>
+                <span class="rounded-full px-1.5 py-0.5 text-xs {{ filters.brand == '' ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ brands_total }}</span>
+            </a>
+            {% for b in brands %}
+                <a href="{{ brand_prefix }}brand={{ b.brand|url_encode }}"
+                   data-brand="{{ b.brand|lower }}" x-show="bq === '' || $el.dataset.brand.includes(bq.toLowerCase())"
+                   class="flex items-center justify-between gap-2 px-4 py-2 text-sm transition-colors {{ filters.brand == b.brand ? 'bg-neutral-900 font-semibold text-white' : 'text-neutral-700 hover:bg-neutral-50' }}">
+                    <span class="truncate">{{ b.brand }}</span>
+                    <span class="rounded-full px-1.5 py-0.5 text-xs {{ filters.brand == b.brand ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ b.products }}</span>
+                </a>
+            {% endfor %}
+        </nav>
+    </section>
+
+    {# ── Taglie (solo quelle con stock) ──────────────────────── #}
+    {% if size_facets is not empty %}
+        <section class="rounded-2xl border border-neutral-200 bg-white p-4">
+            <h2 class="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-neutral-400">
+                {{ t('catalog.filter_sizes') }}
+                {% if filters.sizes is not empty %}
+                    <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.sizes|length }}</span>
+                {% endif %}
+            </h2>
+            <p class="mb-2 text-[11px] text-neutral-400">{{ t('catalog.filter_sizes_hint') }}</p>
+            <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-4">
+                {% for s in size_facets %}
+                    {% set label = size_system == 'us' and s.size_us ? s.size_us : s.size_eu %}
+                    <label class="relative cursor-pointer">
+                        <input type="checkbox" name="taglia[]" value="{{ s.size_eu }}" form="catalog-filters" data-autosubmit
+                               {{ s.size_eu in filters.sizes ? 'checked' }} class="peer sr-only">
+                        <span class="flex flex-col items-center rounded-lg border border-neutral-200 py-1.5 text-xs font-semibold text-neutral-700
+                                     transition-all hover:border-neutral-400 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white
+                                     peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500">
+                            {{ label }}
+                            <span class="text-[10px] font-normal opacity-60">{{ s.products }}</span>
+                        </span>
+                    </label>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {# ── Prezzo (netto, VAT esclusa) ─────────────────────────── #}
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
+        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_price') }}</h2>
+        <div class="flex items-center gap-2">
+            <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" inputmode="numeric"
+                   form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_min_short') }}"
+                   aria-label="{{ t('catalog.filter_price_min') }}"
+                   class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+            <span class="shrink-0 text-neutral-400">–</span>
+            <input type="number" name="prezzo_max" value="{{ filters.price_max }}" min="0" step="1" inputmode="numeric"
+                   form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_max_short') }}"
+                   aria-label="{{ t('catalog.filter_price_max') }}"
+                   class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+        </div>
+    </section>
+
+    {# ── Disponibilità ───────────────────────────────────────── #}
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
+        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_availability') }}</h2>
+        <div class="grid grid-cols-2 gap-1.5">
+            {% for a in ['', 'alta', 'media', 'bassa'] %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="disponibilita" value="{{ a }}" form="catalog-filters" data-autosubmit
+                           {{ filters.availability == a ? 'checked' }} class="peer sr-only">
+                    <span class="block rounded-lg border border-neutral-200 py-1.5 text-center text-xs font-semibold text-neutral-700
+                                 transition-all hover:border-neutral-400 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white
+                                 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500">
+                        {{ a == '' ? t('catalog.availability_any') : t('catalog.availability_' ~ a) }}
+                    </span>
+                </label>
+            {% endfor %}
+        </div>
+        <p class="mt-2 text-[11px] text-neutral-400">{{ t('catalog.filter_availability_hint', {high: availability_high_min, low: availability_low_max}) }}</p>
+    </section>
+
+    {# ── Interruttori rapidi ─────────────────────────────────── #}
+    <section class="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4">
+        {% for toggle in [
+            {name: 'recommended', on: filters.recommended, label: t('catalog.filter_recommended')},
+            {name: 'disponibili', on: filters.in_stock, label: t('catalog.filter_in_stock')}
+        ] %}
+            <label class="flex cursor-pointer items-center justify-between gap-3 text-sm font-medium text-neutral-700">
+                {{ toggle.label }}
+                <input type="checkbox" name="{{ toggle.name }}" value="1" form="catalog-filters" data-autosubmit
+                       {{ toggle.on ? 'checked' }} class="peer sr-only">
+                <span class="relative h-6 w-11 shrink-0 rounded-full bg-neutral-200 transition-colors peer-checked:bg-neutral-900
+                             peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500
+                             after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white
+                             after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
+            </label>
+        {% endfor %}
+    </section>
+
+    <div class="flex items-center gap-2 lg:hidden">
+        <button type="button" @click="filtersOpen = false"
+                class="flex-1 rounded-xl bg-neutral-900 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">
+            {{ t('catalog.filters_show_results', {n: total}) }}
+        </button>
+        <a href="/" class="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-600">{{ t('catalog.reset_filters') }}</a>
+    </div>
+</div>
