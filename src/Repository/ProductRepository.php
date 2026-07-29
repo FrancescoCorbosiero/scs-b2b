@@ -227,7 +227,8 @@ final class ProductRepository
 
     /**
      * @param array{q: string, brand: string, availability: string, recommended: bool,
-     *   price_min: float|null, price_max: float|null, sort: string} $filters
+     *   price_min: float|null, price_max: float|null, sort: string,
+     *   sizes?: list<string>, in_stock?: bool} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function search(array $filters, int $page, int $perPage, int $highMin, int $lowMax): array
@@ -270,6 +271,19 @@ final class ProductRepository
         if ($filters['price_max'] !== null) {
             $where[] = 'p.min_price <= ?';
             $params[] = $filters['price_max'];
+        }
+        // taglie: il prodotto passa se ha stock in ALMENO una delle taglie scelte
+        $sizes = array_values(array_filter($filters['sizes'] ?? [], static fn (string $s): bool => $s !== ''));
+        if ($sizes !== []) {
+            $placeholders = implode(',', array_fill(0, count($sizes), '?'));
+            $where[] = "EXISTS (SELECT 1 FROM product_sizes ps
+                                WHERE ps.product_id = p.id AND ps.quantity > 0 AND ps.size_eu IN ({$placeholders}))";
+            foreach ($sizes as $size) {
+                $params[] = $size;
+            }
+        }
+        if ($filters['in_stock'] ?? false) {
+            $where[] = 'p.total_quantity > 0';
         }
 
         $whereSql = implode(' AND ', $where);
@@ -359,6 +373,33 @@ final class ProductRepository
         }
 
         return $brands;
+    }
+
+    /**
+     * Taglie disponibili (stock > 0) con quanti prodotti le hanno: alimenta il
+     * filtro taglia del catalogo. Ordinamento numerico (39 < 40 < 40.5).
+     *
+     * @return list<array{size_eu: string, size_us: string, products: int}>
+     */
+    public function activeSizesWithCounts(): array
+    {
+        $stmt = $this->pdo->query(
+            'SELECT s.size_eu, MAX(s.size_us) AS size_us, COUNT(DISTINCT s.product_id) AS products
+             FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
+             WHERE p.is_active = 1 AND s.quantity > 0 AND s.size_eu <> \'\'
+             GROUP BY s.size_eu
+             ORDER BY CAST(s.size_eu AS DECIMAL(6,2)), s.size_eu'
+        );
+        $sizes = [];
+        foreach ($stmt === false ? [] : $stmt->fetchAll() as $row) {
+            $sizes[] = [
+                'size_eu' => (string) $row['size_eu'],
+                'size_us' => (string) ($row['size_us'] ?? ''),
+                'products' => (int) $row['products'],
+            ];
+        }
+
+        return $sizes;
     }
 
     /** @return array<string, mixed>|null */

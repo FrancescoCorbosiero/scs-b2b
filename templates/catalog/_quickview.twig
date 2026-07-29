@@ -1,0 +1,116 @@
+{# Scheda rapida: si apre da una card e permette di ordinare taglia per taglia
+   senza lasciare il catalogo (le quantità finiscono nel carrello di sessione
+   via /carrello/aggiorna). Solo dati pubblici: stock e prezzi netti. #}
+<div x-data="{ qv: null }" x-cloak
+     @scs-quickview.window="qv = $event.detail"
+     @scs-quickview-close.window="qv = null"
+     @keydown.escape.window="qv = null"
+     x-effect="document.documentElement.classList.toggle('overflow-hidden', !!qv)">
+    <div x-show="qv" x-transition.opacity.duration.150ms class="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-sm" @click="qv = null"></div>
+
+    <div x-show="qv" class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true">
+        <div x-show="qv"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-6 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0 translate-y-4"
+             class="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl outline-none sm:rounded-2xl"
+             :data-qv-sku="qv?.sku" data-qv-panel tabindex="-1">
+            <template x-if="qv">
+                <div class="flex max-h-[92vh] flex-col">
+                    {# ── Intestazione ── #}
+                    <div class="flex items-start gap-4 border-b border-neutral-100 p-4 sm:p-5">
+                        <img :src="qv.image" :alt="qv.name" data-fallback="/placeholder.svg"
+                             class="h-20 w-20 shrink-0 rounded-xl bg-neutral-50 object-contain p-1 sm:h-24 sm:w-24">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 text-xs text-neutral-500">
+                                <span class="font-mono font-semibold text-neutral-700" x-text="qv.sku"></span>
+                                <span class="rounded-full bg-neutral-100 px-2 py-0.5 font-semibold text-neutral-600" x-text="qv.brand"></span>
+                                <template x-if="qv.recommended">
+                                    <span class="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-900">{{ t('catalog.recommended_badge') }}</span>
+                                </template>
+                            </div>
+                            <h2 class="mt-1 text-lg font-bold leading-snug" x-text="qv.name"></h2>
+                            <p class="mt-0.5 text-xs text-neutral-500">
+                                {{ t('catalog.total_availability', {n: ''}) }}<span x-text="qv.total"></span>
+                            </p>
+                        </div>
+                        <button type="button" @click="qv = null" aria-label="{{ t('payment.modal_close') }}"
+                                class="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    {# ── Taglie: stock, prezzo netto e quantità ── #}
+                    <div class="scs-thin-scroll flex-1 overflow-y-auto p-4 sm:p-5">
+                        <div class="mb-2 flex items-center justify-between">
+                            <h3 class="text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.qv_sizes_title') }}</h3>
+                            <button type="button" @click="qv.sizes.forEach(s => s.qty = s.quantity)"
+                                    class="text-xs font-semibold text-neutral-500 underline underline-offset-2 transition-colors hover:text-neutral-900">
+                                {{ t('cart.take_all') }}
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <template x-for="s in qv.sizes" :key="s.size_eu">
+                                <div class="rounded-xl border p-2.5 transition-colors"
+                                     :class="s.quantity > 0 ? ((s.qty || 0) > 0 ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200') : 'border-neutral-100 bg-neutral-50/60 opacity-60'">
+                                    <div class="flex items-baseline justify-between gap-1">
+                                        <span class="font-bold" x-text="'{{ size_system }}' === 'us' && s.size_us ? s.size_us : s.size_eu"></span>
+                                        <span class="text-[11px]" :class="s.quantity > 3 ? 'text-neutral-400' : 'text-red-600 font-semibold'"
+                                              x-text="s.quantity + ' {{ t('catalog.qv_in_stock') }}'"></span>
+                                    </div>
+                                    <div class="mt-0.5 text-xs font-semibold text-neutral-600" x-text="window.scsFormatEur(s.price)"></div>
+                                    <div class="mt-2 flex items-center gap-1">
+                                        <button type="button" @click="s.qty = Math.max(0, (s.qty || 0) - 1)" :disabled="s.quantity === 0"
+                                                class="h-7 w-7 shrink-0 rounded-lg border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-40"
+                                                aria-label="-">−</button>
+                                        <input type="number" min="0" :max="s.quantity" x-model.number="s.qty" :disabled="s.quantity === 0"
+                                               data-qv-qty :data-size="s.size_eu" inputmode="numeric"
+                                               @input="s.qty = Math.max(0, Math.min(s.quantity, parseInt($el.value || 0) || 0))"
+                                               class="h-7 w-full min-w-0 rounded-lg border-neutral-200 p-0 text-center text-sm focus:border-amber-500 focus:ring-amber-500 disabled:bg-neutral-100">
+                                        <button type="button" @click="s.qty = Math.min(s.quantity, (s.qty || 0) + 1)" :disabled="s.quantity === 0"
+                                                class="h-7 w-7 shrink-0 rounded-lg border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-40"
+                                                aria-label="+">+</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    {# ── Riepilogo e azioni ── #}
+                    <div class="border-t border-neutral-100 bg-neutral-50 p-4 sm:p-5">
+                        <div class="mb-3 flex items-center justify-between text-sm">
+                            <span class="text-neutral-500">
+                                <span class="font-bold text-neutral-900" x-text="qv.sizes.reduce((t, s) => t + (s.qty || 0), 0)"></span>
+                                {{ t('catalog.qv_selected') }}
+                            </span>
+                            <span class="text-right">
+                                <span class="block text-[11px] uppercase tracking-wide text-neutral-400">{{ t('cart.total_net') }}</span>
+                                <span class="text-lg font-bold" x-text="window.scsFormatEur(qv.sizes.reduce((t, s) => t + (s.qty || 0) * parseFloat(s.price), 0))"></span>
+                            </span>
+                        </div>
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <button type="button" data-qv-submit
+                                    data-added-label="{{ t('catalog.qv_added')|e('html_attr') }}"
+                                    data-error-label="{{ t('catalog.qv_error')|e('html_attr') }}"
+                                    :disabled="qv.sizes.reduce((t, s) => t + (s.qty || 0), 0) === 0"
+                                    class="flex-1 rounded-xl bg-neutral-900 px-5 py-3 font-semibold text-white transition-all hover:bg-neutral-700 active:scale-[.98] disabled:opacity-40">
+                                {{ t('catalog.qv_add') }}
+                            </button>
+                            <a href="/carrello" class="rounded-xl border border-neutral-300 bg-white px-5 py-3 text-center font-semibold transition-colors hover:bg-neutral-100">
+                                {{ t('nav.cart') }}
+                            </a>
+                        </div>
+                        <p class="mt-2 text-center text-[11px] text-neutral-400">{{ t('catalog.qv_hint') }}</p>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+{# contenitore dei messaggi temporanei (aggiunte al carrello, errori) #}
+<div data-toasts class="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4"></div>

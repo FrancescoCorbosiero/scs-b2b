@@ -3,231 +3,185 @@
 {% block title %}{{ t('catalog.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    <div class="flex flex-wrap items-center gap-3 mb-2">
-        <h1 class="text-2xl font-bold">{{ t('catalog.title') }}</h1>
-        <span class="text-sm text-neutral-500">{{ t('catalog.results', {n: total}) }}</span>
-        <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
-           class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-            {{ t('catalog.export') }}
-        </a>
-    </div>
-
-    {# tutti i prezzi del catalogo sono netti: il VAT si applica solo alla richiesta d'ordine #}
-    <p class="mb-4 text-xs text-neutral-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        {{ t('catalog.vat_notice') }}
-    </p>
-
     {% set brand_prefix = brand_base_qs ? '/?' ~ brand_base_qs ~ '&' : '/?' %}
     {% set brands_total = 0 %}
     {% for b in brands %}{% set brands_total = brands_total + b.products %}{% endfor %}
 
-    <div class="lg:flex lg:gap-6 lg:items-start">
-        {# ── Navigazione brand: sidebar sticky (desktop) ── #}
-        <aside class="hidden lg:block w-60 shrink-0 lg:sticky lg:top-20" x-data="{ bq: '' }">
-            <div class="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-                <h2 class="px-4 pt-4 pb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.brands_title') }}</h2>
-                {% if brands|length > 8 %}
-                    <div class="px-3 pb-2">
-                        <input type="search" x-model="bq" placeholder="{{ t('catalog.brands_search') }}"
-                               class="w-full rounded-lg border-neutral-200 text-sm py-1.5 focus:border-amber-500 focus:ring-amber-500">
-                    </div>
-                {% endif %}
-                <nav class="pb-2 max-h-[28rem] overflow-y-auto">
-                    <a href="{{ brand_base_qs ? '/?' ~ brand_base_qs : '/' }}" x-show="bq === ''"
-                       class="flex items-center justify-between gap-2 px-4 py-2 text-sm {{ filters.brand == '' ? 'bg-neutral-900 text-white font-semibold' : 'hover:bg-neutral-50 text-neutral-700' }}">
-                        <span>{{ t('catalog.brands_all') }}</span>
-                        <span class="text-xs rounded-full px-1.5 py-0.5 {{ filters.brand == '' ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ brands_total }}</span>
+    {# Form GET dei filtri: vuoto e fuori dal flusso. I campi lo referenziano
+       con form="catalog-filters", così il pannello può stare ovunque nel
+       layout senza annidare form (le card contengono form POST). #}
+    <form id="catalog-filters" method="get" action="/" class="hidden">
+        {# il brand si sceglie dalla navigazione dedicata (link): va conservato #}
+        {% if filters.brand %}<input type="hidden" name="brand" value="{{ filters.brand }}">{% endif %}
+    </form>
+
+    <div x-data="{ filtersOpen: false }" @keydown.escape.window="filtersOpen = false">
+        <div class="lg:flex lg:items-start lg:gap-6">
+            {# ── Pannello filtri: rail desktop / drawer mobile ── #}
+            <div x-show="filtersOpen" x-cloak x-transition.opacity
+                 class="fixed inset-0 z-40 bg-neutral-900/50 lg:hidden" @click="filtersOpen = false"></div>
+            <aside class="fixed inset-y-0 left-0 z-50 w-[85%] max-w-xs overflow-y-auto bg-neutral-50 shadow-2xl transition-transform duration-300
+                          lg:sticky lg:top-20 lg:z-auto lg:block lg:max-h-[calc(100vh-6rem)] lg:w-64 lg:shrink-0 lg:bg-transparent lg:shadow-none lg:transition-none"
+                   :class="filtersOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
+                {% include 'catalog/_filters.twig' %}
+            </aside>
+
+            <div class="min-w-0 flex-1">
+                {# ── Intestazione ── #}
+                <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <h1 class="text-2xl font-bold tracking-tight">{{ t('catalog.title') }}</h1>
+                    <span data-result-count class="rounded-full bg-neutral-900 px-2.5 py-1 text-xs font-bold text-white">{{ t('catalog.results', {n: total}) }}</span>
+                    <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
+                       class="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium transition-all hover:border-neutral-400 hover:shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                        <span class="hidden sm:inline">{{ t('catalog.export') }}</span>
                     </a>
-                    {% for b in brands %}
-                        <a href="{{ brand_prefix }}brand={{ b.brand|url_encode }}"
-                           data-brand="{{ b.brand|lower }}" x-show="bq === '' || $el.dataset.brand.includes(bq.toLowerCase())"
-                           class="flex items-center justify-between gap-2 px-4 py-2 text-sm {{ filters.brand == b.brand ? 'bg-neutral-900 text-white font-semibold' : 'hover:bg-neutral-50 text-neutral-700' }}">
-                            <span class="truncate">{{ b.brand }}</span>
-                            <span class="text-xs rounded-full px-1.5 py-0.5 {{ filters.brand == b.brand ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ b.products }}</span>
-                        </a>
-                    {% endfor %}
-                </nav>
-            </div>
-        </aside>
+                </div>
 
-        <div class="flex-1 min-w-0">
-            {# ── Navigazione brand: chips scorrevoli (mobile/tablet) ── #}
-            <nav class="lg:hidden mb-4 -mx-4 px-4 flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                <a href="{{ brand_base_qs ? '/?' ~ brand_base_qs : '/' }}"
-                   class="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold border whitespace-nowrap {{ filters.brand == '' ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 text-neutral-700' }}">
-                    {{ t('catalog.brands_all') }}
-                </a>
-                {% for b in brands %}
-                    <a href="{{ brand_prefix }}brand={{ b.brand|url_encode }}"
-                       class="shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold border whitespace-nowrap {{ filters.brand == b.brand ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 text-neutral-700' }}">
-                        {{ b.brand }} <span class="font-normal opacity-60">{{ b.products }}</span>
-                    </a>
-                {% endfor %}
-            </nav>
+                {# ── Toolbar sticky: ricerca, ordinamento, vista ── #}
+                <div class="sticky top-14 z-30 -mx-4 mb-3 border-b border-neutral-200 bg-neutral-100/95 px-4 py-3 backdrop-blur sm:top-[3.75rem] lg:mx-0 lg:rounded-2xl lg:border lg:px-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" @click="filtersOpen = true"
+                                class="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold transition-all hover:border-neutral-400 lg:hidden">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
+                            {{ t('catalog.toggle_filters') }}
+                            {% if active_filters|length %}
+                                <span class="rounded-full bg-neutral-900 px-1.5 text-[10px] font-bold text-white">{{ active_filters|length }}</span>
+                            {% endif %}
+                        </button>
 
-            {# ── Toolbar filtri: stato su query string → URL condivisibili ── #}
-            <div x-data="{ filtersOpen: false }" class="mb-6">
-                <button type="button" @click="filtersOpen = !filtersOpen"
-                        class="md:hidden mb-3 inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
-                    {{ t('catalog.toggle_filters') }}
-                </button>
-
-                <form method="get" action="/" class="bg-white rounded-xl border border-neutral-200 p-4 md:block" :class="filtersOpen ? 'block' : 'hidden'">
-                    {# il brand attivo arriva dalla navigazione dedicata e va preservato #}
-                    {% if filters.brand %}<input type="hidden" name="brand" value="{{ filters.brand }}">{% endif %}
-                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 text-sm">
-                        <div class="sm:col-span-2 xl:col-span-1">
+                        <div class="relative min-w-[12rem] flex-1">
+                            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
                             <label for="f-q" class="sr-only">{{ t('catalog.search_placeholder') }}</label>
-                            <input type="search" id="f-q" name="q" value="{{ filters.q }}" placeholder="{{ t('catalog.search_placeholder') }}"
-                                   data-debounce-submit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            <input type="search" id="f-q" name="q" value="{{ filters.q }}" form="catalog-filters"
+                                   placeholder="{{ t('catalog.search_placeholder') }}" data-debounce-submit data-search-input
+                                   class="w-full rounded-xl border-neutral-300 pl-9 pr-12 text-sm transition-shadow focus:border-amber-500 focus:shadow-sm focus:ring-amber-500">
+                            <kbd class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-neutral-300 bg-neutral-50 px-1.5 text-[10px] font-semibold text-neutral-400 sm:block">/</kbd>
                         </div>
-                        <div>
-                            <label for="f-avail" class="sr-only">{{ t('catalog.filter_availability') }}</label>
-                            <select id="f-avail" name="disponibilita" data-autosubmit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
-                                <option value="">{{ t('catalog.filter_availability') }}: {{ t('catalog.availability_any') }}</option>
-                                {% for a in ['alta', 'media', 'bassa'] %}
-                                    <option value="{{ a }}" {{ filters.availability == a ? 'selected' }}>{{ t('catalog.filter_availability') }}: {{ t('catalog.availability_' ~ a) }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" placeholder="{{ t('catalog.filter_price_min') }}"
-                                   class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500" inputmode="numeric">
-                            <span class="text-neutral-400">–</span>
-                            <input type="number" name="prezzo_max" value="{{ filters.price_max }}" min="0" step="1" placeholder="{{ t('catalog.filter_price_max') }}"
-                                   class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500" inputmode="numeric">
-                        </div>
-                        <div>
-                            <label for="f-sort" class="sr-only">{{ t('catalog.sort_label') }}</label>
-                            <select id="f-sort" name="ordina" data-autosubmit class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
-                                {% for s in sorts %}
-                                    <option value="{{ s }}" {{ filters.sort == s ? 'selected' }}>{{ t('catalog.sort_label') }}: {{ t('catalog.sort_' ~ s) }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <label class="flex items-center gap-2 text-neutral-700">
-                            <input type="checkbox" name="recommended" value="1" {{ filters.recommended ? 'checked' }} data-autosubmit
-                                   class="rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
-                            {{ t('catalog.filter_recommended') }}
-                        </label>
-                        {# toggle EU/US: POST separato che persiste in sessione #}
-                        <div class="flex items-center gap-1" id="size-toggle">
-                            <span class="text-neutral-500 mr-1">{{ t('catalog.sizes_label') }}:</span>
+
+                        <label for="f-sort" class="sr-only">{{ t('catalog.sort_label') }}</label>
+                        <select id="f-sort" name="ordina" form="catalog-filters" data-autosubmit data-default="rilevanza"
+                                class="rounded-xl border-neutral-300 py-2 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+                            {% for s in sorts %}
+                                <option value="{{ s }}" {{ filters.sort == s ? 'selected' }}>{{ t('catalog.sort_label') }}: {{ t('catalog.sort_' ~ s) }}</option>
+                            {% endfor %}
+                        </select>
+
+                        {# taglie EU/US e densità griglia: preferenze in sessione (POST) #}
+                        <div class="hidden items-center gap-1 rounded-xl border border-neutral-300 bg-white p-1 sm:flex">
                             {% for sys in ['eu', 'us'] %}
                                 <button type="submit" form="size-system-form" name="size_system" value="{{ sys }}"
-                                        class="px-3 py-1 rounded-md border text-xs font-semibold {{ size_system == sys ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50' }}">
+                                        class="rounded-lg px-2.5 py-1 text-xs font-bold transition-colors {{ size_system == sys ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100' }}">
                                     {{ t('catalog.size_' ~ sys) }}
                                 </button>
                             {% endfor %}
                         </div>
-                        {# densità griglia: card grandi / medie / compatte (persiste in sessione) #}
-                        <div class="flex items-center gap-1">
-                            <span class="text-neutral-500 mr-1">{{ t('catalog.grid_label') }}:</span>
+                        <div class="hidden items-center gap-1 rounded-xl border border-neutral-300 bg-white p-1 md:flex">
                             {% for gs in ['lg', 'md', 'sm'] %}
                                 <button type="submit" form="grid-size-form" name="grid_size" value="{{ gs }}"
                                         title="{{ t('catalog.grid_' ~ gs) }}" aria-label="{{ t('catalog.grid_' ~ gs) }}"
-                                        class="p-1.5 rounded-md border {{ grid_size == gs ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-300 hover:bg-neutral-50 text-neutral-500' }}">
+                                        class="rounded-lg p-1.5 transition-colors {{ grid_size == gs ? 'bg-neutral-900 text-white' : 'text-neutral-400 hover:bg-neutral-100' }}">
                                     {% if gs == 'lg' %}
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="14" rx="1"/><rect x="8.5" y="1" width="6.5" height="14" rx="1"/></svg>
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="14" rx="1"/><rect x="8.5" y="1" width="6.5" height="14" rx="1"/></svg>
                                     {% elseif gs == 'md' %}
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="1"/><rect x="1" y="8.5" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1"/></svg>
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="1" width="6.5" height="6.5" rx="1"/><rect x="1" y="8.5" width="6.5" height="6.5" rx="1"/><rect x="8.5" y="8.5" width="6.5" height="6.5" rx="1"/></svg>
                                     {% else %}
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="4" height="4" rx="0.5"/><rect x="6" y="1" width="4" height="4" rx="0.5"/><rect x="11" y="1" width="4" height="4" rx="0.5"/><rect x="1" y="6" width="4" height="4" rx="0.5"/><rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11" y="6" width="4" height="4" rx="0.5"/><rect x="1" y="11" width="4" height="4" rx="0.5"/><rect x="6" y="11" width="4" height="4" rx="0.5"/><rect x="11" y="11" width="4" height="4" rx="0.5"/></svg>
+                                        <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="4" height="4" rx="0.5"/><rect x="6" y="1" width="4" height="4" rx="0.5"/><rect x="11" y="1" width="4" height="4" rx="0.5"/><rect x="1" y="6" width="4" height="4" rx="0.5"/><rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11" y="6" width="4" height="4" rx="0.5"/><rect x="1" y="11" width="4" height="4" rx="0.5"/><rect x="6" y="11" width="4" height="4" rx="0.5"/><rect x="11" y="11" width="4" height="4" rx="0.5"/></svg>
                                     {% endif %}
                                 </button>
                             {% endfor %}
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 py-2 font-semibold hover:bg-neutral-700">{{ t('catalog.apply_filters') }}</button>
-                            <a href="/" class="text-neutral-500 hover:text-neutral-700 underline">{{ t('catalog.reset_filters') }}</a>
-                        </div>
+
+                        {# senza JS resta il bottone di invio esplicito #}
+                        <noscript>
+                            <button type="submit" form="catalog-filters" class="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">{{ t('catalog.apply_filters') }}</button>
+                        </noscript>
                     </div>
-                </form>
-                <form id="size-system-form" method="post" action="/taglie">
-                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                    <input type="hidden" name="redirect" value="{{ current_uri }}">
-                </form>
-                <form id="grid-size-form" method="post" action="/griglia">
-                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                    <input type="hidden" name="redirect" value="{{ current_uri }}">
-                </form>
-            </div>
 
-            {% if items is empty %}
-                <div class="bg-white rounded-xl border border-neutral-200 p-10 text-center text-neutral-500">
-                    {{ t('catalog.no_results') }}
-                </div>
-            {% else %}
-                {# classi per densità scritte per esteso: il JIT di Tailwind le deve vedere #}
-                {% set grid_classes = {
-                    'lg': 'grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5',
-                    'md': 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4',
-                    'sm': 'grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3',
-                } %}
-                <div class="{{ grid_classes[grid_size] ?? grid_classes['md'] }}">
-                    {% for item in items %}
-                        {% set sizes = sizes_by_product[item.id] ?? [] %}
-                        <article class="bg-white rounded-xl border border-neutral-200 overflow-hidden flex flex-col">
-                            <div class="relative aspect-square bg-neutral-50">
-                                {% if item.is_recommended %}
-                                    <span class="absolute top-2 left-2 z-10 rounded-full bg-amber-400 text-neutral-900 text-xs font-bold px-2.5 py-1">{{ t('catalog.recommended_badge') }}</span>
-                                {% endif %}
-                                <img src="{{ item.image_url ?: '/placeholder.svg' }}" alt="{{ item.name }}" loading="lazy" data-fallback="/placeholder.svg"
-                                     class="absolute inset-0 w-full h-full object-contain p-4">
-                            </div>
-                            <div class="p-4 flex flex-col gap-2 flex-1">
-                                <div class="flex items-center gap-2 text-xs text-neutral-500">
-                                    <span class="font-mono font-semibold text-neutral-700">{{ item.sku }}</span>
-                                    <button type="button" data-copy="{{ item.sku }}" title="{{ t('catalog.copy_sku') }}"
-                                            class="p-1 rounded hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
-                                    </button>
-                                    <a href="{{ brand_prefix }}brand={{ item.brand|url_encode }}" class="ml-auto hover:underline">{{ item.brand }}</a>
-                                </div>
-                                <h2 class="font-semibold leading-snug">{{ item.name }}</h2>
-                                <p class="text-xs text-neutral-500">{{ t('catalog.total_availability', {n: item.total_quantity}) }}</p>
-                                <div class="flex flex-wrap gap-1.5">
-                                    {% for size in sizes|slice(0, 8) %}
-                                        {% set label = size_system == 'us' and size.size_us ? size.size_us : size.size_eu %}
-                                        <span class="rounded-md border px-1.5 py-0.5 text-xs {{ size.quantity > 0 ? 'border-neutral-200 bg-neutral-50 text-neutral-700' : 'border-neutral-100 bg-white text-neutral-300 line-through' }}">
-                                            {{ label }} · {{ size.quantity }}
-                                        </span>
-                                    {% endfor %}
-                                    {% if sizes|length > 8 %}
-                                        <span class="rounded-md px-1.5 py-0.5 text-xs text-neutral-400">+{{ sizes|length - 8 }}</span>
-                                    {% endif %}
-                                </div>
-                                <div class="mt-auto pt-2 flex items-center justify-between gap-2">
-                                    <p class="font-bold text-lg">{{ t('catalog.price_from', {price: item.price_from|eur}) }}</p>
-                                    <form method="post" action="/carrello/aggiungi">
-                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                                        <input type="hidden" name="sku" value="{{ item.sku }}">
-                                        <input type="hidden" name="redirect" value="{{ current_uri }}">
-                                        <button type="submit" class="rounded-lg bg-neutral-900 text-white text-sm font-semibold px-3 py-2 hover:bg-neutral-700">
-                                            {{ t('catalog.add_to_cart') }}
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </article>
-                    {% endfor %}
+                    {# ── Chip dei filtri attivi: ognuno si toglie da solo ── #}
+                    {% if active_filters|length %}
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            {% for chip in active_filters %}
+                                <a href="{{ chip.remove_url }}"
+                                   class="scs-pop group inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white py-1 pl-2.5 pr-1.5 text-xs font-medium transition-all hover:border-neutral-900">
+                                    <span class="text-neutral-400">{{ chip.label }}:</span>
+                                    <span class="font-semibold">{{ chip.value }}</span>
+                                    <span class="rounded-full bg-neutral-100 p-0.5 text-neutral-400 transition-colors group-hover:bg-neutral-900 group-hover:text-white">
+                                        <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </span>
+                                </a>
+                            {% endfor %}
+                            <a href="/" class="ml-1 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">{{ t('catalog.reset_filters') }}</a>
+                        </div>
+                    {% endif %}
                 </div>
 
-                {% if total_pages > 1 %}
-                    <nav class="mt-8 flex items-center justify-center gap-2 text-sm">
+                {# prezzi netti: promemoria compatto #}
+                <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ t('catalog.vat_notice') }}</p>
+
+                {% if items is empty %}
+                    <div class="rounded-2xl border border-neutral-200 bg-white p-12 text-center">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
+                            <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+                        </div>
+                        <p class="font-semibold">{{ t('catalog.no_results') }}</p>
+                        <p class="mt-1 text-sm text-neutral-500">{{ t('catalog.no_results_hint') }}</p>
+                        <a href="/" class="mt-5 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('catalog.reset_filters') }}</a>
+                    </div>
+                {% else %}
+                    {# classi per densità scritte per esteso: il JIT di Tailwind le deve vedere #}
+                    {% set grid_classes = {
+                        'lg': 'grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-5',
+                        'md': 'grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4',
+                        'sm': 'grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3',
+                    } %}
+                    <div data-catalog-grid class="{{ grid_classes[grid_size] ?? grid_classes['md'] }} transition-opacity duration-200">
+                        {% include 'catalog/_cards.twig' %}
+                    </div>
+
+                    {% if total_pages > 1 %}
                         {% set base = '/?' ~ (query_string ? query_string ~ '&' : '') %}
-                        {% if page > 1 %}
-                            <a href="{{ base }}page={{ page - 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
-                        {% endif %}
-                        <span class="text-neutral-500 px-2">{{ t('catalog.page_of', {page: page, total: total_pages}) }}</span>
-                        {% if page < total_pages %}
-                            <a href="{{ base }}page={{ page + 1 }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
-                        {% endif %}
-                    </nav>
+                        {# con JS: un solo bottone che accoda la pagina successiva #}
+                        <div data-loadmore-wrap class="mt-8 hidden justify-center">
+                            <button type="button" data-loadmore data-next-url="{{ base }}page={{ page + 1 }}&fragment=1"
+                                    data-next-page="{{ page + 1 }}" data-total-pages="{{ total_pages }}"
+                                    data-label="{{ t('catalog.load_more')|e('html_attr') }}"
+                                    data-loading-label="{{ t('catalog.loading')|e('html_attr') }}"
+                                    class="inline-flex items-center gap-2 rounded-xl border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold transition-all hover:border-neutral-900 hover:shadow-sm disabled:opacity-60">
+                                {{ t('catalog.load_more') }}
+                            </button>
+                        </div>
+                        {# senza JS: paginazione classica #}
+                        <nav data-pagination class="mt-8 flex items-center justify-center gap-2 text-sm">
+                            {% if page > 1 %}
+                                <a href="{{ base }}page={{ page - 1 }}" class="rounded-xl border border-neutral-300 bg-white px-3 py-1.5 transition-colors hover:bg-neutral-50">← {{ t('catalog.prev') }}</a>
+                            {% endif %}
+                            <span class="px-2 text-neutral-500">{{ t('catalog.page_of', {page: page, total: total_pages}) }}</span>
+                            {% if page < total_pages %}
+                                <a href="{{ base }}page={{ page + 1 }}" class="rounded-xl border border-neutral-300 bg-white px-3 py-1.5 transition-colors hover:bg-neutral-50">{{ t('catalog.next') }} →</a>
+                            {% endif %}
+                        </nav>
+                    {% endif %}
                 {% endif %}
-            {% endif %}
+            </div>
         </div>
+
+        <form id="size-system-form" method="post" action="/taglie">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="redirect" value="{{ current_uri }}">
+        </form>
+        <form id="grid-size-form" method="post" action="/griglia">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="redirect" value="{{ current_uri }}">
+        </form>
     </div>
+
+    {% include 'catalog/_quickview.twig' %}
+
+    {# torna su: compare dopo un po' di scroll #}
+    <button type="button" data-back-to-top aria-label="{{ t('catalog.back_to_top') }}"
+            class="fixed bottom-5 right-5 z-30 hidden h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg
+                   transition-all hover:bg-neutral-700 active:scale-95">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"/></svg>
+    </button>
 {% endblock %}

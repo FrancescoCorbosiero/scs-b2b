@@ -60,6 +60,10 @@ php -S 127.0.0.1:8090 -t public router.php
 
 - Ogni POST richiede `_csrf` (estrarlo dall'HTML della pagina precedente) e il
   cookie `b2b_session` (curl: `-b jar -c jar`).
+- Catalogo: i filtri stanno nella query string (`?taglia[]=42&disponibilita=alta`);
+  la scheda rapida si apre dalla card e scrive nel carrello via
+  `/carrello/aggiorna`; "Carica altri" usa `?fragment=1&page=N` (solo card).
+  Per provare la paginazione con la fixture (12 prodotti): `PRODUCTS_PER_PAGE=6`.
 - Spedizione: gratuita da 7 paia (`FREE_SHIPPING_MIN_ITEMS`), sotto soglia
   `SHIPPING_FEE` (10,00 €). Verifica rapida via JSON:
   `POST /carrello/aggiorna` con `X-Requested-With: fetch` → `shipping_amount`.
