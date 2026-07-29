@@ -73,7 +73,9 @@
             try { vatCountries = JSON.parse(vatPreview.getAttribute('data-countries') || '[]'); } catch (e) { vatCountries = []; }
             var vatByCode = {};
             vatCountries.forEach(function (c) { vatByCode[c.code] = c; });
-            var netCents = Math.round(parseFloat(vatPreview.getAttribute('data-net') || '0') * 100);
+            // la spedizione è accessoria ai beni: entra nell'imponibile VAT
+            var netCents = Math.round(parseFloat(vatPreview.getAttribute('data-net') || '0') * 100)
+                + Math.round(parseFloat(vatPreview.getAttribute('data-shipping') || '0') * 100);
             var countrySelect = document.getElementById('o-country');
             var vatNumberInput = document.getElementById('o-vat-number');
 
@@ -185,11 +187,31 @@
                     var total = document.querySelector('[data-summary-total]');
                     if (total) total.textContent = formatEur(data.total_amount);
 
+                    // spedizione: gratuita da N pezzi in su (il server resta la verità)
+                    var summary = document.querySelector('[data-shipping-free-from]');
+                    var shippingCents = Math.round(parseFloat(data.shipping_amount || '0') * 100);
+                    var shippingEl = document.querySelector('[data-summary-shipping]');
+                    if (shippingEl && summary) {
+                        shippingEl.textContent = data.shipping_free
+                            ? (summary.getAttribute('data-shipping-free-label') || '')
+                            : formatEur(shippingCents / 100);
+                        shippingEl.classList.toggle('text-emerald-600', !!data.shipping_free);
+                    }
+                    var shippingHint = document.querySelector('[data-shipping-hint]');
+                    if (shippingHint && summary) {
+                        shippingHint.textContent = data.shipping_items_to_free === 1
+                            ? (summary.getAttribute('data-shipping-to-free-one') || '')
+                            : (summary.getAttribute('data-shipping-to-free-template') || '')
+                                .replace(':n', String(data.shipping_items_to_free));
+                        shippingHint.classList.toggle('hidden', !!data.shipping_free || data.total_items === 0);
+                    }
+
                     // stima VAT/totale lordo dal rate del paese selezionato
+                    // (imponibile = merce + spedizione)
                     var rateEl = document.querySelector('[data-vat-rate]');
                     if (rateEl) {
                         var rate = parseFloat(rateEl.getAttribute('data-vat-rate')) || 0;
-                        var netCents = Math.round(parseFloat(data.total_amount) * 100);
+                        var netCents = Math.round(parseFloat(data.total_amount) * 100) + shippingCents;
                         var vatCents = Math.round(netCents * rate / 100);
                         var vatEl = document.querySelector('[data-summary-vat]');
                         if (vatEl) vatEl.textContent = formatEur(vatCents / 100);

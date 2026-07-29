@@ -103,6 +103,7 @@ final class TestDb
             receipt_number TEXT NULL,
             total_items INTEGER NOT NULL,
             total_amount NUMERIC NOT NULL,
+            shipping_amount NUMERIC NOT NULL DEFAULT 0,
             cart_snapshot TEXT NOT NULL,
             email_admin_sent INTEGER NOT NULL DEFAULT 0,
             email_customer_sent INTEGER NOT NULL DEFAULT 0,

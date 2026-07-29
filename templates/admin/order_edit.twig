@@ -44,6 +44,7 @@
             </table>
         </div>
         <p class="text-xs text-neutral-500">{{ t('admin.edit_qty_hint') }}</p>
+        <p class="text-xs text-neutral-500">{{ t('admin.edit_shipping_hint', {n: shipping.free_from, fee: shipping.fee|eur}) }}</p>
 
         <label class="flex items-center gap-2 text-sm bg-white rounded-xl border border-neutral-200 p-4">
             <input type="checkbox" name="renotify" value="1" checked class="rounded border-neutral-300 text-amber-500 focus:ring-amber-500">

@@ -68,9 +68,14 @@ Per ogni prodotto nel carrello: thumbnail, SKU, nome, "Remove", e la **tabella t
 - Input numerici con `max` = stock; validazione client E server (lo stock può essere
   cambiato da un sync: alla submission ricontrollare e segnalare le righe ridotte).
 - Per prodotto: "Prendi tutto" (qty = stock su ogni taglia), "Svuota", subtotale.
-- Riepilogo laterale (sticky): pezzi totali, **totale netto (VAT esclusa)** con
-  nota sul paese, avviso "Ordine minimo: 5 pezzi" (`MIN_ORDER_ITEMS=5`) con CTA
-  disabilitata sotto soglia.
+- Riepilogo laterale (sticky): pezzi totali, **totale netto (VAT esclusa)**,
+  **spedizione**, VAT stimata e totale, con nota sul paese e avviso "Ordine
+  minimo: 5 pezzi" (`MIN_ORDER_ITEMS=5`) con CTA disabilitata sotto soglia.
+- **Spedizione**: gratuita da `FREE_SHIPPING_MIN_ITEMS=7` paia in su, altrimenti
+  forfait `SHIPPING_FEE=10.00` (netto, VAT esclusa). Il riquadro mostra la regola
+  e quanti paia mancano al gratis; l'importo si aggiorna con le quantità (JS) ma
+  il calcolo autoritativo è server-side (`ShippingService`). Essendo spesa
+  accessoria alla cessione, entra nell'imponibile VAT insieme alla merce.
 - Persistenza: sessione server-side; sopravvive a refresh e navigazione.
 
 ## /richiesta-ordine (dal carrello) — ciclo di vita a stati
@@ -79,7 +84,7 @@ Form: nome*, azienda, email*, telefono*, **indirizzo di spedizione***
 (via/civico, città, CAP), **paese di residenza*** (precompilato dal selettore
 in header), **partita IVA** (facoltativa), note. Honeypot + CSRF + rate limit
 (max 3 invii/ora per sessione/IP). Il riepilogo mostra un'anteprima live di
-imponibile / VAT / totale che reagisce a paese e P.IVA (JS, dati pubblici);
+imponibile / **spedizione** / VAT / totale che reagisce a paese e P.IVA (JS, dati pubblici);
 il calcolo autoritativo resta server-side (`VatService`, docs/04). Un banner
 esplicita che il pagamento avviene SOLO via bonifico e che **l'ordine viene
 confermato all'arrivo del pagamento**, con modal "Come funziona" (coordinate
@@ -118,8 +123,9 @@ PDF in allegato** (dompdf; scaricabile anche da /admin). **Annulla**
 **Riallineamento admin** (`/admin/richieste/{id}/modifica`, solo `pending`):
 se lo stock cambia durante l'attesa del bonifico, l'admin corregge le
 quantità riga per riga (0 = rimuovi; stock corrente mostrato a fianco, righe
-oltre stock evidenziate); prezzi unitari quotati invariati, totali e VAT
-ricalcolati; con la spunta "rinotifica" il cliente riceve le istruzioni di
+oltre stock evidenziate); prezzi unitari quotati invariati, totali, spedizione
+(la soglia gratis vale sui nuovi pezzi) e VAT ricalcolati; con la spunta
+"rinotifica" il cliente riceve le istruzioni di
 pagamento AGGIORNATE. Poi conferma/annulla come sempre. Con l'auto-dropship
 attivo il caso è raro (lo stock è bloccato subito): è la rete di sicurezza.
 

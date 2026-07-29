@@ -60,6 +60,9 @@ php -S 127.0.0.1:8090 -t public router.php
 
 - Ogni POST richiede `_csrf` (estrarlo dall'HTML della pagina precedente) e il
   cookie `b2b_session` (curl: `-b jar -c jar`).
+- Spedizione: gratuita da 7 paia (`FREE_SHIPPING_MIN_ITEMS`), sotto soglia
+  `SHIPPING_FEE` (10,00 €). Verifica rapida via JSON:
+  `POST /carrello/aggiorna` con `X-Requested-With: fetch` → `shipping_amount`.
 - Richiesta ordine: minimo 5 pezzi (`MIN_ORDER_ITEMS`); usare un prodotto con
   stock alto (es. NK1001) + `POST /carrello/prendi-tutto`. Campi obbligatori:
   nome, email, telefono, indirizzo (address_street/address_city/address_zip),

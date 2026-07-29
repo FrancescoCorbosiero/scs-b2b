@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\CartService;
+use App\Service\ShippingService;
 use App\Service\VatService;
 use App\Support\Http;
 use App\Support\Lang;
@@ -20,6 +21,7 @@ final class CartController
         private readonly Session $session,
         private readonly CartService $cart,
         private readonly VatService $vat,
+        private readonly ShippingService $shipping,
         private readonly Lang $lang,
     ) {
     }
@@ -29,9 +31,14 @@ final class CartController
         $detail = $this->cart->detail();
 
         // stima VAT sul paese selezionato in header (senza P.IVA: il reverse
-        // charge eventuale si applica al checkout) — feedback visivo immediato
+        // charge eventuale si applica al checkout) — feedback visivo immediato.
+        // La spedizione è parte dell'imponibile (spesa accessoria).
         $vat = $this->vat->resolve($this->session->country(), null);
-        $vatAmount = VatService::vatAmount($detail['total_amount'], $vat['rate']);
+        $shipping = $this->shipping->quote($detail['total_items']);
+        $taxable = CartService::money(
+            CartService::cents($detail['total_amount']) + CartService::cents($shipping['amount'])
+        );
+        $vatAmount = VatService::vatAmount($taxable, $vat['rate']);
 
         return $this->view->render($response, 'cart/index.twig', [
             'cart' => $detail,
@@ -40,8 +47,9 @@ final class CartController
                 'scheme' => $vat['scheme'],
                 'rate' => $vat['rate'],
                 'amount' => $vatAmount,
-                'gross' => VatService::grossTotal($detail['total_amount'], $vatAmount),
+                'gross' => VatService::grossTotal($taxable, $vatAmount),
             ],
+            'shipping' => $shipping,
             'min_order_items' => $this->cart->minOrderItems(),
             'meets_minimum' => $detail['total_items'] >= $this->cart->minOrderItems(),
         ]);
@@ -85,6 +93,8 @@ final class CartController
                 }
             }
 
+            $shipping = $this->shipping->quote($detail['total_items']);
+
             return Http::json($response, [
                 'ok' => true,
                 'applied' => $applied,
@@ -92,6 +102,9 @@ final class CartController
                 'product_total' => $productTotal,
                 'total_items' => $detail['total_items'],
                 'total_amount' => $detail['total_amount'],
+                'shipping_amount' => $shipping['amount'],
+                'shipping_free' => $shipping['free'],
+                'shipping_items_to_free' => $shipping['items_to_free'],
                 'meets_minimum' => $detail['total_items'] >= $this->cart->minOrderItems(),
             ]);
         }

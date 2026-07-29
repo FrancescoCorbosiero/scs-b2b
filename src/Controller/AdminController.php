@@ -18,6 +18,7 @@ use App\Service\OrderMailer;
 use App\Service\OrderService;
 use App\Service\PricingService;
 use App\Service\ReceiptService;
+use App\Service\ShippingService;
 use App\Support\ClientIp;
 use App\Support\Http;
 use App\Support\Lang;
@@ -45,6 +46,7 @@ final class AdminController
         private readonly VatRateRepository $vatRates,
         private readonly ReceiptService $receipts,
         private readonly OrderService $orderService,
+        private readonly ShippingService $shipping,
     ) {
     }
 
@@ -171,6 +173,7 @@ final class AdminController
             'order' => $order,
             'lines' => $lines,
             'stock' => $stock,
+            'shipping' => $this->shipping->quote((int) ($order['total_items'] ?? 0)),
         ]);
     }
 

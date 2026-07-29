@@ -22,7 +22,7 @@ final class OrderRequestRepository
      *   address_street: string|null, address_city: string|null, address_zip: string|null,
      *   notes: string|null, locale: string, country_code: string, vat_number: string|null,
      *   vat_scheme: string, vat_rate: string, vat_amount: string, total_gross: string,
-     *   total_items: int, total_amount: string,
+     *   total_items: int, total_amount: string, shipping_amount?: string,
      *   cart_snapshot: string, ip_address: string, user_agent: string|null} $data
      */
     public function insert(array $data): int
@@ -31,8 +31,8 @@ final class OrderRequestRepository
             'INSERT INTO order_requests (user_id, created_at, customer_name, company, email, phone,
                 address_street, address_city, address_zip, notes, status,
                 locale, country_code, vat_number, vat_scheme, vat_rate, vat_amount, total_gross,
-                total_items, total_amount, cart_snapshot, email_admin_sent, email_customer_sent, ip_address, user_agent)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
+                total_items, total_amount, shipping_amount, cart_snapshot, email_admin_sent, email_customer_sent, ip_address, user_agent)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)'
         );
         $stmt->execute([
             $data['user_id'] ?? null,
@@ -54,6 +54,7 @@ final class OrderRequestRepository
             $data['total_gross'],
             $data['total_items'],
             $data['total_amount'],
+            $data['shipping_amount'] ?? '0.00',
             $data['cart_snapshot'],
             $data['ip_address'],
             $data['user_agent'],
@@ -79,16 +80,17 @@ final class OrderRequestRepository
         int $id,
         int $totalItems,
         string $totalAmount,
+        string $shippingAmount,
         string $vatAmount,
         string $totalGross,
         string $snapshotJson,
     ): bool {
         $stmt = $this->pdo->prepare(
             "UPDATE order_requests
-             SET total_items = ?, total_amount = ?, vat_amount = ?, total_gross = ?, cart_snapshot = ?
+             SET total_items = ?, total_amount = ?, shipping_amount = ?, vat_amount = ?, total_gross = ?, cart_snapshot = ?
              WHERE id = ? AND status = 'pending'"
         );
-        $stmt->execute([$totalItems, $totalAmount, $vatAmount, $totalGross, $snapshotJson, $id]);
+        $stmt->execute([$totalItems, $totalAmount, $shippingAmount, $vatAmount, $totalGross, $snapshotJson, $id]);
 
         return $stmt->rowCount() > 0;
     }
@@ -132,7 +134,7 @@ final class OrderRequestRepository
     {
         $stmt = $this->pdo->prepare(
             'SELECT id, created_at, status, receipt_number, country_code, vat_scheme,
-                    total_items, total_amount, vat_amount, total_gross
+                    total_items, total_amount, shipping_amount, vat_amount, total_gross
              FROM order_requests
              WHERE user_id = ? OR (user_id IS NULL AND LOWER(email) = LOWER(?))
              ORDER BY id DESC LIMIT 200'
@@ -169,7 +171,7 @@ final class OrderRequestRepository
         $offset = max(0, ($page - 1) * $perPage);
         $stmt = $this->pdo->prepare(
             "SELECT id, created_at, customer_name, company, email, phone, status, country_code, vat_scheme,
-                    receipt_number, total_items, total_amount, vat_amount, total_gross,
+                    receipt_number, total_items, total_amount, shipping_amount, vat_amount, total_gross,
                     email_admin_sent, email_customer_sent
              FROM order_requests {$where} ORDER BY id DESC LIMIT {$perPage} OFFSET {$offset}"
         );

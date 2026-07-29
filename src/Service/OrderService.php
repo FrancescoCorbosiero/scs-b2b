@@ -34,6 +34,7 @@ final class OrderService
         private readonly OrderRequestRepository $orders,
         private readonly OrderMailer $mailer,
         private readonly VatService $vat,
+        private readonly ShippingService $shipping,
         private readonly ReceiptService $receipts,
         private readonly DropshipOrderService $dropship,
         private readonly Session $session,
@@ -121,8 +122,12 @@ final class OrderService
 
         $detail = $this->cart->detail();
         $vat = $this->vat->resolve($country, $vatNumberRaw !== '' ? $vatNumberRaw : null);
-        $vatAmount = VatService::vatAmount($detail['total_amount'], $vat['rate']);
-        $totalGross = VatService::grossTotal($detail['total_amount'], $vatAmount);
+        // spedizione: forfait sotto soglia, gratuita da FREE_SHIPPING_MIN_ITEMS
+        // pezzi; è accessoria ai beni, quindi entra nell'imponibile VAT
+        $shipping = $this->shipping->amountFor($detail['total_items']);
+        $taxable = self::taxableBase($detail['total_amount'], $shipping);
+        $vatAmount = VatService::vatAmount($taxable, $vat['rate']);
+        $totalGross = VatService::grossTotal($taxable, $vatAmount);
         $snapshot = $this->buildSnapshot($detail);
         $snapshotJson = (string) json_encode($snapshot, JSON_UNESCAPED_UNICODE);
 
@@ -145,6 +150,7 @@ final class OrderService
             'total_gross' => $totalGross,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
+            'shipping_amount' => $shipping,
             'cart_snapshot' => $snapshotJson,
             'ip_address' => $ip,
             'user_agent' => $userAgent !== '' ? mb_substr($userAgent, 0, 255) : null,
@@ -172,6 +178,7 @@ final class OrderService
             'receipt_number' => null,
             'total_items' => $detail['total_items'],
             'total_amount' => $detail['total_amount'],
+            'shipping_amount' => $shipping,
             'cart_snapshot' => $snapshotJson,
             'lines' => $snapshot['lines'],
         ];
@@ -294,11 +301,15 @@ final class OrderService
         }
 
         $totalAmount = CartService::money($totalCents);
-        $vatAmount = VatService::vatAmount($totalAmount, (float) ($order['vat_rate'] ?? 0));
-        $totalGross = VatService::grossTotal($totalAmount, $vatAmount);
+        // la spedizione segue le nuove quantità: scendere sotto soglia la
+        // fa ricomparire (e viceversa)
+        $shipping = $this->shipping->amountFor($totalItems);
+        $taxable = self::taxableBase($totalAmount, $shipping);
+        $vatAmount = VatService::vatAmount($taxable, (float) ($order['vat_rate'] ?? 0));
+        $totalGross = VatService::grossTotal($taxable, $vatAmount);
         $snapshotJson = (string) json_encode(['lines' => $lines], JSON_UNESCAPED_UNICODE);
 
-        if (!$this->orders->updateTotalsAndSnapshot($orderId, $totalItems, $totalAmount, $vatAmount, $totalGross, $snapshotJson)) {
+        if (!$this->orders->updateTotalsAndSnapshot($orderId, $totalItems, $totalAmount, $shipping, $vatAmount, $totalGross, $snapshotJson)) {
             return ['ok' => false, 'error' => $this->lang->t('admin.order_not_pending'), 'email_sent' => null];
         }
         $this->logger->info('Richiesta riallineata da admin', ['order_id' => $orderId, 'total_items' => $totalItems]);
@@ -307,6 +318,7 @@ final class OrderService
         if ($renotify) {
             $order['total_items'] = $totalItems;
             $order['total_amount'] = $totalAmount;
+            $order['shipping_amount'] = $shipping;
             $order['vat_amount'] = $vatAmount;
             $order['total_gross'] = $totalGross;
             $order['lines'] = $lines;
@@ -334,6 +346,15 @@ final class OrderService
         }
 
         return ['ok' => true, 'error' => null];
+    }
+
+    /**
+     * Imponibile VAT = merce + spedizione (spesa accessoria alla cessione,
+     * art. 12 DPR 633/72 · art. 78 Dir. 2006/112/CE: stessa aliquota dei beni).
+     */
+    private static function taxableBase(string $netAmount, string $shippingAmount): string
+    {
+        return CartService::money(CartService::cents($netAmount) + CartService::cents($shippingAmount));
     }
 
     /**
