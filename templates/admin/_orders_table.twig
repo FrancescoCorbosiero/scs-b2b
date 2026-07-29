@@ -11,12 +11,19 @@
                 <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.items') }}</th>
                 <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.total_net') }}</th>
                 <th class="px-4 py-2.5 font-medium">{{ t('admin.emails') }}</th>
+                <th class="px-4 py-2.5 font-medium text-right">{{ t('admin.detail') }}</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-neutral-100">
             {% for order in orders %}
-                <tr class="hover:bg-neutral-50">
-                    <td class="px-4 py-2.5"><a href="/admin/richieste/{{ order.id }}" class="font-semibold underline">#{{ order.id }}</a></td>
+                {# tutta la riga è cliccabile (JS); il link resta per tastiera e no-JS #}
+                <tr class="group hover:bg-amber-50/60 focus-within:bg-amber-50/60 transition-colors"
+                    data-row-link="/admin/richieste/{{ order.id }}">
+                    <td class="px-4 py-2.5">
+                        <a href="/admin/richieste/{{ order.id }}"
+                           class="font-semibold underline decoration-neutral-300 group-hover:decoration-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 rounded"
+                           aria-label="{{ t('admin.detail_of', {id: order.id})|e('html_attr') }}">#{{ order.id }}</a>
+                    </td>
                     <td class="px-4 py-2.5">
                         {% set st = order.status ?? 'pending' %}
                         <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border whitespace-nowrap
@@ -43,9 +50,16 @@
                         <span class="{{ order.email_admin_sent ? 'text-emerald-600' : 'text-red-600' }}">{{ t('admin.email_admin') }}: {{ order.email_admin_sent ? t('admin.email_sent') : t('admin.email_failed') }}</span><br>
                         <span class="{{ order.email_customer_sent ? 'text-emerald-600' : 'text-red-600' }}">{{ t('admin.email_customer') }}: {{ order.email_customer_sent ? t('admin.email_sent') : t('admin.email_failed') }}</span>
                     </td>
+                    {# affordance: "Apri ›" sempre visibile, evidenziato all'hover #}
+                    <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                        <span class="inline-flex items-center gap-1 text-xs font-semibold text-neutral-400 group-hover:text-neutral-900">
+                            {{ t('admin.open') }}
+                            <svg class="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                        </span>
+                    </td>
                 </tr>
             {% else %}
-                <tr><td colspan="9" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
+                <tr><td colspan="10" class="px-4 py-8 text-center text-neutral-400">—</td></tr>
             {% endfor %}
         </tbody>
     </table>

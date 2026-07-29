@@ -74,7 +74,9 @@ return [
     'account.no_orders' => 'No order requests yet.',
     'account.col_status' => 'Status',
     'account.col_receipt' => 'Receipt',
-    'account.orders_hint' => 'The pro-forma receipt is available for confirmed orders (payment received).',
+    'account.col_detail' => 'Detail',
+    'account.open_receipt' => 'Open receipt',
+    'account.orders_hint' => 'The pro-forma receipt is available for confirmed orders (payment received): click the row to open it.',
     'account.receipt_unavailable' => 'Receipt not available for this request.',
 
     // Catalog

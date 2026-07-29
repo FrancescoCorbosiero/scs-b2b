@@ -6,17 +6,27 @@
     <h1 class="text-2xl font-bold mb-6">{{ t('admin.dashboard') }}</h1>
 
     <div class="grid sm:grid-cols-3 gap-4 mb-8 max-w-4xl">
-        <div class="bg-white rounded-xl border border-neutral-200 p-5">
-            <p class="text-sm text-neutral-500">{{ t('admin.orders_total') }}</p>
+        {# ogni scheda porta all'elenco/dettaglio corrispondente: tutta la card è cliccabile #}
+        <a href="/admin/richieste" class="group bg-white rounded-xl border border-neutral-200 p-5 block hover:bg-amber-50/50 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
+            <p class="text-sm text-neutral-500 flex items-center gap-1">
+                {{ t('admin.orders_total') }}
+                <svg class="w-4 h-4 text-neutral-300 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </p>
             <p class="text-3xl font-black">{{ orders_total }}</p>
-        </div>
-        <a href="/admin/richieste?stato=pending" class="bg-white rounded-xl border p-5 block hover:bg-amber-50/50
+        </a>
+        <a href="/admin/richieste?stato=pending" class="group bg-white rounded-xl border p-5 block hover:bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors
            {{ (orders_by_status.pending ?? 0) > 0 ? 'border-amber-300' : 'border-neutral-200' }}">
-            <p class="text-sm text-neutral-500">{{ t('admin.orders_pending') }}</p>
+            <p class="text-sm text-neutral-500 flex items-center gap-1">
+                {{ t('admin.orders_pending') }}
+                <svg class="w-4 h-4 text-neutral-300 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </p>
             <p class="text-3xl font-black {{ (orders_by_status.pending ?? 0) > 0 ? 'text-amber-600' }}">{{ orders_by_status.pending ?? 0 }}</p>
         </a>
-        <div class="bg-white rounded-xl border border-neutral-200 p-5">
-            <p class="text-sm text-neutral-500">{{ t('admin.last_sync') }}</p>
+        <a href="/admin/sync" class="group bg-white rounded-xl border border-neutral-200 p-5 block hover:bg-amber-50/50 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
+            <p class="text-sm text-neutral-500 flex items-center gap-1">
+                {{ t('admin.last_sync') }}
+                <svg class="w-4 h-4 text-neutral-300 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </p>
             {% if last_sync %}
                 <p class="font-semibold {{ last_sync.status == 'ok' ? 'text-emerald-600' : 'text-red-600' }}">
                     {{ last_sync.status|upper }} — {{ last_sync.started_at }}
@@ -30,7 +40,7 @@
             {% else %}
                 <p class="text-neutral-400">{{ t('admin.sync_never') }}</p>
             {% endif %}
-        </div>
+        </a>
     </div>
 
     <h2 class="font-bold text-lg mb-3">{{ t('admin.orders') }}</h2>

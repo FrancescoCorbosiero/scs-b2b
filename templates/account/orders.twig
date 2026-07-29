@@ -25,12 +25,16 @@
                         <th class="px-4 py-2.5 font-medium text-right">{{ t('email.total_net') }}</th>
                         <th class="px-4 py-2.5 font-medium text-right">{{ t('email.total_gross') }}</th>
                         <th class="px-4 py-2.5 font-medium">{{ t('account.col_receipt') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('account.col_detail') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-neutral-100">
                     {% for order in orders %}
                         {% set st = order.status ?? 'pending' %}
-                        <tr class="hover:bg-neutral-50">
+                        {% set has_receipt = st == 'confirmed' and order.receipt_number %}
+                        {# la ricevuta è il "dettaglio" lato cliente: riga cliccabile quando esiste #}
+                        <tr class="group transition-colors {{ has_receipt ? 'hover:bg-amber-50/60 focus-within:bg-amber-50/60' : 'hover:bg-neutral-50' }}"
+                            {% if has_receipt %}data-row-link="/account/ordini/{{ order.id }}/ricevuta.pdf" data-row-link-target="_blank"{% endif %}>
                             <td class="px-4 py-2.5 font-semibold">#{{ order.id }}</td>
                             <td class="px-4 py-2.5 whitespace-nowrap">{{ order.created_at|date('d/m/Y') }}</td>
                             <td class="px-4 py-2.5">
@@ -45,11 +49,21 @@
                             <td class="px-4 py-2.5 text-right whitespace-nowrap">{{ order.total_amount|eur }}</td>
                             <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{{ ((order.total_gross ?? 0) > 0 ? order.total_gross : order.total_amount)|eur }}</td>
                             <td class="px-4 py-2.5 whitespace-nowrap">
-                                {% if st == 'confirmed' and order.receipt_number %}
+                                {% if has_receipt %}
                                     <a href="/account/ordini/{{ order.id }}/ricevuta.pdf" target="_blank" rel="noopener"
-                                       class="underline font-semibold">{{ order.receipt_number }}</a>
+                                       class="underline font-semibold decoration-neutral-300 group-hover:decoration-neutral-900 focus:outline-none focus:ring-2 focus:ring-amber-500 rounded">{{ order.receipt_number }}</a>
                                 {% else %}
                                     <span class="text-neutral-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                {% if has_receipt %}
+                                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-neutral-400 group-hover:text-neutral-900">
+                                        {{ t('account.open_receipt') }}
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H18v4.5M17.5 6.5L10 14M15 14.5V18H6V9h3.5"/></svg>
+                                    </span>
+                                {% else %}
+                                    <span class="text-neutral-300">—</span>
                                 {% endif %}
                             </td>
                         </tr>

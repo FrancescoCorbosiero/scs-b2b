@@ -9,6 +9,15 @@ determina il VAT alla richiesta d'ordine), selettore lingua, logout.
 Ovunque i prezzi sono **VAT esclusa**, con dicitura esplicita (banner
 catalogo + footer).
 
+**Convenzione righe cliccabili**: ovunque un record abbia una pagina di
+dettaglio, si apre cliccando **l'intera riga/scheda**, non solo il link `#id`.
+Il pattern è `data-row-link="<url>"` sul `<tr>` (gestito in `assets/js/app.js`;
+`data-row-link-target="_blank"` per aprire in nuova scheda), più:
+riga evidenziata in hover/focus, colonna finale "Apri ›" come affordance e il
+link vero nella prima cella per tastiera e no-JS. Click su link, bottoni o
+campi interni alla riga continuano a fare la loro azione; ctrl/cmd/tasto
+centrale aprono in una nuova scheda come su un link normale.
+
 ## /login
 Login con **account personale** (email + password) e, finché
 `GUEST_LOGIN_ENABLED=1`, modalità ospite con la password condivisa

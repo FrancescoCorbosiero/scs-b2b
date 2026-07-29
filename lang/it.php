@@ -74,7 +74,9 @@ return [
     'account.no_orders' => 'Nessuna richiesta d\'ordine finora.',
     'account.col_status' => 'Stato',
     'account.col_receipt' => 'Ricevuta',
-    'account.orders_hint' => 'La ricevuta pro-forma è disponibile per gli ordini confermati (pagamento ricevuto).',
+    'account.col_detail' => 'Dettaglio',
+    'account.open_receipt' => 'Apri ricevuta',
+    'account.orders_hint' => 'La ricevuta pro-forma è disponibile per gli ordini confermati (pagamento ricevuto): clicca la riga per aprirla.',
     'account.receipt_unavailable' => 'Ricevuta non disponibile per questa richiesta.',
 
     // Catalogo
@@ -381,6 +383,9 @@ return [
     'admin.receipt' => 'Ricevuta',
     'admin.receipt_download' => 'Scarica ricevuta PDF',
     'admin.date' => 'Data',
+    'admin.detail' => 'Dettaglio',
+    'admin.open' => 'Apri',
+    'admin.detail_of' => 'Apri il dettaglio della richiesta #:id',
     'admin.emails' => 'Email',
     'admin.email_admin' => 'Admin',
     'admin.email_customer' => 'Cliente',

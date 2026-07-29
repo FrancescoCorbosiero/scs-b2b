@@ -66,6 +66,35 @@
             }, { once: true });
         });
 
+        // ── Righe cliccabili: tutta la riga apre il dettaglio del record ──
+        // Progressive enhancement: ogni riga contiene comunque il link vero
+        // (prima cella) per tastiera e navigazione senza JS. Click su link,
+        // bottoni o campi interni restano loro; ctrl/cmd/tasto centrale
+        // aprono in una nuova scheda come su un link normale.
+        document.querySelectorAll('[data-row-link]').forEach(function (row) {
+            var href = row.getAttribute('data-row-link');
+            if (!href) return;
+            var newTab = row.getAttribute('data-row-link-target') === '_blank';
+            var isInteractive = function (target) {
+                return target.closest && target.closest('a, button, input, select, textarea, label, form');
+            };
+            var hasSelection = function () {
+                var sel = window.getSelection();
+                return sel && sel.type === 'Range' && sel.toString().trim() !== '';
+            };
+            row.classList.add('cursor-pointer');
+            row.addEventListener('click', function (e) {
+                if (isInteractive(e.target) || hasSelection()) return;
+                if (newTab || e.ctrlKey || e.metaKey) window.open(href, '_blank', 'noopener');
+                else window.location.assign(href);
+            });
+            row.addEventListener('auxclick', function (e) {
+                if (e.button !== 1 || isInteractive(e.target)) return;
+                e.preventDefault();
+                window.open(href, '_blank', 'noopener');
+            });
+        });
+
         // ── Form ordine: anteprima VAT per paese (il server resta la verità) ──
         var vatPreview = document.querySelector('[data-vat-preview]');
         if (vatPreview) {
