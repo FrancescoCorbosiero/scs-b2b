@@ -20,8 +20,11 @@
             {# ── Pannello filtri: rail desktop / drawer mobile ── #}
             <div x-show="filtersOpen" x-cloak x-transition.opacity
                  class="fixed inset-0 z-40 bg-neutral-900/50 lg:hidden" @click="filtersOpen = false"></div>
-            <aside class="fixed inset-y-0 left-0 z-50 w-[85%] max-w-xs overflow-y-auto bg-neutral-50 shadow-2xl transition-transform duration-300
-                          lg:sticky lg:top-20 lg:z-auto lg:block lg:max-h-[calc(100vh-6rem)] lg:w-64 lg:shrink-0 lg:bg-transparent lg:shadow-none lg:transition-none"
+            {# su desktop: rail sticky SOTTO l'header (z minore) e senza bottom:0,
+               altrimenti si sovrappone alla barra di navigazione #}
+            <aside class="fixed bottom-0 left-0 top-0 z-50 w-[85%] max-w-xs overflow-y-auto bg-neutral-50 shadow-2xl transition-transform duration-300
+                          lg:sticky lg:bottom-auto lg:top-20 lg:z-20 lg:block lg:max-h-[calc(100vh-6rem)] lg:w-64 lg:shrink-0
+                          lg:overscroll-contain lg:bg-transparent lg:shadow-none lg:transition-none"
                    :class="filtersOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
                 {% include 'catalog/_filters.twig' %}
             </aside>

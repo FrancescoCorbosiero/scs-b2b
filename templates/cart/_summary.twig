@@ -1,0 +1,59 @@
+{# Riepilogo carrello: incluso due volte (rail desktop + blocco in fondo su
+   mobile). Gli elementi data-summary-* sono aggiornati TUTTI dal JS. #}
+<div class="space-y-3 rounded-2xl border border-neutral-200 bg-white p-5"
+     data-shipping-free-from="{{ shipping.free_from }}"
+     data-shipping-fee="{{ shipping.fee }}"
+     data-shipping-free-label="{{ t('cart.shipping_free')|e('html_attr') }}"
+     data-shipping-to-free-template="{{ t('cart.shipping_to_free', {n: ':n'})|e('html_attr') }}"
+     data-shipping-to-free-one="{{ t('cart.shipping_to_free_one')|e('html_attr') }}">
+    <h2 class="text-lg font-bold">{{ t('cart.summary') }}</h2>
+    <div class="flex justify-between text-sm">
+        <span class="text-neutral-500">{{ t('cart.total_items') }}</span>
+        <strong data-summary-items>{{ cart.total_items }}</strong>
+    </div>
+    <div class="flex justify-between text-sm">
+        <span class="text-neutral-500">{{ t('cart.total_net') }}</span>
+        <strong data-summary-total>{{ cart.total_amount|eur }}</strong>
+    </div>
+    {# spedizione: gratuita da shipping.free_from pezzi in su #}
+    <div class="flex justify-between text-sm">
+        <span class="text-neutral-500">{{ t('cart.shipping') }}</span>
+        <strong data-summary-shipping class="{{ shipping.free ? 'text-emerald-600' }}">
+            {{ shipping.free ? t('cart.shipping_free') : shipping.amount|eur }}
+        </strong>
+    </div>
+    {# stima VAT sul paese in header: si aggiorna con le quantità (JS) #}
+    <div class="flex justify-between text-sm" data-vat-rate="{{ cart_vat.rate }}">
+        <span class="text-neutral-500">
+            {% if cart_vat.scheme == 'export' %}{{ t('vat.label_export') }}{% else %}{{ t('vat.label_rate', {rate: cart_vat.rate}) }} · {{ cart_vat.country }}{% endif %}
+            <span class="text-neutral-400">({{ t('cart.estimate') }})</span>
+        </span>
+        <span data-summary-vat>{{ cart_vat.amount|eur }}</span>
+    </div>
+    <div class="flex justify-between border-t border-neutral-200 pt-2 text-sm">
+        <span class="font-semibold">{{ t('order.total_estimated') }}</span>
+        <strong class="text-lg" data-summary-gross>{{ cart_vat.gross|eur }}</strong>
+    </div>
+    <p class="text-xs text-neutral-500">{{ t('cart.vat_note', {country: t('country.' ~ country)}) }}</p>
+    <div class="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+        {{ t('cart.shipping_notice', {n: shipping.free_from, fee: shipping.fee|eur}) }}
+        <span data-shipping-hint class="{{ shipping.free ? 'hidden' }} mt-1 block font-medium text-neutral-700">
+            {{ shipping.items_to_free == 1
+                ? t('cart.shipping_to_free_one')
+                : t('cart.shipping_to_free', {n: shipping.items_to_free}) }}
+        </span>
+    </div>
+    <div class="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+        {{ t('cart.minimum_notice', {min: min_order_items}) }}
+        <span data-minimum-warning class="{{ meets_minimum ? 'hidden' }} mt-1 block font-medium text-amber-700">
+            {{ t('cart.below_minimum', {n: max(0, min_order_items - cart.total_items)}) }}
+        </span>
+    </div>
+    <a href="/richiesta-ordine" data-proceed
+       class="block rounded-xl px-4 py-3 text-center font-semibold transition-all {{ meets_minimum ? 'bg-neutral-900 text-white hover:bg-neutral-700 active:scale-[.98]' : 'pointer-events-none bg-neutral-200 text-neutral-400' }}">
+        {{ t('cart.proceed') }}
+    </a>
+    <a href="/" class="block text-center text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">
+        {{ t('cart.keep_shopping') }}
+    </a>
+</div>

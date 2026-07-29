@@ -11,6 +11,25 @@
 </div>
 
 <div class="space-y-4 p-4 lg:p-0">
+    {# ── Disponibilità (primo filtro: è quello che si usa di più) ── #}
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
+        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_availability') }}</h2>
+        <div class="grid grid-cols-2 gap-1.5">
+            {% for a in ['', 'alta', 'media', 'bassa'] %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="disponibilita" value="{{ a }}" form="catalog-filters" data-autosubmit
+                           {{ filters.availability == a ? 'checked' }} class="peer sr-only">
+                    <span class="block rounded-lg border border-neutral-200 py-1.5 text-center text-xs font-semibold text-neutral-700
+                                 transition-all hover:border-neutral-400 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white
+                                 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500">
+                        {{ a == '' ? t('catalog.availability_any') : t('catalog.availability_' ~ a) }}
+                    </span>
+                </label>
+            {% endfor %}
+        </div>
+        <p class="mt-2 text-[11px] text-neutral-400">{{ t('catalog.filter_availability_hint', {high: availability_high_min, low: availability_low_max}) }}</p>
+    </section>
+
     {# ── Brand ───────────────────────────────────────────────── #}
     <section class="overflow-hidden rounded-2xl border border-neutral-200 bg-white" x-data="{ bq: '' }">
         <h2 class="flex items-center justify-between px-4 pb-2 pt-4 text-xs font-bold uppercase tracking-wide text-neutral-400">
@@ -82,25 +101,6 @@
                    aria-label="{{ t('catalog.filter_price_max') }}"
                    class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
         </div>
-    </section>
-
-    {# ── Disponibilità ───────────────────────────────────────── #}
-    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_availability') }}</h2>
-        <div class="grid grid-cols-2 gap-1.5">
-            {% for a in ['', 'alta', 'media', 'bassa'] %}
-                <label class="cursor-pointer">
-                    <input type="radio" name="disponibilita" value="{{ a }}" form="catalog-filters" data-autosubmit
-                           {{ filters.availability == a ? 'checked' }} class="peer sr-only">
-                    <span class="block rounded-lg border border-neutral-200 py-1.5 text-center text-xs font-semibold text-neutral-700
-                                 transition-all hover:border-neutral-400 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white
-                                 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500">
-                        {{ a == '' ? t('catalog.availability_any') : t('catalog.availability_' ~ a) }}
-                    </span>
-                </label>
-            {% endfor %}
-        </div>
-        <p class="mt-2 text-[11px] text-neutral-400">{{ t('catalog.filter_availability_hint', {high: availability_high_min, low: availability_low_max}) }}</p>
     </section>
 
     {# ── Interruttori rapidi ─────────────────────────────────── #}

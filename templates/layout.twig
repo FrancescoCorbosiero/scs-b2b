@@ -89,6 +89,11 @@
                     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                     <button type="submit" class="px-3 py-1.5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm">{{ t('nav.logout') }}</button>
                 </form>
+                {# carrello sempre a portata di pollice su mobile (non solo nel menu) #}
+                <a href="/carrello" class="relative md:hidden p-2 rounded-md hover:bg-neutral-700" aria-label="{{ t('nav.cart') }}">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></svg>
+                    <span data-cart-badge class="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[11px] font-bold text-neutral-900 {{ cart_count == 0 ? 'hidden' }}">{{ cart_count }}</span>
+                </a>
                 <button type="button" class="md:hidden p-2 rounded-md hover:bg-neutral-700" @click="open = !open" aria-label="Menu">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
