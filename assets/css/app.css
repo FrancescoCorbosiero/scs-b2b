@@ -6,6 +6,14 @@
     display: none !important;
 }
 
+/* I select su fondo scuro (header: paese, lingua) hanno testo bianco: senza
+   questa regola le opzioni risultano bianche su bianco nella tendina nativa. */
+select option,
+select optgroup {
+    background-color: #ffffff;
+    color: #171717;
+}
+
 /* ──────────────────────────────────────────────────────────────────
    Animazioni catalogo. Niente style inline (CSP: style-src 'self'):
    i ritardi dello stagger sono classi CSS, non attributi.
