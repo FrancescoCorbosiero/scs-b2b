@@ -111,6 +111,27 @@ final class TestDb
             user_agent TEXT NULL
         )');
 
+        $pdo->exec('CREATE TABLE account_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT "pending",
+            reviewed_at TEXT NULL,
+            user_id INTEGER NULL,
+            company TEXT NOT NULL,
+            vat_number TEXT NULL,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            address_street TEXT NOT NULL,
+            address_city TEXT NOT NULL,
+            address_zip TEXT NOT NULL,
+            country_code TEXT NOT NULL DEFAULT "IT",
+            locale TEXT NOT NULL DEFAULT "it",
+            notes TEXT NULL,
+            ip_address TEXT NOT NULL,
+            user_agent TEXT NULL
+        )');
+
         $pdo->exec('CREATE TABLE sync_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             started_at TEXT NOT NULL,

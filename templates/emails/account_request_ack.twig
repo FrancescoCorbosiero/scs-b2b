@@ -1,0 +1,20 @@
+{# Conferma di ricezione al cliente, nel suo locale. Nessun link riservato:
+   l'accesso arriva solo dopo l'approvazione dello staff. #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 640px;">
+    <h1 style="font-size: 20px;">{{ t('email.signup_ack_title') }}</h1>
+    <p>{{ t('email.customer_greeting', {name: request.name}) }}</p>
+    <p>{{ t('email.signup_ack_body', {company: request.company}) }}</p>
+
+    <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; margin-top: 12px;">
+        <tr><td style="color: #525252;">{{ t('signup.company') }}</td><td><strong>{{ request.company }}</strong></td></tr>
+        <tr><td style="color: #525252;">{{ t('signup.email') }}</td><td>{{ request.email }}</td></tr>
+        <tr><td style="color: #525252;">{{ t('order.country') }}</td><td>{{ t('country.' ~ request.country_code) }}</td></tr>
+    </table>
+
+    <p style="margin-top: 16px;">{{ t('email.signup_ack_next') }}</p>
+    <p>{{ t('email.customer_closing') }}</p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>
+    {% if contact_email %}
+        <p style="color: #525252; font-size: 13px; margin-top: 18px;">{{ t('email.customer_contacts') }}: {{ contact_email }}</p>
+    {% endif %}
+</div>

@@ -71,7 +71,7 @@ final class AccountController
         }
         $this->session->flash('success', $this->lang->t('account.password_set'));
 
-        return Http::redirect($response, '/');
+        return Http::redirect($response, '/catalogo');
     }
 
     // ── Password dimenticata (pubblico, risposta neutra) ─────────────

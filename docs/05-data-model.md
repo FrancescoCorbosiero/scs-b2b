@@ -62,6 +62,16 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `email_admin_sent`, `email_customer_sent` TINYINT — per capire i fallimenti SMTP
 - `ip_address`, `user_agent` — antiabuso
 
+## `account_requests` (richieste di profilo dal sito pubblico)
+- `id` PK, `created_at`, `status` VARCHAR(16) — pending | approved | rejected
+  (+ `reviewed_at`), `user_id` FK NULL — account creato all'approvazione
+- `company`, `vat_number` NULL — dati aziendali
+- `name`, `email`, `phone` — referente (l'email diventa il login)
+- `address_street`, `address_city`, `address_zip`, `country_code` — indirizzo:
+  precompila checkout, ricevuta e ordine dropship
+- `locale`, `notes` TEXT NULL
+- `ip_address`, `user_agent` — antiabuso (rate limit 3/ora per IP)
+
 ## `sync_logs`
 - `id`, `started_at`, `finished_at`, `status` ENUM('ok','error')
 - `rows_read`, `products_created`, `products_updated`, `products_deactivated` INT

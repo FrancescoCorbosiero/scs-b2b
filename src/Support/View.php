@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Repository\AccountRequestRepository;
 use App\Repository\UserRepository;
 use App\Repository\VatRateRepository;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -21,6 +22,7 @@ final class View
         private readonly Lang $lang,
         private readonly VatRateRepository $vatRates,
         private readonly UserRepository $users,
+        private readonly AccountRequestRepository $accountRequests,
     ) {
     }
 
@@ -42,10 +44,13 @@ final class View
             'csrf_token' => $this->session->csrfToken(),
             'is_catalog_authed' => $this->session->isCatalogAuthed(),
             'is_admin_authed' => $this->session->isAdminAuthed(),
+            // badge nella nav admin: richieste di profilo da evadere
+            'account_requests_pending' => $this->pendingAccountRequests(),
             'flashes' => $this->session->pullFlashes(),
             'current_path' => parse_url($uri, PHP_URL_PATH) ?: '/',
             'current_uri' => $uri,
             'app_env' => $this->config->str('APP_ENV', 'production'),
+            'app_url' => rtrim($this->config->str('APP_URL', 'https://b2b.shoesclothingstore.com'), '/'),
             'main_site_url' => $this->config->str('MAIN_SITE_URL', 'https://shoesclothingstore.com/'),
             'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
             'contact' => [
@@ -69,6 +74,19 @@ final class View
         $response->getBody()->write($this->twig->render($template, array_merge($globals, $data)));
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /** Conteggio richieste profilo in attesa (solo per l'area admin). */
+    private function pendingAccountRequests(): int
+    {
+        if (!$this->session->isAdminAuthed()) {
+            return 0;
+        }
+        try {
+            return $this->accountRequests->countPending();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /** @return array{id: int, name: string, email: string}|null utente loggato (null = ospite) */

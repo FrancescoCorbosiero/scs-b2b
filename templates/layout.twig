@@ -3,8 +3,20 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex, nofollow">
+    {# solo le pagine pubbliche sono indicizzabili: catalogo, carrello, account
+       e admin restano fuori dai motori (docs/07) #}
+    <meta name="robots" content="{{ indexable ?? false ? 'index, follow' : 'noindex, nofollow' }}">
     <title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
+    {% if meta_description is defined and meta_description %}
+        <meta name="description" content="{{ meta_description }}">
+        <meta property="og:title" content="{{ block('title') }}">
+        <meta property="og:description" content="{{ meta_description }}">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="{{ company_name }}">
+        <meta property="og:url" content="{{ app_url }}{{ current_path }}">
+        <meta property="og:image" content="{{ app_url }}/logo.png">
+        <link rel="canonical" href="{{ app_url }}{{ current_path }}">
+    {% endif %}
     <link rel="stylesheet" href="/assets/app.css">
     <script defer src="/assets/alpine.min.js"></script>
     <script defer src="/assets/app.js"></script>
@@ -23,6 +35,12 @@
             <nav class="flex flex-wrap items-center gap-1">
                 <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin' ? 'bg-neutral-700' }}">{{ t('admin.dashboard') }}</a>
                 <a href="/admin/richieste" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste' ? 'bg-neutral-700' }}">{{ t('admin.orders') }}</a>
+                <a href="/admin/richieste-profilo" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste-profilo' ? 'bg-neutral-700' }}">
+                    {{ t('signup.admin_title') }}
+                    {% if account_requests_pending is defined and account_requests_pending > 0 %}
+                        <span class="ml-1 inline-flex items-center justify-center min-w-[1.35rem] h-5 px-1 rounded-full bg-amber-400 text-neutral-900 text-xs font-bold">{{ account_requests_pending }}</span>
+                    {% endif %}
+                </a>
                 <a href="/admin/clienti" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/clienti' ? 'bg-neutral-700' }}">{{ t('users.title') }}</a>
                 <a href="/admin/margini" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/margini' ? 'bg-neutral-700' }}">{{ t('admin.margins') }}</a>
                 <a href="/admin/sync" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/sync' ? 'bg-neutral-700' }}">{{ t('admin.sync') }}</a>
@@ -34,15 +52,60 @@
             </form>
         </div>
     </header>
+{% elseif public_page ?? false %}
+    {# ── Sito pubblico: header leggero, nessun dato riservato ── #}
+    <header class="sticky top-0 z-40 border-b border-neutral-200 bg-white/90 backdrop-blur" x-data="{ open: false }">
+        <div class="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+            <a href="/" class="shrink-0">
+                <img src="/logo.png" alt="{{ company_name }}" class="h-8 w-auto sm:h-9">
+            </a>
+            <nav class="hidden items-center gap-1 text-sm md:flex">
+                {% for item in [
+                    {href: '/come-ordinare', label: t('nav.how_to_order')},
+                    {href: '/spedizioni', label: t('nav.shipping')}
+                ] %}
+                    <a href="{{ item.href }}" class="rounded-lg px-3 py-1.5 font-medium transition-colors hover:bg-neutral-100 {{ current_path == item.href ? 'bg-neutral-100' }}">{{ item.label }}</a>
+                {% endfor %}
+            </nav>
+
+            <div class="ml-auto flex items-center gap-2">
+                <form method="post" action="/lingua" class="hidden sm:block">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <input type="hidden" name="redirect" value="{{ current_uri }}">
+                    <label for="locale-public" class="sr-only">{{ t('nav.language_label') }}</label>
+                    <select id="locale-public" name="locale" data-autosubmit
+                            class="rounded-lg border-neutral-300 py-1.5 pl-2 pr-8 text-sm focus:border-amber-500 focus:ring-amber-500">
+                        {% for l in locales %}
+                            <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.flag_' ~ l) }} {{ t('lang.' ~ l) }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {% if is_catalog_authed %}
+                    <a href="/catalogo" class="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('nav.go_catalog') }}</a>
+                {% else %}
+                    <a href="/login" class="hidden rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold transition-colors hover:bg-neutral-100 sm:block">{{ t('nav.login') }}</a>
+                    <a href="/richiedi-accesso" class="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('nav.request_access') }}</a>
+                {% endif %}
+                <button type="button" class="rounded-md p-2 hover:bg-neutral-100 md:hidden" @click="open = !open" aria-label="Menu">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+            </div>
+        </div>
+        <nav class="space-y-1 border-t border-neutral-200 px-4 py-3 text-sm md:hidden" x-show="open" x-cloak>
+            <a href="/come-ordinare" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.how_to_order') }}</a>
+            <a href="/spedizioni" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.shipping') }}</a>
+            <a href="/login" class="block rounded-md px-3 py-2 font-semibold hover:bg-neutral-100">{{ t('nav.login') }}</a>
+        </nav>
+    </header>
 {% elseif is_catalog_authed and not in_admin %}
     <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow" x-data="{ open: false }">
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-            <a href="/" class="shrink-0">
+            <a href="/catalogo" class="shrink-0">
                 <img src="/logo.png" alt="{{ company_name }}" class="h-8 sm:h-9 w-auto">
             </a>
 
             <nav class="hidden md:flex items-center gap-1 text-sm">
-                <a href="/" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/' ? 'bg-neutral-700' }}">{{ t('nav.catalog') }}</a>
+                <a href="/catalogo" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/catalogo' ? 'bg-neutral-700' }}">{{ t('nav.catalog') }}</a>
                 <a href="/carrello" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/carrello' ? 'bg-neutral-700' }}">
                     {{ t('nav.cart') }}
                     <span data-cart-badge class="ml-1 inline-flex items-center justify-center min-w-[1.35rem] h-5 px-1 rounded-full bg-amber-400 text-neutral-900 text-xs font-bold {{ cart_count == 0 ? 'hidden' }}">{{ cart_count }}</span>
@@ -100,7 +163,7 @@
             </div>
         </div>
         <nav class="md:hidden border-t border-neutral-700 px-4 py-3 space-y-1 text-sm" x-show="open" x-cloak>
-            <a href="/" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.catalog') }}</a>
+            <a href="/catalogo" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.catalog') }}</a>
             <a href="/carrello" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.cart') }} ({{ cart_count }})</a>
             <a href="/contatti" class="block px-3 py-2 rounded-md hover:bg-neutral-700">{{ t('nav.contacts') }}</a>
             {% if current_user %}
@@ -125,22 +188,68 @@
     </header>
 {% endif %}
 
-<main id="content" class="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
-    {% for flash in flashes %}
-        <div class="mb-4 rounded-lg px-4 py-3 text-sm border {{ flash.type == 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800' }}">
-            {{ flash.message }}
+<main id="content" class="flex-1 w-full {{ public_page ?? false ? 'max-w-none px-0 py-0' : 'max-w-7xl mx-auto px-4 py-6' }}">
+    {% if flashes is not empty %}
+        <div class="{{ public_page ?? false ? 'mx-auto max-w-3xl px-4 pt-6' }}">
+            {% for flash in flashes %}
+                <div class="mb-4 rounded-lg px-4 py-3 text-sm border {{ flash.type == 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800' }}">
+                    {{ flash.message }}
+                </div>
+            {% endfor %}
         </div>
-    {% endfor %}
+    {% endif %}
 
     {% block content %}{% endblock %}
 </main>
 
-<footer class="border-t border-neutral-200 bg-white">
-    <div class="max-w-7xl mx-auto px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}</p>
-        <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
-    </div>
-</footer>
+{% if public_page ?? false %}
+    <footer class="border-t border-neutral-200 bg-neutral-900 text-neutral-300">
+        <div class="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="sm:col-span-2 lg:col-span-1">
+                <img src="/logo.png" alt="{{ company_name }}" class="h-9 w-auto">
+                <p class="mt-3 text-sm leading-relaxed text-neutral-400">{{ t('footer.tagline') }}</p>
+            </div>
+            <div>
+                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_explore') }}</h2>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="/come-ordinare" class="transition-colors hover:text-white">{{ t('nav.how_to_order') }}</a></li>
+                    <li><a href="/spedizioni" class="transition-colors hover:text-white">{{ t('nav.shipping') }}</a></li>
+                    <li><a href="/richiedi-accesso" class="transition-colors hover:text-white">{{ t('nav.request_access') }}</a></li>
+                    <li><a href="/login" class="transition-colors hover:text-white">{{ t('nav.login') }}</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_contacts') }}</h2>
+                <ul class="space-y-2 text-sm">
+                    {% if contact.email %}<li><a href="mailto:{{ contact.email }}" class="transition-colors hover:text-white">{{ contact.email }}</a></li>{% endif %}
+                    {% if contact.phone %}<li><a href="tel:{{ contact.phone|replace({' ': ''}) }}" class="transition-colors hover:text-white">{{ contact.phone }}</a></li>{% endif %}
+                    {% if contact.whatsapp_link %}<li><a href="{{ contact.whatsapp_link }}" rel="noopener" class="transition-colors hover:text-white">WhatsApp {{ contact.whatsapp }}</a></li>{% endif %}
+                    <li><a href="{{ main_site_url }}" rel="noopener" class="transition-colors hover:text-white">{{ t('footer.main_site') }}</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_company') }}</h2>
+                <p class="text-sm leading-relaxed text-neutral-400">
+                    <strong class="text-neutral-200">{{ contact.company ?: company_name }}</strong><br>
+                    {% if contact.address %}{{ contact.address }}<br>{% endif %}
+                    {% if contact.vat %}{{ contact.vat }}{% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="border-t border-neutral-800">
+            <div class="mx-auto max-w-6xl px-4 py-5 text-xs text-neutral-500">
+                © {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}
+            </div>
+        </div>
+    </footer>
+{% else %}
+    <footer class="border-t border-neutral-200 bg-white">
+        <div class="max-w-7xl mx-auto px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}</p>
+            <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
+        </div>
+    </footer>
+{% endif %}
 
 </body>
 </html>

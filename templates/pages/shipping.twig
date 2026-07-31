@@ -1,0 +1,106 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('shipping.meta_title') }}{% endblock %}
+
+{% block content %}
+    <section class="border-b border-neutral-200 bg-neutral-900 text-white">
+        <div class="mx-auto max-w-4xl px-4 py-16 text-center sm:py-20">
+            <p class="scs-reveal text-xs font-bold uppercase tracking-widest text-amber-400">{{ t('shipping.eyebrow') }}</p>
+            <h1 class="scs-reveal mt-3 text-4xl font-black tracking-tight sm:text-5xl">
+                {{ t('shipping.title', {min: shipping.days_min, max: shipping.days_max}) }}
+            </h1>
+            <p class="scs-reveal mt-4 text-lg text-neutral-300">{{ t('shipping.subtitle') }}</p>
+        </div>
+    </section>
+
+    {# ── Tre fatti chiave ───────────────────────────────────────── #}
+    <section class="mx-auto max-w-6xl px-4 py-16">
+        <div class="grid gap-5 sm:grid-cols-3">
+            {% for card in [
+                {icon: 'clock', title: shipping.days_min ~ '–' ~ shipping.days_max ~ ' ' ~ t('shipping.working_days'), text: t('shipping.card_time_text')},
+                {icon: 'truck', title: t('shipping.card_cost_title'), text: t('shipping.card_cost_text', {n: shipping.free_from, fee: shipping.fee|eur})},
+                {icon: 'globe', title: t('shipping.card_area_title'), text: t('shipping.card_area_text')}
+            ] %}
+                <article data-reveal class="rounded-2xl border border-neutral-200 bg-white p-6">
+                    <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-900 text-amber-400">
+                        {% include 'pages/_icon.twig' with { name: card.icon } %}
+                    </div>
+                    <h2 class="text-lg font-black tracking-tight">{{ card.title }}</h2>
+                    <p class="mt-2 text-sm leading-relaxed text-neutral-600">{{ card.text }}</p>
+                </article>
+            {% endfor %}
+        </div>
+
+        {# ── Tabella costi ──────────────────────────────────────── #}
+        <div data-reveal class="mt-10 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+            <div class="border-b border-neutral-100 px-6 py-4">
+                <h2 class="font-black tracking-tight">{{ t('shipping.table_title') }}</h2>
+                <p class="mt-1 text-sm text-neutral-500">{{ t('shipping.table_note') }}</p>
+            </div>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-neutral-50 text-left text-neutral-500">
+                        <th class="px-6 py-3 font-medium">{{ t('shipping.table_col_qty') }}</th>
+                        <th class="px-6 py-3 text-right font-medium">{{ t('shipping.table_col_cost') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    <tr>
+                        <td class="px-6 py-4">{{ t('shipping.table_row_below', {n: shipping.free_from}) }}</td>
+                        <td class="px-6 py-4 text-right font-bold">{{ shipping.fee|eur }}</td>
+                    </tr>
+                    <tr class="bg-emerald-50/40">
+                        <td class="px-6 py-4 font-semibold">{{ t('shipping.table_row_free', {n: shipping.free_from}) }}</td>
+                        <td class="px-6 py-4 text-right font-black text-emerald-700">{{ t('cart.shipping_free') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {# ── Dalla conferma alla consegna ───────────────────────────── #}
+    <section class="border-y border-neutral-200 bg-white py-16">
+        <div class="mx-auto max-w-5xl px-4">
+            <h2 class="scs-reveal text-3xl font-black tracking-tight">{{ t('shipping.flow_title') }}</h2>
+            <p class="scs-reveal mt-3 max-w-2xl text-neutral-600">{{ t('shipping.flow_subtitle') }}</p>
+
+            <ol class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {% for i in 1..4 %}
+                    <li data-reveal class="relative rounded-2xl border border-neutral-200 p-5">
+                        <span class="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 text-sm font-black text-neutral-900">{{ i }}</span>
+                        <h3 class="font-bold leading-snug">{{ t('shipping.flow_' ~ i ~ '_title') }}</h3>
+                        <p class="mt-1.5 text-sm leading-relaxed text-neutral-500">{{ t('shipping.flow_' ~ i ~ '_text', {min: shipping.days_min, max: shipping.days_max}) }}</p>
+                    </li>
+                {% endfor %}
+            </ol>
+        </div>
+    </section>
+
+    {# ── Dettagli operativi ─────────────────────────────────────── #}
+    <section class="mx-auto max-w-5xl px-4 py-16">
+        <div class="grid gap-5 sm:grid-cols-2">
+            {% for i in 1..4 %}
+                <article data-reveal class="rounded-2xl border border-neutral-200 bg-white p-6">
+                    <h3 class="font-bold">{{ t('shipping.detail_' ~ i ~ '_title') }}</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-neutral-600">
+                        {{ t('shipping.detail_' ~ i ~ '_text', {min: shipping.days_min, max: shipping.days_max, minimum: min_order_items}) }}
+                    </p>
+                </article>
+            {% endfor %}
+        </div>
+
+        <div data-reveal class="mt-10 rounded-2xl bg-neutral-900 p-8 text-center text-white sm:p-10">
+            <h2 class="text-2xl font-black tracking-tight sm:text-3xl">{{ t('shipping.cta_title') }}</h2>
+            <p class="mx-auto mt-3 max-w-xl text-neutral-300">{{ t('shipping.cta_text') }}</p>
+            <div class="mt-7 flex flex-wrap justify-center gap-3">
+                <a href="{{ is_catalog_authed ? '/catalogo' : '/richiedi-accesso' }}"
+                   class="rounded-xl bg-amber-400 px-6 py-3.5 font-bold text-neutral-900 transition-all hover:bg-amber-300 active:scale-[.98]">
+                    {{ is_catalog_authed ? t('nav.go_catalog') : t('home.cta_primary') }}
+                </a>
+                <a href="/come-ordinare" class="rounded-xl border border-neutral-600 px-6 py-3.5 font-semibold transition-colors hover:bg-neutral-800">
+                    {{ t('home.cta_secondary') }}
+                </a>
+            </div>
+        </div>
+    </section>
+{% endblock %}

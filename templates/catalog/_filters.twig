@@ -43,7 +43,7 @@
             </div>
         {% endif %}
         <nav class="scs-thin-scroll max-h-72 overflow-y-auto pb-2">
-            <a href="{{ brand_base_qs ? '/?' ~ brand_base_qs : '/' }}" x-show="bq === ''"
+            <a href="{{ brand_base_qs ? '/catalogo?' ~ brand_base_qs : '/catalogo' }}" x-show="bq === ''"
                class="flex items-center justify-between gap-2 px-4 py-2 text-sm transition-colors {{ filters.brand == '' ? 'bg-neutral-900 font-semibold text-white' : 'text-neutral-700 hover:bg-neutral-50' }}">
                 <span>{{ t('catalog.brands_all') }}</span>
                 <span class="rounded-full px-1.5 py-0.5 text-xs {{ filters.brand == '' ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ brands_total }}</span>
@@ -126,6 +126,6 @@
                 class="flex-1 rounded-xl bg-neutral-900 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">
             {{ t('catalog.filters_show_results', {n: total}) }}
         </button>
-        <a href="/" class="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-600">{{ t('catalog.reset_filters') }}</a>
+        <a href="/catalogo" class="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-600">{{ t('catalog.reset_filters') }}</a>
     </div>
 </div>

@@ -11,7 +11,7 @@
     {% if orders is empty %}
         <div class="bg-white rounded-xl border border-neutral-200 p-10 text-center text-neutral-500">
             <p class="mb-4">{{ t('account.no_orders') }}</p>
-            <a href="/" class="inline-block rounded-lg bg-neutral-900 text-white px-5 py-2.5 font-semibold hover:bg-neutral-700">{{ t('cart.go_catalog') }}</a>
+            <a href="/catalogo" class="inline-block rounded-lg bg-neutral-900 text-white px-5 py-2.5 font-semibold hover:bg-neutral-700">{{ t('cart.go_catalog') }}</a>
         </div>
     {% else %}
         <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto max-w-5xl">

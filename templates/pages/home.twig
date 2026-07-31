@@ -1,0 +1,166 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('home.meta_title') }}{% endblock %}
+
+{% block content %}
+    {# ── Hero ───────────────────────────────────────────────────── #}
+    <section class="relative overflow-hidden bg-neutral-900 text-white">
+        <div class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-amber-400/20 blur-3xl"></div>
+        <div class="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl"></div>
+
+        <div class="relative mx-auto max-w-6xl px-4 py-20 sm:py-28">
+            <p class="scs-reveal inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-300">
+                <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                {{ t('home.badge') }}
+            </p>
+            <h1 class="scs-reveal mt-5 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">
+                {{ t('home.hero_title') }}
+                <span class="text-amber-400">{{ t('home.hero_title_accent') }}</span>
+            </h1>
+            <p class="scs-reveal mt-5 max-w-2xl text-lg leading-relaxed text-neutral-300">{{ t('home.hero_subtitle') }}</p>
+
+            <div class="scs-reveal mt-8 flex flex-wrap gap-3">
+                {% if is_catalog_authed %}
+                    <a href="/catalogo" class="rounded-xl bg-amber-400 px-6 py-3.5 font-bold text-neutral-900 transition-all hover:bg-amber-300 active:scale-[.98]">
+                        {{ t('nav.go_catalog') }}
+                    </a>
+                {% else %}
+                    <a href="/richiedi-accesso" class="rounded-xl bg-amber-400 px-6 py-3.5 font-bold text-neutral-900 transition-all hover:bg-amber-300 active:scale-[.98]">
+                        {{ t('home.cta_primary') }}
+                    </a>
+                {% endif %}
+                <a href="/come-ordinare" class="rounded-xl border border-neutral-600 px-6 py-3.5 font-semibold transition-colors hover:border-neutral-400 hover:bg-neutral-800">
+                    {{ t('home.cta_secondary') }}
+                </a>
+            </div>
+
+            {# numeri chiave: nessun prezzo, solo informazioni commerciali #}
+            <dl class="scs-reveal mt-14 grid grid-cols-2 gap-6 border-t border-neutral-800 pt-8 sm:grid-cols-4">
+                {% for stat in [
+                    {value: catalog_size > 0 ? catalog_size ~ '+' : '—', label: t('home.stat_models')},
+                    {value: brands|length > 0 ? brands|length ~ '' : '—', label: t('home.stat_brands')},
+                    {value: shipping.days_min ~ '–' ~ shipping.days_max, label: t('home.stat_days')},
+                    {value: '29', label: t('home.stat_countries')}
+                ] %}
+                    <div>
+                        <dt class="text-3xl font-black text-amber-400">{{ stat.value }}</dt>
+                        <dd class="mt-1 text-sm text-neutral-400">{{ stat.label }}</dd>
+                    </div>
+                {% endfor %}
+            </dl>
+        </div>
+    </section>
+
+    {# ── Brand ──────────────────────────────────────────────────── #}
+    {% if brands is not empty %}
+        <section class="border-b border-neutral-200 bg-white py-8">
+            <div class="mx-auto max-w-6xl px-4">
+                <p class="mb-4 text-center text-xs font-bold uppercase tracking-widest text-neutral-400">{{ t('home.brands_title') }}</p>
+                <div class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+                    {% for brand in brands|slice(0, 14) %}
+                        <span class="scs-reveal text-lg font-bold tracking-tight text-neutral-400 transition-colors hover:text-neutral-900">{{ brand }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    {% endif %}
+
+    {# ── Perché noi ─────────────────────────────────────────────── #}
+    <section class="mx-auto max-w-6xl px-4 py-20">
+        <h2 class="scs-reveal max-w-2xl text-3xl font-black tracking-tight sm:text-4xl">{{ t('home.value_title') }}</h2>
+        <p class="scs-reveal mt-3 max-w-2xl text-neutral-600">{{ t('home.value_subtitle') }}</p>
+
+        <div class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {% for card in [
+                {icon: 'sync', title: t('home.value_1_title'), text: t('home.value_1_text')},
+                {icon: 'tag', title: t('home.value_2_title'), text: t('home.value_2_text')},
+                {icon: 'size', title: t('home.value_3_title'), text: t('home.value_3_text')},
+                {icon: 'truck', title: t('home.value_4_title'), text: t('home.value_4_text', {n: shipping.free_from, fee: shipping.fee|eur})},
+                {icon: 'bank', title: t('home.value_5_title'), text: t('home.value_5_text')},
+                {icon: 'doc', title: t('home.value_6_title'), text: t('home.value_6_text')}
+            ] %}
+                <article class="scs-reveal group rounded-2xl border border-neutral-200 bg-white p-6 transition-all hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-lg">
+                    <div class="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-900 text-amber-400 transition-transform group-hover:scale-105">
+                        {% include 'pages/_icon.twig' with { name: card.icon } %}
+                    </div>
+                    <h3 class="font-bold">{{ card.title }}</h3>
+                    <p class="mt-2 text-sm leading-relaxed text-neutral-600">{{ card.text }}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    {# ── Come funziona (teaser dei 5 passi) ─────────────────────── #}
+    <section class="border-y border-neutral-200 bg-white py-20">
+        <div class="mx-auto max-w-6xl px-4">
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                    <h2 class="scs-reveal text-3xl font-black tracking-tight sm:text-4xl">{{ t('home.steps_title') }}</h2>
+                    <p class="scs-reveal mt-3 max-w-xl text-neutral-600">{{ t('home.steps_subtitle') }}</p>
+                </div>
+                <a href="/come-ordinare" class="scs-reveal inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-semibold transition-all hover:border-neutral-900">
+                    {{ t('home.steps_link') }}
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+
+            <ol class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                {% for i in 1..5 %}
+                    <li class="scs-reveal relative rounded-2xl border border-neutral-200 p-5">
+                        <span class="text-4xl font-black text-neutral-200">0{{ i }}</span>
+                        <h3 class="mt-1 font-bold leading-snug">{{ t('steps.' ~ i ~ '_title') }}</h3>
+                        <p class="mt-1.5 text-sm leading-relaxed text-neutral-500">{{ t('steps.' ~ i ~ '_short') }}</p>
+                    </li>
+                {% endfor %}
+            </ol>
+        </div>
+    </section>
+
+    {# ── Spedizioni ─────────────────────────────────────────────── #}
+    <section class="mx-auto max-w-6xl px-4 py-20">
+        <div class="scs-reveal grid items-center gap-8 rounded-3xl bg-neutral-900 p-8 text-white sm:p-12 lg:grid-cols-2">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-amber-400">{{ t('nav.shipping') }}</p>
+                <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                    {{ t('home.shipping_title', {min: shipping.days_min, max: shipping.days_max}) }}
+                </h2>
+                <p class="mt-4 leading-relaxed text-neutral-300">{{ t('home.shipping_text', {n: shipping.free_from, fee: shipping.fee|eur}) }}</p>
+                <a href="/spedizioni" class="mt-6 inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-3 font-bold text-neutral-900 transition-transform hover:scale-[1.02]">
+                    {{ t('home.shipping_link') }}
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+            <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                {% for row in [
+                    {label: t('home.shipping_fact_1'), value: shipping.days_min ~ '–' ~ shipping.days_max ~ ' ' ~ t('shipping.working_days')},
+                    {label: t('home.shipping_fact_2'), value: t('shipping.free_from_value', {n: shipping.free_from})},
+                    {label: t('home.shipping_fact_3'), value: t('shipping.coverage_value')}
+                ] %}
+                    <li class="flex items-center justify-between gap-4 rounded-xl border border-neutral-700 bg-neutral-800/60 px-4 py-3">
+                        <span class="text-sm text-neutral-400">{{ row.label }}</span>
+                        <strong class="text-right text-sm">{{ row.value }}</strong>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+
+    {# ── CTA finale ─────────────────────────────────────────────── #}
+    {% if not is_catalog_authed %}
+        <section class="border-t border-neutral-200 bg-white py-20">
+            <div class="scs-reveal mx-auto max-w-3xl px-4 text-center">
+                <h2 class="text-3xl font-black tracking-tight sm:text-4xl">{{ t('home.final_title') }}</h2>
+                <p class="mt-3 text-neutral-600">{{ t('home.final_text') }}</p>
+                <div class="mt-8 flex flex-wrap justify-center gap-3">
+                    <a href="/richiedi-accesso" class="rounded-xl bg-neutral-900 px-6 py-3.5 font-bold text-white transition-all hover:bg-neutral-700 active:scale-[.98]">
+                        {{ t('home.cta_primary') }}
+                    </a>
+                    <a href="/login" class="rounded-xl border border-neutral-300 px-6 py-3.5 font-semibold transition-colors hover:bg-neutral-100">
+                        {{ t('nav.login') }}
+                    </a>
+                </div>
+                <p class="mt-4 text-xs text-neutral-400">{{ t('home.final_note') }}</p>
+            </div>
+        </section>
+    {% endif %}
+{% endblock %}

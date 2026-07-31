@@ -43,18 +43,20 @@ final class UserRepository
 
     /**
      * @param array{email: string, name: string, company: string|null, phone: string|null,
-     *   vat_number: string|null, country_code: string, locale: string} $data
+     *   vat_number: string|null, country_code: string, locale: string,
+     *   address_street?: string|null, address_city?: string|null, address_zip?: string|null} $data
      */
     public function insert(array $data): int
     {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->pdo->prepare(
             'INSERT INTO users (email, password_hash, name, company, phone, vat_number,
-                country_code, locale, is_active, created_at, updated_at)
-             VALUES (?, NULL, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
+                address_street, address_city, address_zip, country_code, locale, is_active, created_at, updated_at)
+             VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)'
         );
         $stmt->execute([
             trim($data['email']), $data['name'], $data['company'], $data['phone'], $data['vat_number'],
+            $data['address_street'] ?? null, $data['address_city'] ?? null, $data['address_zip'] ?? null,
             $data['country_code'], $data['locale'], $now, $now,
         ]);
 

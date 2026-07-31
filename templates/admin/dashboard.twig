@@ -5,7 +5,7 @@
 {% block content %}
     <h1 class="text-2xl font-bold mb-6">{{ t('admin.dashboard') }}</h1>
 
-    <div class="grid sm:grid-cols-3 gap-4 mb-8 max-w-4xl">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 max-w-5xl">
         {# ogni scheda porta all'elenco/dettaglio corrispondente: tutta la card è cliccabile #}
         <a href="/admin/richieste" class="group bg-white rounded-xl border border-neutral-200 p-5 block hover:bg-amber-50/50 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
             <p class="text-sm text-neutral-500 flex items-center gap-1">
@@ -21,6 +21,14 @@
                 <svg class="w-4 h-4 text-neutral-300 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
             </p>
             <p class="text-3xl font-black {{ (orders_by_status.pending ?? 0) > 0 ? 'text-amber-600' }}">{{ orders_by_status.pending ?? 0 }}</p>
+        </a>
+        <a href="/admin/richieste-profilo" class="group bg-white rounded-xl border p-5 block hover:bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors
+           {{ account_requests_pending > 0 ? 'border-amber-300' : 'border-neutral-200' }}">
+            <p class="text-sm text-neutral-500 flex items-center gap-1">
+                {{ t('signup.admin_title') }}
+                <svg class="w-4 h-4 text-neutral-300 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </p>
+            <p class="text-3xl font-black {{ account_requests_pending > 0 ? 'text-amber-600' }}">{{ account_requests_pending }}</p>
         </a>
         <a href="/admin/sync" class="group bg-white rounded-xl border border-neutral-200 p-5 block hover:bg-amber-50/50 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
             <p class="text-sm text-neutral-500 flex items-center gap-1">

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controller\AccountController;
+use App\Controller\AdminAccountRequestController;
 use App\Controller\AdminController;
 use App\Controller\AdminUserController;
 use App\Controller\CartController;
@@ -11,6 +12,7 @@ use App\Controller\ContactController;
 use App\Controller\DropshipController;
 use App\Controller\LoginController;
 use App\Controller\OrderController;
+use App\Controller\PageController;
 use App\Controller\PreferenceController;
 use App\Middleware\AdminAuthMiddleware;
 use App\Middleware\CatalogAuthMiddleware;
@@ -18,10 +20,20 @@ use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 
 return static function (App $app): void {
+    // ── Sito pubblico (senza login, indicizzabile — docs/06) ────────
+    $app->get('/', [PageController::class, 'home']);
+    $app->get('/spedizioni', [PageController::class, 'shipping']);
+    $app->get('/come-ordinare', [PageController::class, 'howToOrder']);
+    $app->get('/richiedi-accesso', [PageController::class, 'signupForm']);
+    $app->post('/richiedi-accesso', [PageController::class, 'signupSubmit']);
+
     // ── Pubbliche (solo login) ───────────────────────────────────────
     $app->get('/login', [LoginController::class, 'form']);
     $app->post('/login', [LoginController::class, 'submit']);
     $app->post('/logout', [LoginController::class, 'logout']);
+
+    // la lingua si cambia anche dalle pagine pubbliche
+    $app->post('/lingua', [PreferenceController::class, 'setLocale']);
 
     $app->get('/admin/login', [AdminController::class, 'loginForm']);
     $app->post('/admin/login', [AdminController::class, 'loginSubmit']);
@@ -35,10 +47,9 @@ return static function (App $app): void {
 
     // ── Area catalogo (password condivisa) ──────────────────────────
     $app->group('', function (RouteCollectorProxy $group): void {
-        $group->get('/', [CatalogController::class, 'index']);
+        $group->get('/catalogo', [CatalogController::class, 'index']);
         $group->get('/export.xlsx', [CatalogController::class, 'export']);
         $group->post('/paese', [PreferenceController::class, 'setCountry']);
-        $group->post('/lingua', [PreferenceController::class, 'setLocale']);
         $group->post('/taglie', [PreferenceController::class, 'setSizeSystem']);
         $group->post('/griglia', [PreferenceController::class, 'setGridSize']);
 
@@ -89,6 +100,12 @@ return static function (App $app): void {
         $group->post('/sync/run', [AdminController::class, 'syncRun']);
         $group->get('/recommended', [AdminController::class, 'recommended']);
         $group->post('/recommended', [AdminController::class, 'recommendedToggle']);
+
+        // richieste di profilo dal sito pubblico: approva (crea account +
+        // invito) o rifiuta
+        $group->get('/richieste-profilo', [AdminAccountRequestController::class, 'index']);
+        $group->post('/richieste-profilo/{id:[0-9]+}/approva', [AdminAccountRequestController::class, 'approve']);
+        $group->post('/richieste-profilo/{id:[0-9]+}/rifiuta', [AdminAccountRequestController::class, 'reject']);
 
         // gestione clienti: account con invito via email
         $group->get('/clienti', [AdminUserController::class, 'index']);

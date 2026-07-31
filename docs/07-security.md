@@ -1,9 +1,18 @@
 # 07 — Sicurezza
 
+> **Perimetro pubblico**: le sole pagine senza login sono `/`, `/spedizioni`,
+> `/come-ordinare` e `/richiedi-accesso` — indicizzabili, senza prezzi né
+> prodotti del feed. Tutto il resto (catalogo, carrello, area personale,
+> admin) resta dietro sessione e `noindex`; `public/robots.txt` elenca le
+> sezioni escluse. Il modulo di richiesta profilo ha CSRF, honeypot e rate
+> limit 3/ora per IP: l'account nasce **solo** dopo l'approvazione admin e la
+> password la imposta il cliente col token monouso di invito.
+
 ## Autenticazione
 
-- **Account clienti** (dalla M9): creati SOLO dall'admin (`/admin/clienti`),
-  nessuna registrazione pubblica (il listino è riservato). Attivazione con
+- **Account clienti** (dalla M9): creati dall'admin (`/admin/clienti`) oppure
+  approvando una richiesta arrivata da `/richiedi-accesso`; in nessun caso
+  l'account si attiva da solo (il listino è riservato). Attivazione con
   **invito via email**: link monouso con scadenza (72h) per impostare la
   password — la password non viaggia MAI via email. A DB vive solo l'hash
   sha256 del token (`user_tokens`); un nuovo invito/reset invalida i

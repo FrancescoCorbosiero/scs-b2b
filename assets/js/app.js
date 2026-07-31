@@ -144,6 +144,22 @@
             }
         }, true);
 
+        // ── Pagine pubbliche: comparsa dei blocchi allo scroll ───────
+        // Lo stato nascosto lo aggiunge il JS: senza JS resta tutto visibile.
+        var revealEls = document.querySelectorAll('[data-reveal]');
+        if (revealEls.length && 'IntersectionObserver' in window) {
+            revealEls.forEach(function (el) { el.classList.add('scs-reveal-init'); });
+            var revealObserver = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (!entry.isIntersecting) return;
+                    entry.target.classList.remove('scs-reveal-init');
+                    entry.target.classList.add('scs-reveal-in');
+                    revealObserver.unobserve(entry.target);
+                });
+            }, { rootMargin: '0px 0px -8% 0px', threshold: 0.06 });
+            revealEls.forEach(function (el) { revealObserver.observe(el); });
+        }
+
         // ══ Catalogo ════════════════════════════════════════════════
         // ── Scheda rapida: ordina taglia per taglia senza cambiare pagina ──
         // Senza JS il bottone della card resta un POST /carrello/aggiungi

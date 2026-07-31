@@ -38,7 +38,7 @@ final class PreferenceController
             }
         }
 
-        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/catalogo'));
     }
 
     public function setLocale(Request $request, Response $response): Response
@@ -51,7 +51,7 @@ final class PreferenceController
             $this->users->setLocale($userId, $locale);
         }
 
-        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/catalogo'));
     }
 
     public function setSizeSystem(Request $request, Response $response): Response
@@ -60,7 +60,7 @@ final class PreferenceController
         $system = is_string($body['size_system'] ?? null) ? $body['size_system'] : '';
         $this->session->setSizeSystem($system);
 
-        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/catalogo'));
     }
 
     public function setGridSize(Request $request, Response $response): Response
@@ -69,6 +69,6 @@ final class PreferenceController
         $size = is_string($body['grid_size'] ?? null) ? $body['grid_size'] : '';
         $this->session->setGridSize($size);
 
-        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+        return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/catalogo'));
     }
 }

@@ -3,14 +3,14 @@
 {% block title %}{{ t('catalog.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    {% set brand_prefix = brand_base_qs ? '/?' ~ brand_base_qs ~ '&' : '/?' %}
+    {% set brand_prefix = brand_base_qs ? '/catalogo?' ~ brand_base_qs ~ '&' : '/catalogo?' %}
     {% set brands_total = 0 %}
     {% for b in brands %}{% set brands_total = brands_total + b.products %}{% endfor %}
 
     {# Form GET dei filtri: vuoto e fuori dal flusso. I campi lo referenziano
        con form="catalog-filters", così il pannello può stare ovunque nel
        layout senza annidare form (le card contengono form POST). #}
-    <form id="catalog-filters" method="get" action="/" class="hidden">
+    <form id="catalog-filters" method="get" action="/catalogo" class="hidden">
         {# il brand si sceglie dalla navigazione dedicata (link): va conservato #}
         {% if filters.brand %}<input type="hidden" name="brand" value="{{ filters.brand }}">{% endif %}
     </form>
@@ -114,7 +114,7 @@
                                     </span>
                                 </a>
                             {% endfor %}
-                            <a href="/" class="ml-1 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">{{ t('catalog.reset_filters') }}</a>
+                            <a href="/catalogo" class="ml-1 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">{{ t('catalog.reset_filters') }}</a>
                         </div>
                     {% endif %}
                 </div>
@@ -129,7 +129,7 @@
                         </div>
                         <p class="font-semibold">{{ t('catalog.no_results') }}</p>
                         <p class="mt-1 text-sm text-neutral-500">{{ t('catalog.no_results_hint') }}</p>
-                        <a href="/" class="mt-5 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('catalog.reset_filters') }}</a>
+                        <a href="/catalogo" class="mt-5 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('catalog.reset_filters') }}</a>
                     </div>
                 {% else %}
                     {# classi per densità scritte per esteso: il JIT di Tailwind le deve vedere #}
@@ -143,7 +143,7 @@
                     </div>
 
                     {% if total_pages > 1 %}
-                        {% set base = '/?' ~ (query_string ? query_string ~ '&' : '') %}
+                        {% set base = '/catalogo?' ~ (query_string ? query_string ~ '&' : '') %}
                         {# con JS: un solo bottone che accoda la pagina successiva #}
                         <div data-loadmore-wrap class="mt-8 hidden justify-center">
                             <button type="button" data-loadmore data-next-url="{{ base }}page={{ page + 1 }}&fragment=1"
