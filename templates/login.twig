@@ -3,6 +3,11 @@
 {% block title %}{{ t('login.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
+    {# sfondo della pagina di accesso: stessa immagine delle landing #}
+    <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <img src="{{ images.hero }}" alt="" aria-hidden="true" class="h-full w-full object-cover">
+        <div class="absolute inset-0 bg-neutral-100/85"></div>
+    </div>
     <div class="max-w-sm mx-auto mt-10 sm:mt-16" x-data="{ guest: false }">
         <img src="/logo.png" alt="{{ company_name }}" class="mx-auto mb-8 w-56 sm:w-72 max-w-full h-auto">
         <div class="bg-white rounded-2xl shadow-sm border border-neutral-200 p-6 sm:p-8">
@@ -58,7 +63,10 @@
                 </button>
             {% endif %}
 
-            <p class="mt-5 text-xs text-neutral-400">{{ t('login.no_account_hint') }}</p>
+            <p class="mt-5 text-xs text-neutral-500">
+                {{ t('login.no_account_hint') }}
+                <a href="/richiedi-accesso" class="mt-2 block font-semibold text-neutral-900 underline underline-offset-2">{{ t('nav.request_access') }}</a>
+            </p>
         </div>
     </div>
 {% endblock %}

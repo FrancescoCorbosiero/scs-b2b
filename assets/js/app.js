@@ -60,6 +60,36 @@
         });
     }
 
+    // ── Ricerca catalogo: continuità della digitazione tra un invio e l'altro ──
+    var SEARCH_DRAFT_KEY = 'scs:catalog-search-draft';
+
+    function rememberSearchDraft() {
+        var input = document.querySelector('[data-search-input]');
+        if (!input) return;
+        try {
+            sessionStorage.setItem(SEARCH_DRAFT_KEY, input.value);
+        } catch (e) { /* sessionStorage non disponibile: pazienza */ }
+    }
+
+    function restoreSearchDraft() {
+        var input = document.querySelector('[data-search-input]');
+        if (!input) return;
+        var draft = null;
+        try {
+            draft = sessionStorage.getItem(SEARCH_DRAFT_KEY);
+            sessionStorage.removeItem(SEARCH_DRAFT_KEY);
+        } catch (e) { return; }
+        if (draft === null) return;
+        // solo se la pagina mostra davvero il risultato di quella ricerca
+        if (draft.trim() !== input.value.trim()) return;
+
+        input.value = draft;
+        input.focus();
+        try {
+            input.setSelectionRange(draft.length, draft.length);
+        } catch (e) { /* alcuni browser non lo permettono su type=search */ }
+    }
+
     /** Feedback visivo mentre il server ricalcola i filtri del catalogo. */
     function submitWithFeedback(form) {
         if (!form) return;
@@ -91,17 +121,26 @@
         });
 
         // ── Campi che inviano il form dopo una pausa di digitazione ──
-        // (default 300ms; data-debounce-submit="700" per i campi numerici)
+        // (default 600ms; data-debounce-submit="700" per i campi numerici)
         document.querySelectorAll('[data-debounce-submit]').forEach(function (el) {
-            var wait = parseInt(el.getAttribute('data-debounce-submit') || '', 10) || 300;
+            var wait = parseInt(el.getAttribute('data-debounce-submit') || '', 10) || 600;
             var timer = null;
             el.addEventListener('input', function () {
                 if (timer) clearTimeout(timer);
+                // uno spazio in coda vuol dire "sto per scrivere un'altra
+                // parola": si aspetta di più prima di interrompere con un invio
+                var pending = typeof el.value === 'string' && /\s$/.test(el.value);
                 timer = setTimeout(function () {
+                    rememberSearchDraft();
                     submitWithFeedback(el.form);
-                }, wait);
+                }, pending ? wait * 2 : wait);
             });
         });
+
+        // Ricerca catalogo: dopo l'invio la pagina si ricarica, quindi si
+        // rimette il fuoco nel campo col testo esatto digitato (spazio finale
+        // incluso: il server lo taglia e "air " + "max" diventerebbe "airmax").
+        restoreSearchDraft();
 
         // ── Copia SKU negli appunti ──────────────────────────────────
         document.querySelectorAll('[data-copy]').forEach(function (btn) {

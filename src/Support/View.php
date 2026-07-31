@@ -23,6 +23,7 @@ final class View
         private readonly VatRateRepository $vatRates,
         private readonly UserRepository $users,
         private readonly AccountRequestRepository $accountRequests,
+        private readonly Images $images,
     ) {
     }
 
@@ -50,6 +51,8 @@ final class View
             'current_path' => parse_url($uri, PHP_URL_PATH) ?: '/',
             'current_uri' => $uri,
             'app_env' => $this->config->str('APP_ENV', 'production'),
+            // immagini pagine pubbliche (sostituibili con foto in public/img/custom)
+            'images' => $this->images->all(),
             'app_url' => rtrim($this->config->str('APP_URL', 'https://b2b.shoesclothingstore.com'), '/'),
             'main_site_url' => $this->config->str('MAIN_SITE_URL', 'https://shoesclothingstore.com/'),
             'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),

@@ -78,5 +78,6 @@ return [
         $c->get(VatRateRepository::class),
         $c->get(UserRepository::class),
         $c->get(AccountRequestRepository::class),
+        $c->get(App\Support\Images::class),
     ),
 ];

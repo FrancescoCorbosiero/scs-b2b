@@ -488,6 +488,8 @@ return [
     'shipping.card_cost_text' => 'Free shipping from :n pairs up; below that the contribution is :fee (VAT excluded), always visible in the cart.',
     'shipping.card_area_title' => 'All of Europe',
     'shipping.card_area_text' => 'We deliver to the 27 EU countries plus the UK and Switzerland, at the address given in the order request.',
+    'shipping.map_hub' => 'Shipments leaving Italy every working day.',
+    'shipping.map_alt' => 'Map of the delivery network across Europe',
     'shipping.table_title' => 'Shipping costs',
     'shipping.table_note' => 'Net amounts, VAT excluded: tax applies based on the delivery country.',
     'shipping.table_col_qty' => 'Pieces ordered',
