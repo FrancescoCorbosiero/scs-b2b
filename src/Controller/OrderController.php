@@ -105,7 +105,7 @@ final class OrderController
     {
         $orderId = $this->session->get('last_order_id');
         if (!is_int($orderId)) {
-            return Http::redirect($response, '/');
+            return Http::redirect($response, '/catalogo');
         }
 
         return $this->view->render($response, 'order/confirmation.twig', [

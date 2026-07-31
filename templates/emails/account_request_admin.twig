@@ -1,0 +1,23 @@
+{# Nuova richiesta di profilo → admin (sempre in italiano). #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
+    <h1 style="font-size: 20px;">Nuova richiesta di profilo #{{ request.id }}</h1>
+    <p>Un rivenditore ha chiesto l'attivazione dell'account dal sito pubblico.</p>
+
+    <table cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; width: 100%;">
+        <tr><td style="color: #525252; width: 35%;">Azienda</td><td><strong>{{ request.company }}</strong></td></tr>
+        <tr><td style="color: #525252;">Partita IVA</td><td>{{ request.vat_number ?: '—' }}</td></tr>
+        <tr><td style="color: #525252;">Referente</td><td>{{ request.name }}</td></tr>
+        <tr><td style="color: #525252;">Email</td><td><a href="mailto:{{ request.email }}">{{ request.email }}</a></td></tr>
+        <tr><td style="color: #525252;">Telefono</td><td>{{ request.phone }}</td></tr>
+        <tr><td style="color: #525252;">Indirizzo</td><td>{{ request.address_street }}, {{ request.address_zip }} {{ request.address_city }}</td></tr>
+        <tr><td style="color: #525252;">Paese</td><td><strong>{{ request.country_code }}</strong> — {{ t('country.' ~ request.country_code) }}</td></tr>
+        <tr><td style="color: #525252;">Lingua</td><td>{{ request.locale|upper }}</td></tr>
+        {% if request.notes %}<tr><td style="color: #525252;">Note</td><td>{{ request.notes }}</td></tr>{% endif %}
+        <tr><td style="color: #525252;">IP</td><td>{{ request.ip_address }}</td></tr>
+    </table>
+
+    <p style="margin-top: 16px;">
+        Approva o rifiuta da <a href="{{ admin_url }}">{{ admin_url }}</a>:
+        all'approvazione l'account viene creato con questi dati e parte l'invito per impostare la password.
+    </p>
+</div>

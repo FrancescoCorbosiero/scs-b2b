@@ -1,6 +1,9 @@
 # 06 — Pagine e funzionalità
 
-Tutte le rotte (tranne `/login`) richiedono la sessione catalogo attiva.
+Il **sito pubblico** (`/`, `/spedizioni`, `/come-ordinare`, `/richiedi-accesso`)
+è accessibile senza login ed è l'unica parte indicizzabile; tutto il resto
+(catalogo, carrello, area personale, admin) richiede la sessione catalogo
+attiva ed è `noindex` (vedi `public/robots.txt` e docs/07).
 UI multi-lingua **IT/EN** (default italiano): stringhe in `lang/it.php` +
 `lang/en.php`, switcher in header, preferenza in sessione. Mobile-first: i
 clienti usano molto lo smartphone. Nav con: Catalogo, Carrello (con badge
@@ -17,6 +20,48 @@ riga evidenziata in hover/focus, colonna finale "Apri ›" come affordance e il
 link vero nella prima cella per tastiera e no-JS. Click su link, bottoni o
 campi interni alla riga continuano a fare la loro azione; ctrl/cmd/tasto
 centrale aprono in una nuova scheda come su un link normale.
+
+## Sito pubblico (senza login, indicizzabile)
+
+Pagine di presentazione servite da `PageController` con header/footer dedicati
+(layout `public_page`), meta description + Open Graph e `robots: index, follow`.
+**Non mostrano mai prezzi o prodotti del feed**: solo informazioni commerciali
+(i brand a catalogo sono solo nomi).
+
+- **`/` — home**: hero con claim e CTA, numeri chiave (modelli, brand, giorni
+  di consegna, paesi), elenco brand, sei motivi per usare il catalogo, teaser
+  dei 5 passi, blocco spedizioni, CTA finale.
+- **`/come-ordinare`**: i 5 passi in timeline (registrazione → richiesta
+  d'ordine → bonifico → conferma → ricezione), ognuno con testo, due punti
+  chiave e icona; comparsa animata allo scroll. In fondo nota sui tempi e FAQ
+  a fisarmonica (Alpine).
+- **`/spedizioni`**: tempi (`SHIPPING_DAYS_MIN`–`SHIPPING_DAYS_MAX`, default
+  4–5 giorni lavorativi), tabella costi (gratis da `FREE_SHIPPING_MIN_ITEMS`
+  paia, altrimenti `SHIPPING_FEE`), copertura UE-27 + UK/CH, cosa succede dopo
+  la conferma e dettagli operativi.
+- **`/richiedi-accesso`**: modulo di richiesta profilo (vedi sotto).
+
+Le pagine leggono i valori reali da `ShippingService` e `MIN_ORDER_ITEMS`:
+cambiando `.env` cambia anche il testo pubblico, senza copia da riallineare.
+
+## /richiedi-accesso — profilazione self-service
+
+Il cliente chiede l'attivazione inviando **dati aziendali** (ragione sociale,
+P.IVA, indirizzo completo, paese) e **referente** (nome, email, telefono):
+sono gli stessi dati che poi precompilano checkout, ricevuta e ordine dropship
+GoldenSneakers, così non vanno richiesti a ogni ordine.
+
+Difese: CSRF, honeypot, rate limit 3 richieste/ora per IP, blocco dei doppioni
+(email già cliente → invito ad accedere; richiesta già in coda → nessun nuovo
+record). La richiesta finisce in `account_requests` con stato `pending`; parte
+un'email all'admin (italiano, con tutti i dati) e una conferma di ricezione al
+cliente nel suo locale (nessun link riservato).
+
+**Coda admin** (`/admin/richieste-profilo`, badge nella nav e scheda in
+dashboard): **Approva** crea l'account con i dati della richiesta — indirizzo
+incluso — e invia l'invito per impostare la password (`UserService`), oppure
+**Rifiuta** archivia senza creare nulla. Entrambe le azioni sono one-shot: una
+richiesta già gestita non si riapre.
 
 ## /login
 Login con **account personale** (email + password) e, finché
@@ -35,7 +80,7 @@ password su `/account/imposta-password`).
   scaricabile per gli ordini confermati (ownership verificata per user_id o
   email; mai offer_price).
 
-## / (Catalogo)
+## /catalogo
 
 Grid di card prodotto (`catalog/_card.twig`, riusata dal frammento
 `_cards.twig`). Ogni card:

@@ -96,7 +96,7 @@ final class CatalogController
             }
             $qs = http_build_query(array_filter($clean, static fn ($v) => $v !== '' && $v !== null && $v !== []));
 
-            return $qs === '' ? '/' : '/?' . $qs;
+            return $qs === '' ? '/catalogo' : '/catalogo?' . $qs;
         };
 
         if ($filters['q'] !== '') {
@@ -130,7 +130,7 @@ final class CatalogController
                     $clean = array_diff_key($query, ['page' => null, 'prezzo_min' => null, 'prezzo_max' => null]);
                     $qs = http_build_query(array_filter($clean, static fn ($v) => $v !== '' && $v !== null && $v !== []));
 
-                    return $qs === '' ? '/' : '/?' . $qs;
+                    return $qs === '' ? '/catalogo' : '/catalogo?' . $qs;
                 })(),
             ];
         }

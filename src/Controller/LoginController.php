@@ -36,7 +36,7 @@ final class LoginController
     public function form(Request $request, Response $response): Response
     {
         if ($this->session->isCatalogAuthed()) {
-            return Http::redirect($response, '/');
+            return Http::redirect($response, '/catalogo');
         }
 
         return $this->view->render($response, 'login.twig', [
@@ -55,11 +55,11 @@ final class LoginController
         // email presente → login con account; vuota → tentativo ospite
         if ($email !== '') {
             if ($this->users->authenticate($email, $password, $ip, $remember)) {
-                return Http::redirect($response, '/');
+                return Http::redirect($response, '/catalogo');
             }
         } elseif ($this->config->bool('GUEST_LOGIN_ENABLED', true)
             && $this->auth->attempt(AuthService::SCOPE_CATALOG, $password, $ip, $remember)) {
-            return Http::redirect($response, '/');
+            return Http::redirect($response, '/catalogo');
         }
 
         $this->session->flash('error', $this->lang->t('login.failed'));

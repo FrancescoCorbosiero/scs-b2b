@@ -60,6 +60,12 @@ php -S 127.0.0.1:8090 -t public router.php
 
 - Ogni POST richiede `_csrf` (estrarlo dall'HTML della pagina precedente) e il
   cookie `b2b_session` (curl: `-b jar -c jar`).
+- Pagine pubbliche (`/`, `/spedizioni`, `/come-ordinare`, `/richiedi-accesso`):
+  nessun login richiesto. Il catalogo è su `/catalogo` (redirect a `/login`).
+- Richiesta profilo: POST `/richiedi-accesso` (CSRF + honeypot `website` vuoto,
+  max 3/ora per IP) → riga `pending` in `account_requests`; l'admin approva da
+  `/admin/richieste-profilo` (crea l'utente + invito; senza SMTP l'invito non
+  parte ma l'account c'è).
 - Catalogo: i filtri stanno nella query string (`?taglia[]=42&disponibilita=alta`);
   la scheda rapida si apre dalla card e scrive nel carrello via
   `/carrello/aggiorna`; "Carica altri" usa `?fragment=1&page=N` (solo card).

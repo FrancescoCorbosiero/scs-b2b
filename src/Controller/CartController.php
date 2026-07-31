@@ -62,7 +62,7 @@ final class CartController
         if ($sku === '' || !$this->cart->addProduct($sku)) {
             $this->session->flash('error', $this->lang->t('cart.product_not_found'));
 
-            return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/'));
+            return Http::redirect($response, Http::safeInternalPath($body['redirect'] ?? null, '/catalogo'));
         }
 
         return Http::redirect($response, '/carrello#' . rawurlencode($sku));

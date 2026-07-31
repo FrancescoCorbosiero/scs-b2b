@@ -63,6 +63,11 @@ select optgroup {
     .scs-reveal:nth-child(12) { animation-delay: 275ms; }
 
     .scs-pop { animation: scs-pop .18s ease-out both; }
+
+    /* comparsa allo scroll delle pagine pubbliche: lo stato "nascosto" lo
+       mette il JS (senza JS il contenuto resta visibile) */
+    .scs-reveal-init { opacity: 0; transform: translateY(14px); }
+    .scs-reveal-in { animation: scs-fade-up .5s cubic-bezier(.22, 1, .36, 1) both; }
     .scs-toast { animation: scs-slide-up .22s cubic-bezier(.22, 1, .36, 1) both; }
 
     /* scheletri mostrati mentre il server ricalcola i filtri */
@@ -106,11 +111,16 @@ select optgroup {
 /* chi preferisce meno movimento non vede animazioni */
 @media (prefers-reduced-motion: reduce) {
     .scs-reveal,
+    .scs-reveal-in,
     .scs-pop,
     .scs-toast,
     .scs-skeleton,
     .scs-progress {
         animation: none !important;
+    }
+    .scs-reveal-init {
+        opacity: 1 !important;
+        transform: none !important;
     }
     * {
         transition-duration: .01ms !important;

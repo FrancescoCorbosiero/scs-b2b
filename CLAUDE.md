@@ -4,6 +4,8 @@ Piattaforma catalogo sneakers B2B in sola lettura, ad accesso riservato con
 account personali creati dall'admin via invito email (più una password condivisa
 "ospite" di transizione, `GUEST_LOGIN_ENABLED`), valida in tutta Europa
 (UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
+I rivenditori possono chiedere l'attivazione del profilo da `/richiedi-accesso`
+(dati aziendali + referente): l'admin approva e parte l'invito via email.
 Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
 compongono un carrello e inviano una **richiesta d'ordine** che riceve subito le
 istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
@@ -46,8 +48,11 @@ Variabili d'ambiente: `.env.example` (documentato riga per riga).
    non in HTML, non in JSON, non in export, non in email al cliente, non nella
    ricevuta pro-forma. L'unico prezzo esposto è il netto di listino precalcolato
    con le regole margine admin (vedi `docs/04-pricing.md`).
-2. Il sito è interamente dietro login a password condivisa e **non indicizzabile**
-   (noindex + robots.txt).
+2. Il **catalogo e tutto ciò che mostra prezzi** stanno dietro login e sono
+   **non indicizzabili** (noindex + robots.txt). Fanno eccezione le pagine
+   pubbliche di presentazione (`/`, `/spedizioni`, `/come-ordinare`,
+   `/richiedi-accesso`): sono indicizzabili ma non espongono MAI prezzi o
+   prodotti del feed. Il catalogo vive su `/catalogo`.
 3. La fonte di verità del catalogo è il feed GoldenSneakers: nessun CRUD prodotti.
 4. Tutte le stringhe UI centralizzate e multi-lingua: `lang/it.php` (fonte di
    verità, default) + `lang/en.php` (stesse chiavi; fallback sull'italiano).

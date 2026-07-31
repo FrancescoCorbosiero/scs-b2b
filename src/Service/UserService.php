@@ -73,12 +73,21 @@ final class UserService
             return ['ok' => false, 'errors' => $errors, 'user_id' => null, 'email_sent' => false];
         }
 
+        // l'indirizzo arriva dalle richieste di profilo (docs/06): precompila
+        // checkout e ordine dropship fin dal primo accesso
+        $street = $this->clean($input['address_street'] ?? null, 255);
+        $city = $this->clean($input['address_city'] ?? null, 128);
+        $zip = $this->clean($input['address_zip'] ?? null, 16);
+
         $userId = $this->users->insert([
             'email' => $email,
             'name' => $name,
             'company' => $company !== '' ? $company : null,
             'phone' => $phone !== '' ? $phone : null,
             'vat_number' => $vatNumber !== '' ? $vatNumber : null,
+            'address_street' => $street !== '' ? $street : null,
+            'address_city' => $city !== '' ? $city : null,
+            'address_zip' => $zip !== '' ? $zip : null,
             'country_code' => $country,
             'locale' => $locale,
         ]);
