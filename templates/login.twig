@@ -3,10 +3,10 @@
 {% block title %}{{ t('login.title') }} — {{ t('app.title') }}{% endblock %}
 
 {% block content %}
-    {# sfondo della pagina di accesso: stessa immagine delle landing #}
+    {# sfondo della pagina di accesso: grafica GIÀ chiara, così resta
+       leggibile anche se il CSS non è quello aggiornato (nessun velo sopra) #}
     <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <img src="{{ images.hero }}" alt="" aria-hidden="true" class="h-full w-full object-cover">
-        <div class="absolute inset-0 bg-neutral-100/85"></div>
+        <img src="{{ images.hero_soft }}" alt="" aria-hidden="true" class="h-full w-full object-cover">
     </div>
     <div class="max-w-sm mx-auto mt-10 sm:mt-16" x-data="{ guest: false }">
         <img src="/logo.png" alt="{{ company_name }}" class="mx-auto mb-8 w-56 sm:w-72 max-w-full h-auto">

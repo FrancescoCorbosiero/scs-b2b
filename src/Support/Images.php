@@ -20,6 +20,7 @@ final class Images
     /** nome logico => illustrazione di default */
     private const DEFAULTS = [
         'hero' => '/img/hero-bg.svg',        // sfondo delle intestazioni scure
+        'hero_soft' => '/img/hero-soft.svg', // stessa grafica in chiaro (pagine chiare)
         'cta' => '/img/cta-boxes.svg',       // blocchi call-to-action
         'network' => '/img/europe-network.svg', // copertura spedizioni
         'pattern' => '/img/pattern-dots.svg',   // texture leggera sezioni chiare

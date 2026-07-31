@@ -17,9 +17,9 @@
         <meta property="og:image" content="{{ app_url }}/logo.png">
         <link rel="canonical" href="{{ app_url }}{{ current_path }}">
     {% endif %}
-    <link rel="stylesheet" href="/assets/app.css">
-    <script defer src="/assets/alpine.min.js"></script>
-    <script defer src="/assets/app.js"></script>
+    <link rel="stylesheet" href="/assets/app.css?v={{ asset_version }}">
+    <script defer src="/assets/alpine.min.js?v={{ asset_version }}"></script>
+    <script defer src="/assets/app.js?v={{ asset_version }}"></script>
 </head>
 <body class="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col">
 

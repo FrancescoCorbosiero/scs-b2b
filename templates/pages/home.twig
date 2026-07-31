@@ -12,17 +12,17 @@
         <div class="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-neutral-900 to-transparent"></div>
 
         <div class="relative mx-auto max-w-6xl px-4 py-20 sm:py-28">
-            <p class="scs-reveal inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-300">
+            <p class="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-300">
                 <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
                 {{ t('home.badge') }}
             </p>
-            <h1 class="scs-reveal mt-5 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">
+            <h1 class="mt-5 max-w-3xl text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">
                 {{ t('home.hero_title') }}
                 <span class="text-amber-400">{{ t('home.hero_title_accent') }}</span>
             </h1>
-            <p class="scs-reveal mt-5 max-w-2xl text-lg leading-relaxed text-neutral-300">{{ t('home.hero_subtitle') }}</p>
+            <p class="mt-5 max-w-2xl text-lg leading-relaxed text-neutral-300">{{ t('home.hero_subtitle') }}</p>
 
-            <div class="scs-reveal mt-8 flex flex-wrap gap-3">
+            <div class="mt-8 flex flex-wrap gap-3">
                 {% if is_catalog_authed %}
                     <a href="/catalogo" class="rounded-xl bg-amber-400 px-6 py-3.5 font-bold text-neutral-900 transition-all hover:bg-amber-300 active:scale-[.98]">
                         {{ t('nav.go_catalog') }}
@@ -38,7 +38,7 @@
             </div>
 
             {# numeri chiave: nessun prezzo, solo informazioni commerciali #}
-            <dl class="scs-reveal mt-14 grid grid-cols-2 gap-6 border-t border-neutral-800 pt-8 sm:grid-cols-4">
+            <dl class="mt-14 grid grid-cols-2 gap-6 border-t border-neutral-800 pt-8 sm:grid-cols-4">
                 {% for stat in [
                     {value: catalog_size > 0 ? catalog_size ~ '+' : '—', label: t('home.stat_models')},
                     {value: brands|length > 0 ? brands|length ~ '' : '—', label: t('home.stat_brands')},

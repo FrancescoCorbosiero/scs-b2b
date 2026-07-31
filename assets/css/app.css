@@ -45,9 +45,12 @@ select optgroup {
         to   { transform: scaleX(.95); }
     }
 
-    /* card della griglia: comparsa a cascata (le prime 12, poi tutte insieme) */
+    /* Card della griglia: comparsa a cascata (le prime 12, poi tutte insieme).
+       fill-mode "backwards" e non "both": lo stato iniziale (invisibile) vale
+       solo durante il ritardo, quindi se le animazioni non girano il contenuto
+       resta visibile invece di sparire. */
     .scs-reveal {
-        animation: scs-fade-up .38s cubic-bezier(.22, 1, .36, 1) both;
+        animation: scs-fade-up .38s cubic-bezier(.22, 1, .36, 1) backwards;
     }
     .scs-reveal:nth-child(1)  { animation-delay: 0ms; }
     .scs-reveal:nth-child(2)  { animation-delay: 25ms; }
@@ -62,13 +65,13 @@ select optgroup {
     .scs-reveal:nth-child(11) { animation-delay: 250ms; }
     .scs-reveal:nth-child(12) { animation-delay: 275ms; }
 
-    .scs-pop { animation: scs-pop .18s ease-out both; }
+    .scs-pop { animation: scs-pop .18s ease-out backwards; }
 
     /* comparsa allo scroll delle pagine pubbliche: lo stato "nascosto" lo
        mette il JS (senza JS il contenuto resta visibile) */
     .scs-reveal-init { opacity: 0; transform: translateY(14px); }
-    .scs-reveal-in { animation: scs-fade-up .5s cubic-bezier(.22, 1, .36, 1) both; }
-    .scs-toast { animation: scs-slide-up .22s cubic-bezier(.22, 1, .36, 1) both; }
+    .scs-reveal-in { animation: scs-fade-up .5s cubic-bezier(.22, 1, .36, 1) backwards; }
+    .scs-toast { animation: scs-slide-up .22s cubic-bezier(.22, 1, .36, 1) backwards; }
 
     /* scheletri mostrati mentre il server ricalcola i filtri */
     .scs-skeleton {

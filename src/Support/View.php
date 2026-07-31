@@ -51,6 +51,9 @@ final class View
             'current_path' => parse_url($uri, PHP_URL_PATH) ?: '/',
             'current_uri' => $uri,
             'app_env' => $this->config->str('APP_ENV', 'production'),
+            // versione degli asset: nginx li serve con Cache-Control immutable
+            // per 7 giorni, quindi l'URL deve cambiare a ogni build
+            'asset_version' => $this->assetVersion(),
             // immagini pagine pubbliche (sostituibili con foto in public/img/custom)
             'images' => $this->images->all(),
             'app_url' => rtrim($this->config->str('APP_URL', 'https://b2b.shoesclothingstore.com'), '/'),
@@ -77,6 +80,24 @@ final class View
         $response->getBody()->write($this->twig->render($template, array_merge($globals, $data)));
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * Marcatore di versione per CSS/JS: il timestamp del build più recente.
+     * Senza, dopo un deploy i browser continuerebbero a usare gli asset in
+     * cache (Cache-Control: immutable) e le pagine si romperebbero.
+     */
+    private function assetVersion(): string
+    {
+        $stamps = [];
+        foreach (['app.css', 'app.js'] as $file) {
+            $path = $this->config->rootPath() . '/public/assets/' . $file;
+            if (is_file($path)) {
+                $stamps[] = (int) filemtime($path);
+            }
+        }
+
+        return (string) ($stamps === [] ? 1 : max($stamps));
     }
 
     /** Conteggio richieste profilo in attesa (solo per l'area admin). */

@@ -91,3 +91,15 @@ dipendenza da Caddy (porta pubblicata es. `8080:80` + Mailpit per SMTP di test).
 - Log applicativi su file in `logs/` (monolog o logger minimale) con contesto.
 - `README.md` con: setup locale, build, deploy su VPS, configurazione cron,
   procedura di rotazione password e token feed.
+
+## Asset e cache del browser
+
+nginx serve `/assets/` con `Cache-Control: public, immutable` (7 giorni): senza
+accorgimenti, dopo un deploy i browser continuerebbero a usare CSS/JS vecchi e
+le pagine si romperebbero (markup nuovo + classi mancanti). Per questo i link
+in `layout.twig` portano `?v={{ asset_version }}`, cioè il timestamp dell'ultimo
+build di `public/assets/app.css|app.js` (`View::assetVersion()`): a ogni
+`npm run build` l'URL cambia e la cache si invalida da sola.
+
+⚠️ Il deploy deve comunque eseguire `npm run build`: i file compilati in
+`public/assets/` non sono in repository.
