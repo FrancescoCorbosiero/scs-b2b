@@ -5,8 +5,11 @@
 {% block content %}
     {# ── Hero ───────────────────────────────────────────────────── #}
     <section class="relative overflow-hidden bg-neutral-900 text-white">
-        <div class="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-amber-400/20 blur-3xl"></div>
-        <div class="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl"></div>
+        {# sfondo: illustrazione di serie o foto in public/img/custom/hero.* #}
+        <img src="{{ images.hero }}" alt="" aria-hidden="true" fetchpriority="high"
+             class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-95">
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-neutral-900 via-neutral-900/75 to-neutral-900/20"></div>
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-neutral-900 to-transparent"></div>
 
         <div class="relative mx-auto max-w-6xl px-4 py-20 sm:py-28">
             <p class="scs-reveal inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-300">
@@ -53,8 +56,9 @@
 
     {# ── Brand ──────────────────────────────────────────────────── #}
     {% if brands is not empty %}
-        <section class="border-b border-neutral-200 bg-white py-8">
-            <div class="mx-auto max-w-6xl px-4">
+        <section class="relative overflow-hidden border-b border-neutral-200 bg-white py-8">
+            <img src="{{ images.pattern }}" alt="" aria-hidden="true" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-70">
+            <div class="relative mx-auto max-w-6xl px-4">
                 <p class="mb-4 text-center text-xs font-bold uppercase tracking-widest text-neutral-400">{{ t('home.brands_title') }}</p>
                 <div class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
                     {% for brand in brands|slice(0, 14) %}
@@ -118,8 +122,11 @@
 
     {# ── Spedizioni ─────────────────────────────────────────────── #}
     <section class="mx-auto max-w-6xl px-4 py-20">
-        <div class="scs-reveal grid items-center gap-8 rounded-3xl bg-neutral-900 p-8 text-white sm:p-12 lg:grid-cols-2">
-            <div>
+        <div class="scs-reveal relative grid items-center gap-8 overflow-hidden rounded-3xl bg-neutral-900 p-8 text-white sm:p-12 lg:grid-cols-2">
+            <img src="{{ images.network }}" alt="" aria-hidden="true" loading="lazy"
+                 class="pointer-events-none absolute -right-16 top-1/2 hidden h-[130%] -translate-y-1/2 opacity-40 lg:block">
+            <div class="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-neutral-900 via-neutral-900/90 to-transparent lg:block"></div>
+            <div class="relative">
                 <p class="text-xs font-bold uppercase tracking-widest text-amber-400">{{ t('nav.shipping') }}</p>
                 <h2 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
                     {{ t('home.shipping_title', {min: shipping.days_min, max: shipping.days_max}) }}
@@ -130,7 +137,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                 </a>
             </div>
-            <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <ul class="relative grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 {% for row in [
                     {label: t('home.shipping_fact_1'), value: shipping.days_min ~ '–' ~ shipping.days_max ~ ' ' ~ t('shipping.working_days')},
                     {label: t('home.shipping_fact_2'), value: t('shipping.free_from_value', {n: shipping.free_from})},
@@ -147,19 +154,29 @@
 
     {# ── CTA finale ─────────────────────────────────────────────── #}
     {% if not is_catalog_authed %}
-        <section class="border-t border-neutral-200 bg-white py-20">
-            <div class="scs-reveal mx-auto max-w-3xl px-4 text-center">
-                <h2 class="text-3xl font-black tracking-tight sm:text-4xl">{{ t('home.final_title') }}</h2>
-                <p class="mt-3 text-neutral-600">{{ t('home.final_text') }}</p>
-                <div class="mt-8 flex flex-wrap justify-center gap-3">
-                    <a href="/richiedi-accesso" class="rounded-xl bg-neutral-900 px-6 py-3.5 font-bold text-white transition-all hover:bg-neutral-700 active:scale-[.98]">
-                        {{ t('home.cta_primary') }}
-                    </a>
-                    <a href="/login" class="rounded-xl border border-neutral-300 px-6 py-3.5 font-semibold transition-colors hover:bg-neutral-100">
-                        {{ t('nav.login') }}
-                    </a>
+        <section class="border-t border-neutral-200 bg-white py-16 sm:py-20">
+            <div class="mx-auto max-w-6xl px-4">
+                <div data-reveal class="grid overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50 lg:grid-cols-2">
+                    {# immagine: illustrazione di serie o foto in public/img/custom/cta.* #}
+                    <div class="relative min-h-[240px] bg-neutral-900 lg:min-h-[380px]">
+                        <img src="{{ images.cta }}" alt="" aria-hidden="true" loading="lazy"
+                             class="absolute inset-0 h-full w-full object-cover">
+                        <div class="absolute inset-0 bg-gradient-to-t from-neutral-900/70 to-transparent lg:bg-gradient-to-r"></div>
+                    </div>
+                    <div class="flex flex-col justify-center p-8 sm:p-12">
+                        <h2 class="text-3xl font-black tracking-tight sm:text-4xl">{{ t('home.final_title') }}</h2>
+                        <p class="mt-3 text-neutral-600">{{ t('home.final_text') }}</p>
+                        <div class="mt-8 flex flex-wrap gap-3">
+                            <a href="/richiedi-accesso" class="rounded-xl bg-neutral-900 px-6 py-3.5 font-bold text-white transition-all hover:bg-neutral-700 active:scale-[.98]">
+                                {{ t('home.cta_primary') }}
+                            </a>
+                            <a href="/login" class="rounded-xl border border-neutral-300 bg-white px-6 py-3.5 font-semibold transition-colors hover:bg-neutral-100">
+                                {{ t('nav.login') }}
+                            </a>
+                        </div>
+                        <p class="mt-4 text-xs text-neutral-400">{{ t('home.final_note') }}</p>
+                    </div>
                 </div>
-                <p class="mt-4 text-xs text-neutral-400">{{ t('home.final_note') }}</p>
             </div>
         </section>
     {% endif %}

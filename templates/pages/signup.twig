@@ -3,8 +3,12 @@
 {% block title %}{{ t('signup.meta_title') }}{% endblock %}
 
 {% block content %}
-    <section class="border-b border-neutral-200 bg-neutral-900 text-white">
-        <div class="mx-auto max-w-4xl px-4 py-14 text-center sm:py-16">
+    <section class="relative overflow-hidden border-b border-neutral-200 bg-neutral-900 text-white">
+        {# sfondo: illustrazione di serie o foto in public/img/custom/hero.* #}
+        <img src="{{ images.hero }}" alt="" aria-hidden="true" fetchpriority="high"
+             class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-95">
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-neutral-900/55 via-neutral-900/70 to-neutral-900"></div>
+        <div class="relative mx-auto max-w-4xl px-4 py-14 text-center sm:py-16">
             <p class="scs-reveal text-xs font-bold uppercase tracking-widest text-amber-400">{{ t('signup.eyebrow') }}</p>
             <h1 class="scs-reveal mt-3 text-4xl font-black tracking-tight sm:text-5xl">{{ t('signup.title') }}</h1>
             <p class="scs-reveal mt-4 text-lg text-neutral-300">{{ t('signup.subtitle') }}</p>
@@ -129,8 +133,10 @@
                             {% endfor %}
                         </ol>
                     </div>
-                    <div class="rounded-2xl border border-neutral-200 bg-neutral-900 p-6 text-white">
-                        <p class="text-sm leading-relaxed text-neutral-300">{{ t('signup.why_data') }}</p>
+                    <div class="relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-900 text-white">
+                        <img src="{{ images.cta }}" alt="" aria-hidden="true" loading="lazy" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-35">
+                        <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-neutral-900 via-neutral-900/85 to-neutral-900/50"></div>
+                        <p class="relative p-6 text-sm leading-relaxed text-neutral-200">{{ t('signup.why_data') }}</p>
                     </div>
                     <p class="text-center text-sm text-neutral-500">
                         {{ t('signup.already_customer') }}

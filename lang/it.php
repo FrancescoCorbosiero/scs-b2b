@@ -712,6 +712,8 @@ return [
     'shipping.card_cost_text' => 'Spedizione gratuita da :n paia in su; sotto la soglia il contributo è di :fee (IVA esclusa), sempre visibile nel carrello.',
     'shipping.card_area_title' => 'Tutta Europa',
     'shipping.card_area_text' => 'Consegniamo nei 27 paesi dell\'Unione Europea più Regno Unito e Svizzera, all\'indirizzo indicato nella richiesta d\'ordine.',
+    'shipping.map_hub' => 'Spedizioni in partenza dall\'Italia, ogni giorno lavorativo.',
+    'shipping.map_alt' => 'Mappa della rete di consegna in Europa',
     'shipping.table_title' => 'Costi di spedizione',
     'shipping.table_note' => 'Importi netti, IVA esclusa: l\'imposta si applica in base al paese di consegna.',
     'shipping.table_col_qty' => 'Pezzi ordinati',

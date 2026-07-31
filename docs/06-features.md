@@ -44,6 +44,17 @@ Pagine di presentazione servite da `PageController` con header/footer dedicati
 Le pagine leggono i valori reali da `ShippingService` e `MIN_ORDER_ITEMS`:
 cambiando `.env` cambia anche il testo pubblico, senza copia da riallineare.
 
+**Immagini** (`App\Support\Images`, disponibili nei template come `images.*`):
+sfondi delle intestazioni scure, texture della fascia brand, blocchi CTA
+illustrati e mappa della rete di consegna. Di serie sono illustrazioni SVG in
+`public/img/`; per passare a **foto reali** basta metterle in
+`public/img/custom/` con lo stesso nome (`hero.jpg`, `cta.jpg`, `network.jpg`,
+`pattern.png`) — vengono usate automaticamente, con cache-busting sul
+timestamp del file e nessuna modifica ai template (istruzioni in
+`public/img/custom/README.md`). Gli sfondi sono `<img>` posizionati, non
+`background-image`: la CSP vieta gli style inline. Mai usare foto dei prodotti
+del feed su queste pagine: sono indicizzabili.
+
 ## /richiedi-accesso — profilazione self-service
 
 Il cliente chiede l'attivazione inviando **dati aziendali** (ragione sociale,
