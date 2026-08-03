@@ -21,6 +21,9 @@ final class DropshipOrderServiceTest extends TestCase
     private DropshipOrderService $service;
     private DropshipOrderRepository $dropshipOrders;
 
+    /** @var list<array{method: string, url: string, body: mixed}> richieste viste dal transport stub */
+    private array $liveRequests = [];
+
     protected function setUp(): void
     {
         $_SESSION = [];
@@ -67,6 +70,10 @@ final class DropshipOrderServiceTest extends TestCase
             'customer_name' => 'Mario Rossi',
             'email' => 'mario.rossi@example.it',
             'phone' => '+393401234567',
+            'address_street' => 'Via Montenapoleone 12',
+            'address_city' => 'Milano',
+            'address_zip' => '20121',
+            'country_code' => 'IT',
             'cart_snapshot' => $snapshot,
         ];
     }
@@ -211,8 +218,10 @@ final class DropshipOrderServiceTest extends TestCase
     {
         $calls = 0;
         $queue = $responses;
-        $transport = function (string $method, string $url, array $headers, ?string $body, int $timeout) use (&$queue, &$calls): array {
+        $this->liveRequests = [];
+        $transport = function (string $method, string $url, array $headers, string|array|null $body, int $timeout) use (&$queue, &$calls): array {
             $calls++;
+            $this->liveRequests[] = ['method' => $method, 'url' => $url, 'body' => $body];
             $next = array_shift($queue);
             self::assertNotNull($next, 'chiamata HTTP inattesa: coda risposte esaurita');
 
@@ -414,5 +423,125 @@ final class DropshipOrderServiceTest extends TestCase
         $config = new Config(['DROPSHIP_MODE' => 'produzione']);
         $client = new GoldenSneakersDropshipClient($config, new NullLogger());
         self::assertTrue($client->isSimulation(), 'valori sconosciuti non devono mai attivare il live');
+    }
+
+    // ── Dropshipping del rivenditore: destinatario finale ed etichetta ──
+
+    public function testAutoDropshipUsesEndCustomerRecipient(): void
+    {
+        $service = $this->liveService([[
+            'status' => 201,
+            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 9002, 'total_price' => null, 'dropship_package_id' => 6]),
+        ]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+
+        $order = $this->autoOrder() + [];
+        $order['ship_to'] = 'customer';
+        $order['recipient_name'] = 'Luca Bianchi';
+        $order['recipient_street'] = 'Rue de Rivoli 10';
+        $order['recipient_city'] = 'Paris';
+        $order['recipient_zip'] = '75001';
+        $order['recipient_country'] = 'FR';
+        $order['recipient_phone'] = '+33123456789';
+        $order['client_provides_label'] = 1;
+
+        $result = $service->autoCreateFromRequest($order);
+
+        self::assertTrue($result['ok'], (string) $result['message']);
+        $payload = json_decode((string) $this->liveRequests[0]['body'], true);
+        self::assertIsArray($payload);
+        self::assertSame('Luca Bianchi', $payload['delivery_address']['name'], 'l\'ordine parte con il destinatario finale');
+        self::assertSame('FR', $payload['delivery_address']['country_code']);
+        self::assertSame('mario.rossi@example.it', $payload['delivery_address']['email'], 'l\'email resta quella del rivenditore');
+        self::assertTrue($payload['client_provides_shipping_label'], 'la scelta etichetta del rivenditore arriva al fornitore');
+    }
+
+    public function testPrepareUsesRecipientAndLabelFlag(): void
+    {
+        $order = $this->seedOrderRequest();
+        $order['ship_to'] = 'customer';
+        $order['recipient_name'] = 'Luca Bianchi';
+        $order['recipient_street'] = 'Rue de Rivoli 10';
+        $order['recipient_city'] = 'Paris';
+        $order['recipient_zip'] = '75001';
+        $order['recipient_country'] = 'FR';
+        $order['recipient_phone'] = '+33123456789';
+        $order['client_provides_label'] = 1;
+
+        $draft = $this->service->prepare($order);
+
+        self::assertSame('Luca Bianchi', $draft['address']['name']);
+        self::assertSame('FR', $draft['address']['country_code']);
+        self::assertTrue($draft['client_provides_shipping_label']);
+    }
+
+    /** @return array{tmp_path: string, name: string, size: int} un PDF minimale reale */
+    private function fakeLabelFile(string $name = 'etichetta.pdf', string $content = "%PDF-1.4\n%fake label\n"): array
+    {
+        $path = tempnam(sys_get_temp_dir(), 'lbl');
+        self::assertIsString($path);
+        file_put_contents($path, $content);
+
+        return ['tmp_path' => $path, 'name' => $name, 'size' => (int) filesize($path)];
+    }
+
+    /** @return array<string, mixed> riga dropship in attesa di etichetta */
+    private function seedLabelPendingOrder(): array
+    {
+        $id = $this->dropshipOrders->insert([
+            'order_request_id' => null, 'mode' => 'simulation', 'status' => 'UNCONFIRMED',
+            'vendor_order_id' => 123, 'dropship_package_id' => null, 'total_price' => null,
+            'currency' => 'EUR',
+            'request_payload' => (string) json_encode(['client_provides_shipping_label' => true, 'items' => []]),
+            'lines_snapshot' => '[]', 'response_payload' => '{}',
+        ]);
+        $row = $this->dropshipOrders->find($id);
+        self::assertNotNull($row);
+
+        return $row;
+    }
+
+    public function testUploadLabelSimulatedStoresTrackingAndTimestamp(): void
+    {
+        $row = $this->seedLabelPendingOrder();
+        self::assertTrue($this->service->labelPending($row));
+
+        $result = $this->service->uploadLabel($row, $this->fakeLabelFile(), "ABC-123456\nXYZ7890123");
+
+        self::assertTrue($result['ok'], $result['message']);
+        $updated = $this->dropshipOrders->find((int) $row['id']);
+        self::assertNotNull($updated);
+        self::assertNotNull($updated['label_uploaded_at']);
+        self::assertSame('etichetta.pdf', $updated['label_file_name']);
+        self::assertSame(['ABC-123456', 'XYZ7890123'], json_decode((string) $updated['tracking_numbers'], true));
+        self::assertFalse($this->service->labelPending($updated), 'upload monouso: non più in attesa');
+    }
+
+    public function testUploadLabelRefusedWhenNotRequestedOrBadInput(): void
+    {
+        // ordine SENZA client_provides_shipping_label: nessun upload
+        $id = $this->dropshipOrders->insert([
+            'order_request_id' => null, 'mode' => 'simulation', 'status' => 'UNCONFIRMED',
+            'vendor_order_id' => 123, 'dropship_package_id' => null, 'total_price' => null,
+            'currency' => 'EUR',
+            'request_payload' => (string) json_encode(['client_provides_shipping_label' => false, 'items' => []]),
+            'lines_snapshot' => '[]', 'response_payload' => '{}',
+        ]);
+        $row = $this->dropshipOrders->find($id);
+        self::assertNotNull($row);
+        self::assertFalse($this->service->labelPending($row));
+        self::assertFalse($this->service->uploadLabel($row, $this->fakeLabelFile(), 'ABC-123456')['ok']);
+
+        // in attesa, ma file con estensione non ammessa
+        $pending = $this->seedLabelPendingOrder();
+        $bad = $this->fakeLabelFile('etichetta.docx');
+        self::assertFalse($this->service->uploadLabel($pending, $bad, 'ABC-123456')['ok']);
+
+        // estensione pdf ma contenuto non-PDF (MIME sniffing)
+        $fakePdf = $this->fakeLabelFile('etichetta.pdf', 'non sono un pdf');
+        self::assertFalse($this->service->uploadLabel($pending, $fakePdf, 'ABC-123456')['ok']);
+
+        // tracking mancante o malformato
+        self::assertFalse($this->service->uploadLabel($pending, $this->fakeLabelFile(), '')['ok']);
+        self::assertFalse($this->service->uploadLabel($pending, $this->fakeLabelFile(), 'tracking con spazi interni!!')['ok']);
     }
 }

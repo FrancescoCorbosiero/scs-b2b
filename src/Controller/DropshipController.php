@@ -165,6 +165,7 @@ final class DropshipController
 
         return $this->view->render($response, 'admin/dropship_detail.twig', [
             'ds' => $dropshipOrder,
+            'label_pending' => $this->dropship->labelPending($dropshipOrder),
             'lines' => is_array($lines) ? $lines : [],
             'tracking' => is_array($tracking) ? $tracking : [],
             'vendor_order' => $vendorOrder,
@@ -185,6 +186,43 @@ final class DropshipController
             return Http::redirect($response, '/admin/richieste');
         }
         $result = $this->dropship->refreshStatus($dropshipOrder);
+        $this->session->flash($result['ok'] ? 'success' : 'error', $result['message']);
+
+        return Http::redirect($response, '/admin/dropship/' . $dropshipOrder['id']);
+    }
+
+    /**
+     * Upload etichetta di spedizione (ordini con
+     * client_provides_shipping_label=True): file + tracking al fornitore.
+     *
+     * @param array<string, string> $args
+     */
+    public function uploadLabel(Request $request, Response $response, array $args): Response
+    {
+        $dropshipOrder = $this->dropshipOrders->find((int) ($args['id'] ?? 0));
+        if ($dropshipOrder === null) {
+            $this->session->flash('error', $this->lang->t('admin.order_not_found'));
+
+            return Http::redirect($response, '/admin/richieste');
+        }
+
+        $uploaded = $request->getUploadedFiles()['shipping_label'] ?? null;
+        $body = (array) $request->getParsedBody();
+        if (!$uploaded instanceof \Psr\Http\Message\UploadedFileInterface
+            || $uploaded->getError() !== UPLOAD_ERR_OK) {
+            $this->session->flash('error', $this->lang->t('dropship.label_file_required'));
+
+            return Http::redirect($response, '/admin/dropship/' . $dropshipOrder['id']);
+        }
+
+        // il service rivalida tipo/MIME/dimensione sul file temporaneo
+        $tmpPath = $uploaded->getStream()->getMetadata('uri');
+        $result = $this->dropship->uploadLabel($dropshipOrder, [
+            'tmp_path' => is_string($tmpPath) ? $tmpPath : '',
+            'name' => (string) ($uploaded->getClientFilename() ?? 'label'),
+            'size' => (int) ($uploaded->getSize() ?? 0),
+        ], is_string($body['tracking_numbers'] ?? null) ? $body['tracking_numbers'] : '');
+
         $this->session->flash($result['ok'] ? 'success' : 'error', $result['message']);
 
         return Http::redirect($response, '/admin/dropship/' . $dropshipOrder['id']);

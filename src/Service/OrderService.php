@@ -103,6 +103,31 @@ final class OrderService
         if ($vatNumberRaw !== '' && !VatService::isPlausibleVatNumber($vatNumberRaw, $country !== '' ? $country : 'IT')) {
             $errors[] = $this->lang->t('order.error_vat_number');
         }
+
+        // dropshipping: consegna al cliente finale del rivenditore (docs/09).
+        // Con ship_to=customer il destinatario è obbligatorio per intero; la
+        // scelta etichetta vale solo in questo scenario.
+        $shipTo = ($input['ship_to'] ?? '') === 'customer' ? 'customer' : 'reseller';
+        $recipient = [
+            'name' => $this->cleanString($input['recipient_name'] ?? null, 128),
+            'street' => $this->cleanString($input['recipient_street'] ?? null, 255),
+            'city' => $this->cleanString($input['recipient_city'] ?? null, 128),
+            'zip' => $this->cleanString($input['recipient_zip'] ?? null, 16),
+            'country' => strtoupper($this->cleanString($input['recipient_country'] ?? null, 2)),
+            'phone' => $this->cleanString($input['recipient_phone'] ?? null, 32),
+        ];
+        $clientProvidesLabel = $shipTo === 'customer' && ($input['client_provides_label'] ?? '') === '1';
+        if ($shipTo === 'customer') {
+            foreach (['name', 'street', 'city', 'zip', 'phone'] as $field) {
+                if ($recipient[$field] === '') {
+                    $errors[] = $this->lang->t('order.error_recipient_' . $field);
+                }
+            }
+            if (!$this->vat->isValidCountry($recipient['country'])) {
+                $errors[] = $this->lang->t('order.error_recipient_country');
+            }
+        }
+
         if ($errors !== []) {
             return ['ok' => false, 'order_id' => null, 'errors' => $errors, 'cart_adjusted' => false];
         }
@@ -152,6 +177,14 @@ final class OrderService
             'total_amount' => $detail['total_amount'],
             'shipping_amount' => $shipping,
             'cart_snapshot' => $snapshotJson,
+            'ship_to' => $shipTo,
+            'recipient_name' => $shipTo === 'customer' ? $recipient['name'] : null,
+            'recipient_street' => $shipTo === 'customer' ? $recipient['street'] : null,
+            'recipient_city' => $shipTo === 'customer' ? $recipient['city'] : null,
+            'recipient_zip' => $shipTo === 'customer' ? $recipient['zip'] : null,
+            'recipient_country' => $shipTo === 'customer' ? $recipient['country'] : null,
+            'recipient_phone' => $shipTo === 'customer' ? $recipient['phone'] : null,
+            'client_provides_label' => $clientProvidesLabel ? 1 : 0,
             'ip_address' => $ip,
             'user_agent' => $userAgent !== '' ? mb_substr($userAgent, 0, 255) : null,
         ]);
@@ -180,6 +213,14 @@ final class OrderService
             'total_amount' => $detail['total_amount'],
             'shipping_amount' => $shipping,
             'cart_snapshot' => $snapshotJson,
+            'ship_to' => $shipTo,
+            'recipient_name' => $shipTo === 'customer' ? $recipient['name'] : null,
+            'recipient_street' => $shipTo === 'customer' ? $recipient['street'] : null,
+            'recipient_city' => $shipTo === 'customer' ? $recipient['city'] : null,
+            'recipient_zip' => $shipTo === 'customer' ? $recipient['zip'] : null,
+            'recipient_country' => $shipTo === 'customer' ? $recipient['country'] : null,
+            'recipient_phone' => $shipTo === 'customer' ? $recipient['phone'] : null,
+            'client_provides_label' => $clientProvidesLabel ? 1 : 0,
             'lines' => $snapshot['lines'],
         ];
 

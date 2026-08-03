@@ -107,6 +107,14 @@ final class TestDb
             cart_snapshot TEXT NOT NULL,
             email_admin_sent INTEGER NOT NULL DEFAULT 0,
             email_customer_sent INTEGER NOT NULL DEFAULT 0,
+            ship_to TEXT NOT NULL DEFAULT "reseller",
+            recipient_name TEXT NULL,
+            recipient_street TEXT NULL,
+            recipient_city TEXT NULL,
+            recipient_zip TEXT NULL,
+            recipient_country TEXT NULL,
+            recipient_phone TEXT NULL,
+            client_provides_label INTEGER NOT NULL DEFAULT 0,
             ip_address TEXT NOT NULL,
             user_agent TEXT NULL
         )');
@@ -167,7 +175,9 @@ final class TestDb
             lines_snapshot TEXT NULL,
             response_payload TEXT NULL,
             tracking_numbers TEXT NULL,
-            details_payload TEXT NULL
+            details_payload TEXT NULL,
+            label_uploaded_at TEXT NULL,
+            label_file_name TEXT NULL
         )');
 
         $pdo->exec('CREATE TABLE margin_rules (

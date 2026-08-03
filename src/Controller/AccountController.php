@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Repository\DropshipOrderRepository;
 use App\Repository\OrderRequestRepository;
 use App\Repository\UserRepository;
 use App\Repository\UserTokenRepository;
@@ -30,6 +31,7 @@ final class AccountController
         private readonly UserRepository $users,
         private readonly UserTokenRepository $tokens,
         private readonly OrderRequestRepository $orders,
+        private readonly DropshipOrderRepository $dropshipOrders,
         private readonly ReceiptService $receipts,
         private readonly Lang $lang,
     ) {
@@ -152,8 +154,16 @@ final class AccountController
             return $this->redirectToLogin($response);
         }
 
+        $orders = $this->orders->forUser((int) $user['id'], (string) $user['email']);
+        // tracking degli eventuali ordini dropship collegati: SOLO tracking e
+        // stato, mai i dettagli fornitore (costi ecc.)
+        $tracking = $this->dropshipOrders->trackingByOrderRequestIds(
+            array_map(static fn (array $o): int => (int) $o['id'], $orders)
+        );
+
         return $this->view->render($response, 'account/orders.twig', [
-            'orders' => $this->orders->forUser((int) $user['id'], (string) $user['email']),
+            'orders' => $orders,
+            'tracking_map' => $tracking,
         ]);
     }
 
