@@ -12,8 +12,8 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 > con `DROPSHIP_MODE=live` invia davvero (bearer `FEED_BEARER_TOKEN`).
 > Creare un ordine dropship reale è **irreversibile** (il fornitore lo
 > conferma e scala il suo stock): PRIMA di mettere `live` in produzione va
-> completata la checklist di attivazione in fondo a questo documento — in
-> particolare la **verifica dei path su Swagger**, oggi ancora non confermati.
+> completata la checklist di attivazione in fondo a questo documento.
+> I path sono stati **confermati su Swagger** (2026-08-03).
 
 ## Comportamento della modalità live (soldi veri: leggere prima di attivare)
 
@@ -35,11 +35,23 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 - La **GET dettagli in live** aggiorna stato e tracking; stati fuori dalla
   lista documentata non sovrascrivono quello salvato.
 
-## Endpoint (base: https://www.goldensneakers.net)
+## Endpoint (base: https://www.goldensneakers.net — confermati su Swagger)
 
 - Documentazione Swagger: `/api/docs/v1/swagger/schema/` (richiede bearer token).
-- **Creazione ordine** (POST, path configurato in `DROPSHIP_CREATE_ENDPOINT`,
-  **da verificare su Swagger**): payload
+- Dominio `orders-dropship`, quattro endpoint documentati:
+  | Method | Path | Uso |
+  |---|---|---|
+  | POST | `/orders-dropship/create-order/` | creazione ordine (implementato) |
+  | GET | `/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
+  | GET | `/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
+  | POST | `/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (NON implementato) |
+
+  `upload-shipping-label` è multipart/form-data (file PDF/JPG/PNG +
+  `tracking_numbers` come array JSON) e vale solo per ordini creati con
+  `client_provides_shipping_label=True`, senza etichette già caricate:
+  da implementare solo se/quando decideremo di fornire noi le etichette.
+
+- **Creazione ordine** (POST `DROPSHIP_CREATE_ENDPOINT`): payload
 
   ```json
   {
@@ -62,9 +74,24 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 
   Risposta: `{ "message", "order_id", "total_price", "dropship_package_id" }`.
 
-- **Dettagli/stato ordine**: `GET /orders-dropship/order-details/{order_id}/`
-  (`DROPSHIP_DETAILS_ENDPOINT`). Solo il proprietario dell'ordine può leggerlo.
-  Risposta: stato, totale, `tracking_numbers`, righe con prezzi unitari.
+- **Dettagli/stato ordine** (`DROPSHIP_DETAILS_ENDPOINT` + `{order_id}/`).
+  Solo il proprietario dell'ordine può leggerlo. Risposta: `order_id`,
+  `status`, `total_amount`, `currency`, `created_at`, `dropship_package_id`,
+  `tracking_numbers[]` e `items[]` (`size_id`, `sku`, `size_us`,
+  `product_name`, `quantity`, `unit_price`, `total_price` — costi fornitore,
+  SOLO area admin).
+
+- **Dettagli pacchetto** (`DROPSHIP_PACKAGE_ENDPOINT` + `{package_id}/`).
+  Risposta: `package_id`, `status` (es. `READY_FOR_PROFORMA`),
+  `creation_date`, `last_update_date`, `total_order_count`,
+  `total_order_price` e `orders[]` riassuntivi.
+
+  Il bottone "Aggiorna stato dal fornitore" in `/admin/dropship/{id}` legge
+  order-details e (se c'è un package id) package-details, aggiorna
+  stato/tracking/totale e salva lo snapshot in
+  `dropship_orders.details_payload` (migrazione `0009`), mostrato nella
+  vista di dettaglio. `response_payload` resta la risposta immutabile
+  della creazione.
 
 Auth prevista: lo stesso bearer token del feed (`FEED_BEARER_TOKEN`).
 
@@ -121,8 +148,9 @@ simulazione: risposta fittizia, nessuna chiamata).
 | `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate live (default 30, min 5) |
 | `DROPSHIP_MAX_ORDER_EUR` | tetto sul costo fornitore stimato di un ordine; oltre ⇒ invio rifiutato prima della chiamata (0 = nessun tetto) |
 | `AUTO_DROPSHIP_ALLOW_LIVE` | `1` permette all'auto-dropship di inviare in live; con 0 (default) in live l'auto rifiuta e resta solo il flusso manuale |
-| `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (**da verificare su Swagger**) |
-| `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli (**da verificare su Swagger**) |
+| `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (confermato su Swagger) |
+| `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli ordine (confermato su Swagger) |
+| `DROPSHIP_PACKAGE_ENDPOINT` | path GET dettagli pacchetto (confermato su Swagger) |
 
 Auth live: bearer `FEED_BEARER_TOKEN` (lo stesso del feed); senza token il
 client rifiuta prima di inviare qualsiasi cosa.
@@ -153,10 +181,9 @@ o approvazione admin entro una finestra temporale.
 
 ## Per attivare la modalità live (checklist)
 
-1. **Verificare su Swagger** (col token: `/api/docs/v1/swagger/schema/`) path
-   esatti, method e codici d'errore di creazione/dettagli; aggiornare
-   `DROPSHIP_*_ENDPOINT` e questo documento. ⚠ Non ancora fatto: i default
-   sono ipotesi ragionevoli, NON confermate.
+1. ~~Verificare su Swagger path e method~~ — fatto (2026-08-03): i default di
+   `DROPSHIP_*_ENDPOINT` corrispondono allo Swagger. Restano da osservare sul
+   campo i codici d'errore reali della creazione (la doc non li elenca).
 2. Configurare `FEED_BEARER_TOKEN` (se non già attivo per il feed) e valutare
    un tetto `DROPSHIP_MAX_ORDER_EUR` prudente per i primi ordini.
 3. Test end-to-end con un ordine concordato col fornitore (importo minimo),
@@ -167,8 +194,11 @@ o approvazione admin entro una finestra temporale.
 
 ## Domande aperte
 
-- Path e method esatti dell'endpoint di creazione (la doc fornita non li
-  esplicita; `order-details` è documentato).
+- Codici e messaggi d'errore reali della creazione (lo Swagger non li
+  elenca): da osservare nei primi ordini live.
+- Se/quando fornire noi le etichette di spedizione
+  (`client_provides_shipping_label=True` + endpoint upload-shipping-label,
+  oggi non implementato).
 - La valuta è sempre EUR? (`currency` compare nella risposta dettagli).
 - `client_provides_shipping_label=true`: quale flusso operativo per caricare
   l'etichetta?

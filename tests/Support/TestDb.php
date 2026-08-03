@@ -166,7 +166,8 @@ final class TestDb
             request_payload TEXT NOT NULL,
             lines_snapshot TEXT NULL,
             response_payload TEXT NULL,
-            tracking_numbers TEXT NULL
+            tracking_numbers TEXT NULL,
+            details_payload TEXT NULL
         )');
 
         $pdo->exec('CREATE TABLE margin_rules (

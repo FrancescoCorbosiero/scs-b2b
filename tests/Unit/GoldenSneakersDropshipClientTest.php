@@ -78,7 +78,7 @@ final class GoldenSneakersDropshipClientTest extends TestCase
         self::assertCount(1, $this->calls);
         $call = $this->calls[0];
         self::assertSame('POST', $call['method']);
-        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/create/', $call['url']);
+        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/create-order/', $call['url']);
         self::assertContains('Authorization: Bearer tok-segreto', $call['headers']);
         self::assertContains('Content-Type: application/json', $call['headers']);
         self::assertSame($this->payload(), json_decode((string) $call['body'], true));
@@ -189,22 +189,67 @@ final class GoldenSneakersDropshipClientTest extends TestCase
         }
     }
 
-    public function testOrderDetailsParsesStatusAndTracking(): void
+    public function testOrderDetailsParsesFullDocumentedResponse(): void
     {
-        $client = $this->client([[
-            'status' => 200,
-            'body' => (string) json_encode([
-                'order_id' => 4242, 'status' => 'TO_SHIP', 'tracking_numbers' => ['XY123', 456],
-            ]),
-        ]]);
+        // risposta d'esempio della doc Swagger, integrale
+        $body = [
+            'order_id' => 123,
+            'status' => 'TO_SHIP',
+            'total_amount' => 299.99,
+            'currency' => 'EUR',
+            'created_at' => '2024-01-15T10:30:00Z',
+            'dropship_package_id' => 456,
+            'tracking_numbers' => ['1234567890123', '1234567890124'],
+            'items' => [
+                ['size_id' => 789, 'sku' => 'AIR-JORDAN-1-HIGH', 'size_us' => '9.5', 'product_name' => 'Air Jordan 1 High', 'quantity' => 1, 'unit_price' => 149.99, 'total_price' => 149.99],
+                ['size_id' => 790, 'sku' => 'NIKE-DUNK-LOW', 'size_us' => '10', 'product_name' => 'Nike Dunk Low', 'quantity' => 1, 'unit_price' => 150, 'total_price' => 150],
+            ],
+        ];
+        $client = $this->client([['status' => 200, 'body' => (string) json_encode($body)]]);
 
-        $details = $client->orderDetails(4242);
+        $details = $client->orderDetails(123);
 
         self::assertFalse($details['simulated']);
         self::assertSame('TO_SHIP', $details['status']);
-        self::assertSame(['XY123', '456'], $details['tracking_numbers']);
+        self::assertSame(['1234567890123', '1234567890124'], $details['tracking_numbers']);
+        self::assertSame(299.99, $details['total_amount']);
+        self::assertSame('EUR', $details['currency']);
+        self::assertSame('2024-01-15T10:30:00Z', $details['created_at']);
+        self::assertSame(456, $details['dropship_package_id']);
+        self::assertCount(2, $details['items']);
+        self::assertSame('Air Jordan 1 High', $details['items'][0]['product_name']);
+        self::assertSame(149.99, $details['items'][0]['unit_price']);
+        self::assertSame(150.0, $details['items'][1]['total_price']);
+        self::assertSame($body, $details['raw'], 'raw è lo snapshot integrale per il DB');
         self::assertSame('GET', $this->calls[0]['method']);
-        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/order-details/4242/', $this->calls[0]['url']);
+        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/order-details/123/', $this->calls[0]['url']);
+    }
+
+    public function testPackageDetailsParsesDocumentedResponse(): void
+    {
+        $body = [
+            'package_id' => 456,
+            'status' => 'READY_FOR_PROFORMA',
+            'creation_date' => '2024-01-15T09:00:00Z',
+            'last_update_date' => '2024-01-15T12:30:00Z',
+            'total_order_count' => 3,
+            'total_order_price' => 599.97,
+            'orders' => [
+                ['order_id' => 123, 'status' => 'TO_SHIP', 'created_at' => '2024-01-15T10:30:00Z', 'total_price' => 299.99],
+                ['order_id' => 124, 'status' => 'TO_SHIP', 'created_at' => '2024-01-15T11:00:00Z', 'total_price' => 199.99],
+            ],
+        ];
+        $client = $this->client([['status' => 200, 'body' => (string) json_encode($body)]]);
+
+        $package = $client->packageDetails(456);
+
+        self::assertFalse($package['simulated']);
+        self::assertSame('READY_FOR_PROFORMA', $package['status']);
+        self::assertSame(3, $package['total_order_count']);
+        self::assertSame(599.97, $package['total_order_price']);
+        self::assertCount(2, $package['orders']);
+        self::assertSame(124, $package['orders'][1]['order_id']);
+        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/package-details/456/', $this->calls[0]['url']);
     }
 
     public function testOrderDetailsRetriesOnceBeingIdempotent(): void
