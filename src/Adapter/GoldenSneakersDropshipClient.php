@@ -8,8 +8,11 @@ use App\Support\Config;
 use Psr\Log\LoggerInterface;
 
 /**
- * Client per il dominio "order-dropship" dell'API GoldenSneakers
- * (POST creazione ordine, GET order-details/{order_id}/).
+ * Client per il dominio "orders-dropship" dell'API GoldenSneakers
+ * (POST create-order/, GET order-details/{order_id}/,
+ * GET package-details/{package_id}/ — path confermati su Swagger).
+ * L'endpoint upload-shipping-label/{order_id}/ (multipart, solo ordini con
+ * client_provides_shipping_label=True) NON è implementato.
  *
  * Due modalità (DROPSHIP_MODE):
  *  - simulation (default): NESSUNA chiamata HTTP, risposte fittizie marcate
@@ -112,7 +115,7 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl('DROPSHIP_CREATE_ENDPOINT', '/api/orders-dropship/create/');
+        $url = $this->liveUrl('DROPSHIP_CREATE_ENDPOINT', '/api/orders-dropship/create-order/');
         $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
         if ($body === false) {
             throw new DropshipException('Payload non serializzabile in JSON: nessun ordine inviato.');
@@ -199,7 +202,17 @@ final class GoldenSneakersDropshipClient
      * GET order-details/{order_id}/ — dettagli/stato ordine. Idempotente:
      * un retry con backoff. Ogni fallimento è sicuro (nessuna scrittura).
      *
-     * @return array{order_id: int, status: string, tracking_numbers: list<string>, simulated: bool}
+     * `raw` è la risposta completa del fornitore (per lo snapshot a DB);
+     * `items` sono le righe validate: size_id, sku, size_us, product_name,
+     * quantity, unit_price, total_price. I prezzi sono COSTI del fornitore:
+     * solo area admin, mai verso il cliente (Regola d'oro n.1).
+     *
+     * @return array{order_id: int, status: string, tracking_numbers: list<string>,
+     *   total_amount: float|null, currency: string|null, created_at: string|null,
+     *   dropship_package_id: int|null,
+     *   items: list<array{size_id: int|null, sku: string, size_us: string,
+     *     product_name: string, quantity: int, unit_price: float|null, total_price: float|null}>,
+     *   raw: array<string, mixed>, simulated: bool}
      */
     public function orderDetails(int $vendorOrderId): array
     {
@@ -213,54 +226,176 @@ final class GoldenSneakersDropshipClient
                 'order_id' => $vendorOrderId,
                 'status' => 'UNCONFIRMED',
                 'tracking_numbers' => [],
+                'total_amount' => null,
+                'currency' => null,
+                'created_at' => null,
+                'dropship_package_id' => null,
+                'items' => [],
+                'raw' => ['simulated' => true, 'order_id' => $vendorOrderId, 'status' => 'UNCONFIRMED'],
                 'simulated' => true,
             ];
         }
 
         $url = $this->liveUrl('DROPSHIP_DETAILS_ENDPOINT', '/api/orders-dropship/order-details/')
             . $vendorOrderId . '/';
+        $decoded = $this->getJson($url, 'dettagli ordine');
 
+        $status = is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
+        if ($status === null) {
+            throw new DropshipException('Risposta dettagli ordine illeggibile (manca lo status).');
+        }
+
+        $items = [];
+        foreach (is_array($decoded['items'] ?? null) ? $decoded['items'] : [] as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $items[] = [
+                'size_id' => $this->positiveInt($item['size_id'] ?? null),
+                'sku' => is_string($item['sku'] ?? null) ? $item['sku'] : '',
+                'size_us' => is_string($item['size_us'] ?? null) ? $item['size_us'] : (string) ($item['size_us'] ?? ''),
+                'product_name' => is_string($item['product_name'] ?? null) ? $item['product_name'] : '',
+                'quantity' => max(0, (int) ($item['quantity'] ?? 0)),
+                'unit_price' => $this->optionalFloat($item['unit_price'] ?? null),
+                'total_price' => $this->optionalFloat($item['total_price'] ?? null),
+            ];
+        }
+
+        return [
+            'order_id' => $this->positiveInt($decoded['order_id'] ?? null) ?? $vendorOrderId,
+            'status' => $status,
+            'tracking_numbers' => $this->stringList($decoded['tracking_numbers'] ?? null),
+            'total_amount' => $this->optionalFloat($decoded['total_amount'] ?? null),
+            'currency' => is_string($decoded['currency'] ?? null) ? $decoded['currency'] : null,
+            'created_at' => is_string($decoded['created_at'] ?? null) ? $decoded['created_at'] : null,
+            'dropship_package_id' => $this->positiveInt($decoded['dropship_package_id'] ?? null),
+            'items' => $items,
+            'raw' => $decoded,
+            'simulated' => false,
+        ];
+    }
+
+    /**
+     * GET package-details/{package_id}/ — stato del pacchetto dropship che
+     * raggruppa più ordini. Idempotente, stessa politica della GET dettagli.
+     *
+     * @return array{package_id: int, status: string, creation_date: string|null,
+     *   last_update_date: string|null, total_order_count: int|null,
+     *   total_order_price: float|null,
+     *   orders: list<array{order_id: int|null, status: string, created_at: string|null, total_price: float|null}>,
+     *   raw: array<string, mixed>, simulated: bool}
+     */
+    public function packageDetails(int $packageId): array
+    {
+        if ($this->isSimulation()) {
+            $this->logger->info('SIMULAZIONE lettura dettagli pacchetto dropship: nessuna chiamata HTTP effettuata', [
+                'package_id' => $packageId,
+            ]);
+
+            return [
+                'package_id' => $packageId,
+                'status' => 'UNCONFIRMED',
+                'creation_date' => null,
+                'last_update_date' => null,
+                'total_order_count' => null,
+                'total_order_price' => null,
+                'orders' => [],
+                'raw' => ['simulated' => true, 'package_id' => $packageId],
+                'simulated' => true,
+            ];
+        }
+
+        $url = $this->liveUrl('DROPSHIP_PACKAGE_ENDPOINT', '/api/orders-dropship/package-details/')
+            . $packageId . '/';
+        $decoded = $this->getJson($url, 'dettagli pacchetto');
+
+        $status = is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
+        if ($status === null) {
+            throw new DropshipException('Risposta dettagli pacchetto illeggibile (manca lo status).');
+        }
+
+        $orders = [];
+        foreach (is_array($decoded['orders'] ?? null) ? $decoded['orders'] : [] as $order) {
+            if (!is_array($order)) {
+                continue;
+            }
+            $orders[] = [
+                'order_id' => $this->positiveInt($order['order_id'] ?? null),
+                'status' => is_string($order['status'] ?? null) ? $order['status'] : '',
+                'created_at' => is_string($order['created_at'] ?? null) ? $order['created_at'] : null,
+                'total_price' => $this->optionalFloat($order['total_price'] ?? null),
+            ];
+        }
+
+        return [
+            'package_id' => $this->positiveInt($decoded['package_id'] ?? null) ?? $packageId,
+            'status' => $status,
+            'creation_date' => is_string($decoded['creation_date'] ?? null) ? $decoded['creation_date'] : null,
+            'last_update_date' => is_string($decoded['last_update_date'] ?? null) ? $decoded['last_update_date'] : null,
+            'total_order_count' => $this->positiveInt($decoded['total_order_count'] ?? null),
+            'total_order_price' => $this->optionalFloat($decoded['total_order_price'] ?? null),
+            'orders' => $orders,
+            'raw' => $decoded,
+            'simulated' => false,
+        ];
+    }
+
+    // ── Interni (solo live) ──────────────────────────────────────────
+
+    /**
+     * GET idempotente con un retry e backoff: usata per le letture, mai
+     * per la creazione.
+     *
+     * @return array<string, mixed> il JSON della risposta
+     */
+    private function getJson(string $url, string $context): array
+    {
         $lastError = '';
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $res = $this->request('GET', $url, null);
             if ($res['errno'] === 0 && $res['status'] >= 200 && $res['status'] < 300) {
                 $decoded = json_decode($res['body'], true);
-                $status = is_array($decoded) && is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
-                if ($status === null) {
-                    throw new DropshipException('Risposta dettagli ordine illeggibile (manca lo status).');
+                if (is_array($decoded)) {
+                    /** @var array<string, mixed> $decoded */
+                    return $decoded;
                 }
-                /** @var array<string, mixed> $decoded */
-                $tracking = [];
-                foreach (is_array($decoded['tracking_numbers'] ?? null) ? $decoded['tracking_numbers'] : [] as $number) {
-                    if (is_string($number) && $number !== '') {
-                        $tracking[] = $number;
-                    } elseif (is_int($number)) {
-                        $tracking[] = (string) $number;
-                    }
-                }
-
-                return [
-                    'order_id' => $this->positiveInt($decoded['order_id'] ?? null) ?? $vendorOrderId,
-                    'status' => $status,
-                    'tracking_numbers' => $tracking,
-                    'simulated' => false,
-                ];
+                throw new DropshipException("Risposta {$context} non è JSON valido.");
             }
             $lastError = $res['errno'] !== 0
                 ? $res['error']
                 : 'HTTP ' . $res['status'] . ($this->errorDetail($res['body']) !== '' ? ': ' . $this->errorDetail($res['body']) : '');
-            $this->logger->warning('Lettura dettagli ordine dropship fallita', [
-                'vendor_order_id' => $vendorOrderId, 'attempt' => $attempt, 'error' => $lastError,
+            $this->logger->warning("Lettura {$context} fallita", [
+                'url' => $url, 'attempt' => $attempt, 'error' => $lastError,
             ]);
             if ($attempt < 2) {
                 sleep(2);
             }
         }
 
-        throw new DropshipException("Lettura stato ordine fallita: {$lastError}");
+        throw new DropshipException("Lettura {$context} fallita: {$lastError}");
     }
 
-    // ── Interni (solo live) ──────────────────────────────────────────
+    private function optionalFloat(mixed $value): ?float
+    {
+        return is_int($value) || is_float($value) || (is_string($value) && is_numeric($value))
+            ? (float) $value
+            : null;
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        $list = [];
+        foreach (is_array($value) ? $value : [] as $entry) {
+            if (is_string($entry) && $entry !== '') {
+                $list[] = $entry;
+            } elseif (is_int($entry)) {
+                $list[] = (string) $entry;
+            }
+        }
+
+        return $list;
+    }
 
     /** Base URL + endpoint configurato, con token verificato PRIMA di ogni invio. */
     private function liveUrl(string $endpointKey, string $endpointDefault): string

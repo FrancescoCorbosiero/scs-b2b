@@ -415,8 +415,10 @@ final class DropshipOrderService
     }
 
     /**
-     * Rilegge lo stato dal fornitore (in simulazione: risposta fittizia,
-     * nessuna chiamata) e aggiorna il record.
+     * Rilegge dal fornitore dettagli ordine e (se c'è un package_id) del
+     * pacchetto, e salva lo snapshot in details_payload. In simulazione:
+     * risposta fittizia, nessuna chiamata. Le GET sono idempotenti: un
+     * fallimento qui non tocca mai nulla presso il fornitore.
      *
      * @param array<string, mixed> $dropshipOrder riga di dropship_orders
      * @return array{ok: bool, message: string}
@@ -432,10 +434,36 @@ final class DropshipOrderService
         } catch (DropshipException $e) {
             return ['ok' => false, 'message' => $e->getMessage()];
         }
+
+        // il pacchetto è informativo: un suo errore non blocca l'aggiornamento
+        $package = null;
+        $packageId = $details['dropship_package_id'] ?? ((int) ($dropshipOrder['dropship_package_id'] ?? 0) ?: null);
+        if ($packageId !== null && !$details['simulated']) {
+            try {
+                $package = $this->client->packageDetails($packageId);
+            } catch (DropshipException $e) {
+                $this->logger->warning('Lettura pacchetto dropship fallita', [
+                    'package_id' => $packageId, 'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // stati fuori dalla lista documentata non sovrascrivono quello salvato
         $status = in_array($details['status'], GoldenSneakersDropshipClient::STATUSES, true)
             ? $details['status']
             : (string) $dropshipOrder['status'];
-        $this->dropshipOrders->updateStatus((int) $dropshipOrder['id'], $status, $details['tracking_numbers']);
+        $this->dropshipOrders->updateFromDetails(
+            (int) $dropshipOrder['id'],
+            $status,
+            $details['tracking_numbers'],
+            $details['total_amount'] !== null ? number_format($details['total_amount'], 2, '.', '') : null,
+            $packageId,
+            $details['simulated'] ? null : (string) json_encode([
+                'order' => $details['raw'],
+                'package' => $package['raw'] ?? null,
+                'fetched_at' => date('Y-m-d H:i:s'),
+            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+        );
 
         return [
             'ok' => true,

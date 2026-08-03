@@ -158,11 +158,18 @@ final class DropshipController
         }
         $lines = json_decode(is_string($dropshipOrder['lines_snapshot'] ?? null) ? $dropshipOrder['lines_snapshot'] : '[]', true);
         $tracking = json_decode(is_string($dropshipOrder['tracking_numbers'] ?? null) ? $dropshipOrder['tracking_numbers'] : '[]', true);
+        // ultima lettura dal fornitore (order-details + package-details), se fatta
+        $details = json_decode(is_string($dropshipOrder['details_payload'] ?? null) ? $dropshipOrder['details_payload'] : 'null', true);
+        $vendorOrder = is_array($details) && is_array($details['order'] ?? null) ? $details['order'] : null;
+        $vendorPackage = is_array($details) && is_array($details['package'] ?? null) ? $details['package'] : null;
 
         return $this->view->render($response, 'admin/dropship_detail.twig', [
             'ds' => $dropshipOrder,
             'lines' => is_array($lines) ? $lines : [],
             'tracking' => is_array($tracking) ? $tracking : [],
+            'vendor_order' => $vendorOrder,
+            'vendor_package' => $vendorPackage,
+            'details_fetched_at' => is_array($details) && is_string($details['fetched_at'] ?? null) ? $details['fetched_at'] : null,
             'request_json' => (string) ($dropshipOrder['request_payload'] ?? ''),
             'response_json' => (string) ($dropshipOrder['response_payload'] ?? ''),
         ]);

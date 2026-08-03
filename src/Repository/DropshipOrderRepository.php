@@ -77,15 +77,36 @@ final class DropshipOrderRepository
         return $stmt->fetchAll();
     }
 
-    /** @param list<string> $trackingNumbers */
-    public function updateStatus(int $id, string $status, array $trackingNumbers): void
-    {
+    /**
+     * Aggiorna la riga con l'ultima lettura dal fornitore (order-details +
+     * eventuale package-details). total_price/package_id si toccano solo se
+     * il fornitore li fornisce; details_payload è lo snapshot JSON completo.
+     *
+     * @param list<string> $trackingNumbers
+     */
+    public function updateFromDetails(
+        int $id,
+        string $status,
+        array $trackingNumbers,
+        ?string $totalPrice,
+        ?int $packageId,
+        ?string $detailsJson,
+    ): void {
         $stmt = $this->pdo->prepare(
-            'UPDATE dropship_orders SET status = ?, tracking_numbers = ?, updated_at = ? WHERE id = ?'
+            'UPDATE dropship_orders SET status = ?,
+                tracking_numbers = ?,
+                total_price = COALESCE(?, total_price),
+                dropship_package_id = COALESCE(?, dropship_package_id),
+                details_payload = COALESCE(?, details_payload),
+                updated_at = ?
+             WHERE id = ?'
         );
         $stmt->execute([
             $status,
             $trackingNumbers === [] ? null : (string) json_encode($trackingNumbers, JSON_UNESCAPED_UNICODE),
+            $totalPrice,
+            $packageId,
+            $detailsJson,
             date('Y-m-d H:i:s'),
             $id,
         ]);

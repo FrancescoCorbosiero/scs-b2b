@@ -52,6 +52,59 @@
                 </table>
             </div>
 
+            {# ── Ultima lettura dal fornitore (order-details) ─────────── #}
+            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                <div class="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4">
+                    <h2 class="font-semibold">{{ t('dropship.vendor_section') }}</h2>
+                    {% if details_fetched_at %}
+                        <span class="text-xs text-neutral-400">{{ t('dropship.vendor_fetched_at', {at: details_fetched_at}) }}</span>
+                    {% endif %}
+                </div>
+                {% if vendor_order %}
+                    <table class="w-full text-sm mt-3">
+                        <thead>
+                            <tr class="bg-neutral-50 text-neutral-500 text-left">
+                                <th class="px-3 py-2.5 font-medium">SKU</th>
+                                <th class="px-3 py-2.5 font-medium">Prodotto</th>
+                                <th class="px-3 py-2.5 font-medium">US</th>
+                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_size_id') }}</th>
+                                <th class="px-3 py-2.5 font-medium text-right">Qty</th>
+                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_unit_price') }}</th>
+                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_line_total') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100">
+                            {% for item in vendor_order.items ?? [] %}
+                                <tr>
+                                    <td class="px-3 py-2 font-mono text-xs">{{ item.sku ?? '—' }}</td>
+                                    <td class="px-3 py-2">{{ item.product_name ?? '—' }}</td>
+                                    <td class="px-3 py-2 whitespace-nowrap">{{ item.size_us ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-right font-mono text-xs">{{ item.size_id ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-right font-semibold">{{ item.quantity ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-right text-neutral-500 whitespace-nowrap">{{ item.unit_price is defined ? item.unit_price|eur : '—' }}</td>
+                                    <td class="px-3 py-2 text-right whitespace-nowrap">{{ item.total_price is defined ? item.total_price|eur : '—' }}</td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="7" class="px-3 py-3 text-neutral-500 text-xs">{{ t('dropship.vendor_no_items') }}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if vendor_order.total_amount is defined and vendor_order.total_amount is not null %}
+                            <tfoot>
+                                <tr class="border-t border-neutral-200">
+                                    <td colspan="6" class="px-3 py-2.5 text-right text-neutral-500">{{ t('dropship.vendor_total') }} ({{ vendor_order.currency ?? 'EUR' }})</td>
+                                    <td class="px-3 py-2.5 text-right font-bold whitespace-nowrap">{{ vendor_order.total_amount|eur }}</td>
+                                </tr>
+                            </tfoot>
+                        {% endif %}
+                    </table>
+                    {% if vendor_order.created_at is defined and vendor_order.created_at %}
+                        <p class="px-5 pb-4 pt-2 text-xs text-neutral-400">{{ t('dropship.vendor_created') }}: {{ vendor_order.created_at }}</p>
+                    {% endif %}
+                {% else %}
+                    <p class="px-5 pb-4 pt-2 text-sm text-neutral-500">{{ t('dropship.vendor_none') }}</p>
+                {% endif %}
+            </div>
+
             <div class="bg-white rounded-xl border border-neutral-200 p-5">
                 <h2 class="font-semibold mb-2">{{ t('dropship.payload_title') }}</h2>
                 <pre class="text-xs bg-neutral-900 text-neutral-100 rounded-lg p-4 overflow-x-auto">{{ request_json }}</pre>
@@ -77,6 +130,26 @@
                 </div>
                 <p class="text-xs text-neutral-400">{{ t('dropship.wholesale_note') }}</p>
             </div>
+
+            {# ── Pacchetto dropship (package-details) ─────────────────── #}
+            {% if vendor_package %}
+                <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
+                    <h2 class="font-semibold">{{ t('dropship.package_title') }} <span class="font-mono text-xs text-neutral-400">#{{ vendor_package.package_id ?? ds.dropship_package_id }}</span></h2>
+                    <p><span class="text-neutral-500">{{ t('dropship.package_status') }}:</span> <strong class="font-mono text-xs">{{ vendor_package.status ?? '—' }}</strong></p>
+                    {% if vendor_package.total_order_count is defined and vendor_package.total_order_count is not null %}
+                        <p><span class="text-neutral-500">{{ t('dropship.package_orders') }}:</span> {{ vendor_package.total_order_count }}</p>
+                    {% endif %}
+                    {% if vendor_package.total_order_price is defined and vendor_package.total_order_price is not null %}
+                        <div class="flex justify-between border-t border-neutral-100 pt-2">
+                            <span class="text-neutral-500">{{ t('dropship.package_total') }}</span>
+                            <strong>{{ vendor_package.total_order_price|eur }}</strong>
+                        </div>
+                    {% endif %}
+                    {% if vendor_package.last_update_date is defined and vendor_package.last_update_date %}
+                        <p class="text-xs text-neutral-400">{{ t('dropship.package_updated') }}: {{ vendor_package.last_update_date }}</p>
+                    {% endif %}
+                </div>
+            {% endif %}
 
             <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
                 <h2 class="font-semibold">{{ t('dropship.tracking') }}</h2>

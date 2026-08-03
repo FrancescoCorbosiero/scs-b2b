@@ -351,6 +351,64 @@ final class DropshipOrderServiceTest extends TestCase
         ];
     }
 
+    public function testRefreshStatusStoresVendorSnapshotAndPackage(): void
+    {
+        $service = $this->liveService([
+            ['status' => 200, 'body' => (string) json_encode([
+                'order_id' => 123, 'status' => 'TO_SHIP', 'total_amount' => 299.99, 'currency' => 'EUR',
+                'created_at' => '2024-01-15T10:30:00Z', 'dropship_package_id' => 456,
+                'tracking_numbers' => ['1234567890123'],
+                'items' => [['size_id' => 789, 'sku' => 'AIR-JORDAN-1-HIGH', 'size_us' => '9.5', 'product_name' => 'Air Jordan 1 High', 'quantity' => 1, 'unit_price' => 149.99, 'total_price' => 149.99]],
+            ])],
+            ['status' => 200, 'body' => (string) json_encode([
+                'package_id' => 456, 'status' => 'READY_FOR_PROFORMA', 'total_order_count' => 3, 'orders' => [],
+            ])],
+        ], [], $calls);
+        $id = $this->dropshipOrders->insert([
+            'order_request_id' => null, 'mode' => 'live', 'status' => 'UNCONFIRMED',
+            'vendor_order_id' => 123, 'dropship_package_id' => null, 'total_price' => '250.00',
+            'currency' => 'EUR', 'request_payload' => '{}', 'lines_snapshot' => '[]', 'response_payload' => '{}',
+        ]);
+        $row = $this->dropshipOrders->find($id);
+        self::assertNotNull($row);
+
+        $result = $service->refreshStatus($row);
+
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(2, $calls, 'order-details + package-details');
+        $updated = $this->dropshipOrders->find($id);
+        self::assertNotNull($updated);
+        self::assertSame('TO_SHIP', $updated['status']);
+        self::assertSame(299.99, (float) $updated['total_price'], 'il totale reale del fornitore sostituisce la stima');
+        self::assertSame(456, (int) $updated['dropship_package_id']);
+        self::assertSame(['1234567890123'], json_decode((string) $updated['tracking_numbers'], true));
+        $details = json_decode((string) $updated['details_payload'], true);
+        self::assertIsArray($details);
+        self::assertSame('TO_SHIP', $details['order']['status']);
+        self::assertSame('READY_FOR_PROFORMA', $details['package']['status']);
+    }
+
+    public function testRefreshWithUnknownVendorStatusKeepsStored(): void
+    {
+        $service = $this->liveService([
+            ['status' => 200, 'body' => (string) json_encode(['order_id' => 123, 'status' => 'QUALCOSA_DI_NUOVO'])],
+        ], [], $calls);
+        $id = $this->dropshipOrders->insert([
+            'order_request_id' => null, 'mode' => 'live', 'status' => 'TO_SHIP',
+            'vendor_order_id' => 123, 'dropship_package_id' => null, 'total_price' => null,
+            'currency' => 'EUR', 'request_payload' => '{}', 'lines_snapshot' => '[]', 'response_payload' => '{}',
+        ]);
+        $row = $this->dropshipOrders->find($id);
+        self::assertNotNull($row);
+
+        $result = $service->refreshStatus($row);
+
+        self::assertTrue($result['ok']);
+        $updated = $this->dropshipOrders->find($id);
+        self::assertNotNull($updated);
+        self::assertSame('TO_SHIP', $updated['status'], 'stati non documentati non sovrascrivono quello salvato');
+    }
+
     public function testUnknownModeDegradesToSimulation(): void
     {
         $config = new Config(['DROPSHIP_MODE' => 'produzione']);
