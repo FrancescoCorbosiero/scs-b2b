@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Adapter;
 
-final class DropshipException extends \RuntimeException
+/** Estesa da DropshipUncertainException (esito ambiguo: mai ritentare alla cieca). */
+class DropshipException extends \RuntimeException
 {
 }

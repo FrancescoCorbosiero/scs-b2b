@@ -1,17 +1,39 @@
-# 09 — Ordini dropship GoldenSneakers (ANTEPRIMA)
+# 09 — Ordini dropship GoldenSneakers
 
 Il dominio **order-dropship** dell'API GoldenSneakers permette di creare gli
 ordini direttamente presso il fornitore: lo stock GoldenSneakers viene scalato
 alla fonte e resta allineato col nostro catalogo. Sostituisce (in prospettiva)
 il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 
-> ⚠ **Stato: ANTEPRIMA — SOLO SIMULAZIONE.** Il client
-> (`src/Adapter/GoldenSneakersDropshipClient.php`) **non effettua mai chiamate
-> HTTP**: con `DROPSHIP_MODE=simulation` restituisce risposte fittizie nella
-> forma documentata; con qualsiasi altro valore rifiuta con `DropshipException`.
-> Creare un ordine dropship reale è **irreversibile** (il fornitore lo conferma
-> e scala il suo stock): la modalità live va implementata e attivata solo dopo
-> aver validato endpoint e comportamento su Swagger col fornitore.
+> ⚠ **Stato: live IMPLEMENTATO ma NON ancora validato col fornitore.** Il
+> client (`src/Adapter/GoldenSneakersDropshipClient.php`) ha due modalità:
+> con `DROPSHIP_MODE=simulation` (default; qualsiasi valore ≠ `live` degrada
+> qui) **non effettua mai chiamate HTTP** e restituisce risposte fittizie;
+> con `DROPSHIP_MODE=live` invia davvero (bearer `FEED_BEARER_TOKEN`).
+> Creare un ordine dropship reale è **irreversibile** (il fornitore lo
+> conferma e scala il suo stock): PRIMA di mettere `live` in produzione va
+> completata la checklist di attivazione in fondo a questo documento — in
+> particolare la **verifica dei path su Swagger**, oggi ancora non confermati.
+
+## Comportamento della modalità live (soldi veri: leggere prima di attivare)
+
+- **Mai retry sulla POST di creazione**: un timeout dopo l'invio non può
+  distinguere "ordine creato" da "ordine perso"; ritentare alla cieca rischia
+  un ordine doppio con addebito reale.
+- **Esiti incerti tracciati**: timeout dopo l'invio, HTTP 5xx o risposta 2xx
+  senza `order_id` leggibile sollevano `DropshipUncertainException`; il
+  service registra una riga in `dropship_orders` con **status `UNKNOWN`**
+  (payload incluso) e scarta la bozza. L'admin verifica sul portale
+  GoldenSneakers se l'ordine esiste PRIMA di ricominciare il flusso.
+- **Fallimenti certi**: fornitore irraggiungibile (DNS/connect/TLS), HTTP 4xx
+  (rifiuto esplicito, con messaggio del fornitore riportato) o redirect 3xx
+  (endpoint sbagliato) ⇒ nessun ordine creato, si può correggere e ripetere.
+- **Tetto di spesa opzionale** `DROPSHIP_MAX_ORDER_EUR`: se il costo
+  fornitore stimato supera il tetto l'invio è rifiutato prima della chiamata.
+- **GET dettagli idempotente**: un retry con backoff; gli errori di lettura
+  non modificano nulla.
+- La **GET dettagli in live** aggiorna stato e tracking; stati fuori dalla
+  lista documentata non sovrascrivono quello salvato.
 
 ## Endpoint (base: https://www.goldensneakers.net)
 
@@ -95,9 +117,15 @@ simulazione: risposta fittizia, nessuna chiamata).
 | Variabile | Uso |
 |---|---|
 | `DROPSHIP_ENABLED` | `1` mostra la sezione in /admin (default 0) |
-| `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` oggi viene rifiutato dal client |
-| `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (da verificare su Swagger) |
-| `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli (da verificare su Swagger) |
+| `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` invia davvero |
+| `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate live (default 30, min 5) |
+| `DROPSHIP_MAX_ORDER_EUR` | tetto sul costo fornitore stimato di un ordine; oltre ⇒ invio rifiutato prima della chiamata (0 = nessun tetto) |
+| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` permette all'auto-dropship di inviare in live; con 0 (default) in live l'auto rifiuta e resta solo il flusso manuale |
+| `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (**da verificare su Swagger**) |
+| `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli (**da verificare su Swagger**) |
+
+Auth live: bearer `FEED_BEARER_TOKEN` (lo stesso del feed); senza token il
+client rifiuta prima di inviare qualsiasi cosa.
 
 ## Auto-dropship alla richiesta d'ordine (M8)
 
@@ -109,30 +137,33 @@ manuale da /admin). Motivazione: bloccare lo stock del fornitore PRIMA che
 arrivi il bonifico (il "delta" del pagamento).
 
 ⚠ **Rischio accettato dal titolare** (decisione del 18/07/2026): chiunque
-abbia la password condivisa del catalogo può innescare la chiamata autenticata
-al fornitore. Paracadute in atto:
+abbia accesso al catalogo può innescare la chiamata autenticata al fornitore.
+Paracadute in atto:
 - flag `.env` dedicato = kill-switch immediato (default 0);
-- in `DROPSHIP_MODE=simulation` nessuna chiamata parte (e live oggi è
-  comunque rifiutato dal client);
+- in `DROPSHIP_MODE=simulation` nessuna chiamata parte;
+- **in live l'auto-dropship rifiuta comunque salvo `AUTO_DROPSHIP_ALLOW_LIVE=1`**
+  (doppio opt-in: di default gli ordini reali partono SOLO dal flusso manuale
+  admin a tre conferme);
+- tetto opzionale `DROPSHIP_MAX_ORDER_EUR` anche su questo percorso;
 - restano rate limit richieste (3/ora/IP) e ordine minimo;
 - l'esito (o il fallimento, che non blocca mai la richiesta) è riportato
   nell'email admin per il monitoraggio.
-Prima di attivare il live con auto-dropship, valutare password per cliente
+Prima di attivare `AUTO_DROPSHIP_ALLOW_LIVE`, valutare password per cliente
 o approvazione admin entro una finestra temporale.
 
-## Per attivare la modalità live (checklist futura)
+## Per attivare la modalità live (checklist)
 
-1. Verificare su Swagger (col token) path esatti, method e codici d'errore
-   di creazione/dettagli; aggiornare `DROPSHIP_*_ENDPOINT` e questo documento.
-2. Implementare le chiamate HTTP in `GoldenSneakersDropshipClient`
-   (bearer `FEED_BEARER_TOKEN`, timeout, retry SOLO sulla GET dettagli — mai
-   retry automatico sulla POST di creazione: rischio ordine doppio).
-3. Gestire gli errori API (stock esaurito, size_id sconosciuto, indirizzo
-   invalido) mappandoli su messaggi in `lang/it.php`.
-4. Decidere la politica di riconciliazione: dopo un ordine live, eseguire un
-   sync del feed per riallineare lo stock locale.
-5. Test end-to-end con un ordine concordato col fornitore, poi
-   `DROPSHIP_MODE=live` in `.env`.
+1. **Verificare su Swagger** (col token: `/api/docs/v1/swagger/schema/`) path
+   esatti, method e codici d'errore di creazione/dettagli; aggiornare
+   `DROPSHIP_*_ENDPOINT` e questo documento. ⚠ Non ancora fatto: i default
+   sono ipotesi ragionevoli, NON confermate.
+2. Configurare `FEED_BEARER_TOKEN` (se non già attivo per il feed) e valutare
+   un tetto `DROPSHIP_MAX_ORDER_EUR` prudente per i primi ordini.
+3. Test end-to-end con un ordine concordato col fornitore (importo minimo),
+   poi `DROPSHIP_MODE=live` in `.env`.
+4. Dopo ogni ordine live, eseguire un sync del feed per riallineare lo stock
+   locale a quello scalato dal fornitore.
+5. Solo quando il flusso manuale è rodato, valutare `AUTO_DROPSHIP_ALLOW_LIVE=1`.
 
 ## Domande aperte
 

@@ -198,34 +198,157 @@ final class DropshipOrderServiceTest extends TestCase
         self::assertNull($this->service->draftFor(7), 'la bozza è monouso');
     }
 
-    public function testLiveModeIsRefusedWithoutSending(): void
+    // ── Modalità live (transport HTTP stubbato) ──────────────────────
+
+    /**
+     * Service in modalità live con risposte HTTP predefinite; $calls conta
+     * le richieste realmente "inviate".
+     *
+     * @param list<array{status: int, body: string, errno?: int, error?: string}> $responses
+     * @param array<string, string> $configOverrides
+     */
+    private function liveService(array $responses, array $configOverrides, ?int &$calls): DropshipOrderService
     {
-        $config = new Config([
+        $calls = 0;
+        $queue = $responses;
+        $transport = function (string $method, string $url, array $headers, ?string $body, int $timeout) use (&$queue, &$calls): array {
+            $calls++;
+            $next = array_shift($queue);
+            self::assertNotNull($next, 'chiamata HTTP inattesa: coda risposte esaurita');
+
+            return ['status' => $next['status'], 'body' => $next['body'], 'errno' => $next['errno'] ?? 0, 'error' => $next['error'] ?? ''];
+        };
+        $config = new Config(array_merge([
             'ROOT_PATH' => dirname(__DIR__, 2),
             'DROPSHIP_ENABLED' => '1',
             'DROPSHIP_MODE' => 'live',
-        ]);
-        $service = new DropshipOrderService(
+            'FEED_BEARER_TOKEN' => 'tok-segreto',
+        ], $configOverrides));
+
+        return new DropshipOrderService(
             new ProductRepository($this->pdo),
             $this->dropshipOrders,
-            new GoldenSneakersDropshipClient($config, new NullLogger()),
+            new GoldenSneakersDropshipClient($config, new NullLogger(), $transport),
             new Session($config),
             $config,
             new Lang(dirname(__DIR__, 2)),
             new NullLogger(),
         );
+    }
 
-        $order = $this->seedOrderRequest();
+    /** Porta la bozza fino a pre-invio (step 1 + 2) e restituisce il token. */
+    private function draftReadyToSend(DropshipOrderService $service, array $order): string
+    {
         $result = $service->createDraft($order, $this->validInput());
-        self::assertTrue($result['ok']);
+        self::assertTrue($result['ok'], implode(' / ', $result['errors']));
         $draft = $service->draftFor(7);
         self::assertNotNull($draft);
-        $token = $draft['token'];
-        $service->confirmChecks(7, ['_draft_token' => $token, 'check_address' => '1', 'check_items' => '1', 'check_irreversible' => '1']);
+        $token = (string) $draft['token'];
+        $checks = $service->confirmChecks(7, ['_draft_token' => $token, 'check_address' => '1', 'check_items' => '1', 'check_irreversible' => '1']);
+        self::assertTrue($checks['ok']);
+
+        return $token;
+    }
+
+    public function testLiveSendStoresVendorOrderAndApiTotal(): void
+    {
+        $service = $this->liveService([[
+            'status' => 201,
+            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 4242, 'total_price' => 512.30, 'dropship_package_id' => 777]),
+        ]], [], $calls);
+        $order = $this->seedOrderRequest();
+        $token = $this->draftReadyToSend($service, $order);
 
         $result = $service->send(7, ['_draft_token' => $token, 'confirmation_phrase' => 'CONFERMA 7']);
-        self::assertFalse($result['ok'], 'la modalità live non implementata rifiuta l\'invio');
+
+        self::assertTrue($result['ok'], implode(' / ', $result['errors']));
+        self::assertSame(1, $calls);
+        $stored = $this->dropshipOrders->find((int) $result['dropship_id']);
+        self::assertNotNull($stored);
+        self::assertSame('live', $stored['mode']);
+        self::assertSame('UNCONFIRMED', $stored['status']);
+        self::assertSame(4242, (int) $stored['vendor_order_id']);
+        self::assertSame(512.30, (float) $stored['total_price'], 'in live vale il totale calcolato dall\'API');
+        $response = json_decode((string) $stored['response_payload'], true);
+        self::assertIsArray($response);
+        self::assertFalse($response['simulated']);
+    }
+
+    public function testUncertainOutcomeRecordsUnknownRowAndDiscardsDraft(): void
+    {
+        $service = $this->liveService([[
+            'status' => 0, 'body' => '', 'errno' => CURLE_OPERATION_TIMEDOUT, 'error' => 'timeout',
+        ]], [], $calls);
+        $order = $this->seedOrderRequest();
+        $token = $this->draftReadyToSend($service, $order);
+
+        $result = $service->send(7, ['_draft_token' => $token, 'confirmation_phrase' => 'CONFERMA 7']);
+
+        self::assertFalse($result['ok']);
+        self::assertSame(1, $calls, 'mai retry sulla creazione');
+        self::assertStringContainsString('NON ripetere', implode(' ', $result['errors']));
+        $rows = $this->dropshipOrders->findByOrderRequest(7);
+        self::assertCount(1, $rows, 'l\'esito incerto va registrato per l\'audit');
+        self::assertSame('UNKNOWN', $rows[0]['status']);
+        self::assertNull($rows[0]['vendor_order_id']);
+        self::assertNull($service->draftFor(7), 'la bozza va scartata: ritentare richiede di rifare le 3 conferme');
+    }
+
+    public function testCapExceededRefusesBeforeAnyCall(): void
+    {
+        // costo stimato della bozza: (3+2)×50.00 = 250 € (offer_price default di TestDb)
+        $service = $this->liveService([], ['DROPSHIP_MAX_ORDER_EUR' => '100'], $calls);
+        $order = $this->seedOrderRequest();
+        $token = $this->draftReadyToSend($service, $order);
+
+        $result = $service->send(7, ['_draft_token' => $token, 'confirmation_phrase' => 'CONFERMA 7']);
+
+        self::assertFalse($result['ok']);
+        self::assertSame(0, $calls, 'oltre il tetto non deve partire nulla');
+        self::assertStringContainsString('DROPSHIP_MAX_ORDER_EUR', implode(' ', $result['errors']));
         self::assertSame([], $this->dropshipOrders->findByOrderRequest(7));
+    }
+
+    public function testAutoDropshipLiveRefusedWithoutDedicatedFlag(): void
+    {
+        $service = $this->liveService([], [], $calls);
+
+        $result = $service->autoCreateFromRequest($this->autoOrder());
+
+        self::assertFalse($result['ok']);
+        self::assertSame(0, $calls, 'senza AUTO_DROPSHIP_ALLOW_LIVE l\'auto non deve inviare in live');
+        self::assertStringContainsString('AUTO_DROPSHIP_ALLOW_LIVE', (string) $result['message']);
+    }
+
+    public function testAutoDropshipLiveSendsWithDedicatedFlag(): void
+    {
+        $service = $this->liveService([[
+            'status' => 201,
+            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 9001, 'total_price' => null, 'dropship_package_id' => 5]),
+        ]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+
+        $result = $service->autoCreateFromRequest($this->autoOrder());
+
+        self::assertTrue($result['ok'], (string) $result['message']);
+        self::assertSame(1, $calls);
+        self::assertFalse($result['simulated']);
+        $stored = $this->dropshipOrders->find((int) $result['dropship_id']);
+        self::assertNotNull($stored);
+        self::assertSame('live', $stored['mode']);
+        self::assertSame(9001, (int) $stored['vendor_order_id']);
+    }
+
+    /** @return array<string, mixed> richiesta d'ordine completa di indirizzo per l'auto-dropship */
+    private function autoOrder(): array
+    {
+        $order = $this->seedOrderRequest();
+
+        return $order + [
+            'address_street' => 'Via Montenapoleone 12',
+            'address_city' => 'Milano',
+            'address_zip' => '20121',
+            'country_code' => 'IT',
+        ];
     }
 
     public function testUnknownModeDegradesToSimulation(): void
