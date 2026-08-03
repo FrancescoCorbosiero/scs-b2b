@@ -536,7 +536,9 @@ return [
     'dropship.error_draft_expired' => 'Bozza scaduta o non valida: ricomincia dal passo 1.',
     'dropship.error_checks_required' => 'Devi spuntare tutte e tre le caselle di conferma.',
     'dropship.error_phrase' => 'Frase di conferma errata: digita esattamente ":phrase".',
-    'dropship.error_live_disabled' => 'Modalità live non ancora implementata: nessun ordine è stato inviato al fornitore. Questa anteprima funziona solo in simulazione.',
+    'dropship.auto_live_disabled' => 'Auto-dropship in modalità live disattivato (AUTO_DROPSHIP_ALLOW_LIVE=0): nessun ordine inviato al fornitore. Crearlo manualmente da /admin se necessario.',
+    'dropship.error_cap_exceeded' => 'Costo fornitore stimato (:total €) oltre il tetto DROPSHIP_MAX_ORDER_EUR (:cap €): invio rifiutato, nessun ordine creato.',
+    'dropship.error_uncertain' => 'ESITO INCERTO, registrato come ordine dropship #:id: la richiesta potrebbe essere arrivata al fornitore. NON ripetere l\'invio prima di aver verificato su GoldenSneakers se l\'ordine esiste. Dettaglio: :error',
     'dropship.error_no_vendor_id' => 'Questo ordine non ha un ID fornitore: impossibile leggerne lo stato.',
     'dropship.refresh_status' => 'Aggiorna stato dal fornitore',
     'dropship.refresh_simulated' => 'SIMULAZIONE: stato riletto senza chiamare il fornitore (stato: :status).',
@@ -553,6 +555,7 @@ return [
     'dropship.status.ENDED' => 'Completato',
     'dropship.status.CANCELED' => 'Annullato',
     'dropship.status.WAITING_FOR_INVOICE' => 'In attesa di fattura',
+    'dropship.status.UNKNOWN' => 'Esito sconosciuto — verificare col fornitore',
 
     // Paesi (UE-27 + UK e Svizzera)
     'country.IT' => 'Italia',

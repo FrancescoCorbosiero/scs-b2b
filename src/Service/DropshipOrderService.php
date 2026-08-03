@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Adapter\DropshipException;
+use App\Adapter\DropshipUncertainException;
 use App\Adapter\GoldenSneakersDropshipClient;
 use App\Repository\DropshipOrderRepository;
 use App\Repository\ProductRepository;
@@ -15,8 +16,8 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Ordine dropship GoldenSneakers a partire da una richiesta d'ordine
- * (docs/09-order-dropship.md). ANTEPRIMA: in DROPSHIP_MODE=simulation nessuna
- * chiamata parte verso il fornitore.
+ * (docs/09-order-dropship.md). In DROPSHIP_MODE=simulation nessuna chiamata
+ * parte verso il fornitore; in live il client invia davvero.
  *
  * Creare un ordine dropship è IRREVERSIBILE (il fornitore lo conferma e scala
  * il suo stock), quindi il flusso impone TRE conferme, tutte rivalidate lato
@@ -25,6 +26,16 @@ use Psr\Log\LoggerInterface;
  *   2. riepilogo con payload esatto + tre caselle di conferma obbligatorie;
  *   3. digitazione della frase di conferma ("CONFERMA <id richiesta>").
  * La bozza vive in sessione con un token monouso e scade dopo 15 minuti.
+ *
+ * Protezioni aggiuntive in live:
+ *  - DROPSHIP_MAX_ORDER_EUR: tetto sul costo fornitore stimato, verificato
+ *    PRIMA della chiamata (0 o assente = nessun tetto);
+ *  - esito INCERTO (DropshipUncertainException): l'accaduto viene registrato
+ *    in dropship_orders con status UNKNOWN e la bozza viene scartata, così
+ *    un secondo invio richiede di ripetere le tre conferme DOPO aver
+ *    verificato sul portale del fornitore (mai retry ciechi = mai doppi);
+ *  - l'auto-dropship invia in live solo con AUTO_DROPSHIP_ALLOW_LIVE=1
+ *    (percorso innescato dal cliente, senza passaggio admin).
  */
 final class DropshipOrderService
 {
@@ -236,10 +247,10 @@ final class DropshipOrderService
             ]));
         }
 
-        if (!$this->isSimulation()) {
-            // modalità live non implementata in questa anteprima: rifiuta
-            // esplicitamente, nessun ordine parte
-            return $fail($this->lang->t('dropship.error_live_disabled'));
+        $wholesaleTotal = is_string($draft['wholesale_total'] ?? null) ? $draft['wholesale_total'] : '0.00';
+        $capError = $this->capError($wholesaleTotal);
+        if ($capError !== null) {
+            return $fail($capError);
         }
 
         /** @var array{delivery_address: array<string, string>, client_provides_shipping_label: bool,
@@ -247,6 +258,16 @@ final class DropshipOrderService
         $payload = $draft['payload'];
         try {
             $response = $this->client->createOrder($payload);
+        } catch (DropshipUncertainException $e) {
+            // l'ordine POTREBBE esistere presso il fornitore: si registra
+            // l'accaduto e si scarta la bozza, così ritentare richiede di
+            // ripetere le tre conferme dopo la verifica manuale
+            $unknownId = $this->recordUncertain($orderRequestId, $payload, $draft['lines'] ?? [], $wholesaleTotal, $e->getMessage());
+            $this->discardDraft();
+
+            return $fail($this->lang->t('dropship.error_uncertain', [
+                'id' => $unknownId, 'error' => $e->getMessage(),
+            ]));
         } catch (DropshipException $e) {
             $this->logger->error('Creazione ordine dropship rifiutata', ['error' => $e->getMessage()]);
 
@@ -259,8 +280,10 @@ final class DropshipOrderService
             'status' => 'UNCONFIRMED',
             'vendor_order_id' => $response['order_id'],
             'dropship_package_id' => $response['dropship_package_id'],
-            // stima a costo fornitore: il totale reale lo calcola l'API
-            'total_price' => is_string($draft['wholesale_total'] ?? null) ? $draft['wholesale_total'] : null,
+            // in live vale il totale calcolato dall'API; altrimenti la stima a costo fornitore
+            'total_price' => $response['total_price'] !== null
+                ? number_format($response['total_price'], 2, '.', '')
+                : $wholesaleTotal,
             'currency' => 'EUR',
             'request_payload' => (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
             'lines_snapshot' => (string) json_encode($draft['lines'], JSON_UNESCAPED_UNICODE),
@@ -284,10 +307,11 @@ final class DropshipOrderService
      * SUO indirizzo di spedizione, per bloccare lo stock del fornitore prima
      * che arrivi il bonifico (AUTO_DROPSHIP_ON_REQUEST).
      *
-     * ⚠ Percorso raggiungibile da chiunque abbia la password condivisa del
-     * catalogo: per questo resta dietro flag .env (kill-switch), eredita rate
-     * limit e ordine minimo della richiesta, e in DROPSHIP_MODE=simulation
-     * non invia nulla. L'esito è riportato nell'email admin.
+     * ⚠ Percorso innescato dal cliente (anche con la password ospite
+     * condivisa), senza passaggio admin: per questo resta dietro flag .env
+     * (kill-switch), eredita rate limit e ordine minimo della richiesta e in
+     * live invia SOLO con l'ulteriore flag AUTO_DROPSHIP_ALLOW_LIVE=1.
+     * L'esito è riportato nell'email admin.
      *
      * @param array<string, mixed> $order richiesta appena salvata (con cart_snapshot e indirizzo)
      * @return array{ok: bool, dropship_id: int|null, message: string|null, simulated: bool|null}
@@ -299,9 +323,10 @@ final class DropshipOrderService
         if (!$this->isEnabled()) {
             return $fail($this->lang->t('dropship.disabled'));
         }
-        if (!$this->isSimulation()) {
-            // come in send(): la modalità live non è implementata nel client
-            return $fail($this->lang->t('dropship.error_live_disabled'));
+        if (!$this->isSimulation() && !$this->config->bool('AUTO_DROPSHIP_ALLOW_LIVE', false)) {
+            // in live l'invio automatico (innescato dal cliente) richiede un
+            // opt-in esplicito: di default resta solo il flusso admin manuale
+            return $fail($this->lang->t('dropship.auto_live_disabled'));
         }
 
         $errors = [];
@@ -337,6 +362,12 @@ final class DropshipOrderService
             return $fail($this->lang->t('dropship.error_no_items'));
         }
 
+        $wholesaleTotal = CartService::money($wholesaleCents);
+        $capError = $this->capError($wholesaleTotal);
+        if ($capError !== null) {
+            return $fail($capError);
+        }
+
         $payload = [
             'delivery_address' => $address,
             'client_provides_shipping_label' => false,
@@ -344,6 +375,15 @@ final class DropshipOrderService
         ];
         try {
             $response = $this->client->createOrder($payload);
+        } catch (DropshipUncertainException $e) {
+            // niente retry: si registra l'esito incerto e l'admin verifica
+            // sul portale del fornitore (email admin + riga UNKNOWN)
+            $orderRequestId = (int) ($order['id'] ?? 0);
+            $unknownId = $this->recordUncertain($orderRequestId, $payload, $included, $wholesaleTotal, $e->getMessage());
+
+            return $fail($this->lang->t('dropship.error_uncertain', [
+                'id' => $unknownId, 'error' => $e->getMessage(),
+            ]));
         } catch (DropshipException $e) {
             $this->logger->error('Auto-dropship rifiutato', ['error' => $e->getMessage()]);
 
@@ -356,7 +396,9 @@ final class DropshipOrderService
             'status' => 'UNCONFIRMED',
             'vendor_order_id' => $response['order_id'],
             'dropship_package_id' => $response['dropship_package_id'],
-            'total_price' => CartService::money($wholesaleCents),
+            'total_price' => $response['total_price'] !== null
+                ? number_format($response['total_price'], 2, '.', '')
+                : $wholesaleTotal,
             'currency' => 'EUR',
             'request_payload' => (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
             'lines_snapshot' => (string) json_encode($included, JSON_UNESCAPED_UNICODE),
@@ -405,6 +447,53 @@ final class DropshipOrderService
     }
 
     // ── Interni ──────────────────────────────────────────────────────
+
+    /**
+     * Tetto DROPSHIP_MAX_ORDER_EUR sul costo fornitore stimato, verificato
+     * PRIMA della chiamata. 0 o assente = nessun tetto.
+     */
+    private function capError(string $wholesaleTotal): ?string
+    {
+        $cap = $this->config->float('DROPSHIP_MAX_ORDER_EUR', 0.0);
+        if ($cap <= 0 || CartService::cents($wholesaleTotal) <= (int) round($cap * 100)) {
+            return null;
+        }
+
+        return $this->lang->t('dropship.error_cap_exceeded', [
+            'total' => $wholesaleTotal,
+            'cap' => number_format($cap, 2, '.', ''),
+        ]);
+    }
+
+    /**
+     * Registra un esito INCERTO (l'ordine potrebbe esistere presso il
+     * fornitore) come riga UNKNOWN, per l'audit e la verifica manuale.
+     *
+     * @param array<string, mixed> $payload
+     * @param list<array<string, mixed>>|mixed $lines
+     */
+    private function recordUncertain(int $orderRequestId, array $payload, mixed $lines, string $wholesaleTotal, string $error): int
+    {
+        $unknownId = $this->dropshipOrders->insert([
+            'order_request_id' => $orderRequestId > 0 ? $orderRequestId : null,
+            'mode' => $this->mode(),
+            'status' => 'UNKNOWN',
+            'vendor_order_id' => null,
+            'dropship_package_id' => null,
+            'total_price' => $wholesaleTotal,
+            'currency' => 'EUR',
+            'request_payload' => (string) json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+            'lines_snapshot' => (string) json_encode(is_array($lines) ? $lines : [], JSON_UNESCAPED_UNICODE),
+            'response_payload' => (string) json_encode(['error' => $error, 'uncertain' => true], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
+        ]);
+        $this->logger->error('Ordine dropship con esito INCERTO registrato: verificare presso il fornitore prima di ritentare', [
+            'dropship_id' => $unknownId,
+            'order_request_id' => $orderRequestId,
+            'error' => $error,
+        ]);
+
+        return $unknownId;
+    }
 
     /**
      * Righe del cart_snapshot confrontate con lo stock e i size_id correnti.
