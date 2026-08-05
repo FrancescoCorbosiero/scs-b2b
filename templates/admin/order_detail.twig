@@ -57,6 +57,17 @@
                 {% if order.address_street %}
                     <p><span class="text-neutral-500">{{ t('admin.shipping_address') }}:</span> {{ order.address_street }}, {{ order.address_zip }} {{ order.address_city }}</p>
                 {% endif %}
+                {# dropshipping richiesto dal rivenditore: consegna al SUO cliente finale #}
+                {% if (order.ship_to ?? 'reseller') == 'customer' %}
+                    <div class="rounded-lg bg-violet-50 border border-violet-200 px-3 py-2 space-y-1">
+                        <p class="text-xs font-bold uppercase text-violet-700">{{ t('dropship.request_dropship_badge') }}</p>
+                        <p><strong>{{ order.recipient_name }}</strong> — {{ order.recipient_street }}, {{ order.recipient_zip }} {{ order.recipient_city }} ({{ order.recipient_country }})</p>
+                        <p class="text-xs text-neutral-500">{{ t('contact.phone') }}: {{ order.recipient_phone }}</p>
+                        {% if (order.client_provides_label ?? 0) == 1 %}
+                            <p class="text-xs font-bold text-violet-700">⚠ {{ t('dropship.request_own_label_badge') }}</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
                 <p><span class="text-neutral-500">{{ t('admin.country') }}:</span> <span class="font-bold">{{ order.country_code ?? 'IT' }}</span> — {{ t('country.' ~ (order.country_code ?? 'IT')) }}</p>
                 {% if order.vat_number %}<p><span class="text-neutral-500">{{ t('admin.vat_number') }}:</span> <span class="font-mono">{{ order.vat_number }}</span></p>{% endif %}
                 {% if order.plan %}<p><span class="text-neutral-500">{{ t('admin.plan_legacy') }}:</span> <span class="uppercase font-bold">{{ order.plan }}</span></p>{% endif %}

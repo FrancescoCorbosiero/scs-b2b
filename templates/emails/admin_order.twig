@@ -11,6 +11,15 @@
     {% if order.address_street %}
         <p style="margin: 4px 0;"><strong>Spedizione:</strong> {{ order.address_street }}, {{ order.address_zip }} {{ order.address_city }} ({{ order.country_code }})</p>
     {% endif %}
+    {% if (order.ship_to ?? 'reseller') == 'customer' %}
+        <p style="margin: 8px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid #ddd6fe; background: #f5f3ff;">
+            <strong>DROPSHIPPING — consegna al cliente finale del rivenditore:</strong><br>
+            {{ order.recipient_name }} — {{ order.recipient_street }}, {{ order.recipient_zip }} {{ order.recipient_city }} ({{ order.recipient_country }}) — tel. {{ order.recipient_phone }}
+            {% if (order.client_provides_label ?? 0) == 1 %}
+                <br><strong>⚠ Etichetta fornita dal rivenditore:</strong> il fornitore NON spedirà finché non carichiamo etichetta e tracking (da /admin/dropship, sezione etichetta).
+            {% endif %}
+        </p>
+    {% endif %}
     <p style="margin: 8px 0; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px;">
         <strong>In attesa di pagamento (bonifico).</strong> Alla ricezione, conferma la richiesta da
         /admin/richieste/{{ order.id }}: partirà l'email di conferma al cliente con la ricevuta pro-forma.

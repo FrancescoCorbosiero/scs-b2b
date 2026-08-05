@@ -95,6 +95,7 @@ return static function (App $app): void {
         $group->post('/richieste/{id:[0-9]+}/dropship/invia', [DropshipController::class, 'send']);
         $group->get('/dropship/{id:[0-9]+}', [DropshipController::class, 'detail']);
         $group->post('/dropship/{id:[0-9]+}/aggiorna', [DropshipController::class, 'refresh']);
+        $group->post('/dropship/{id:[0-9]+}/etichetta', [DropshipController::class, 'uploadLabel']);
 
         $group->get('/sync', [AdminController::class, 'syncLogs']);
         $group->post('/sync/run', [AdminController::class, 'syncRun']);

@@ -19,7 +19,7 @@ use Psr\Log\NullLogger;
  */
 final class GoldenSneakersDropshipClientTest extends TestCase
 {
-    /** @var list<array{method: string, url: string, headers: list<string>, body: ?string}> */
+    /** @var list<array{method: string, url: string, headers: list<string>, body: string|array<string, mixed>|null}> */
     private array $calls = [];
 
     /** @param list<array{status: int, body: string, errno?: int, error?: string}> $responses */
@@ -27,7 +27,7 @@ final class GoldenSneakersDropshipClientTest extends TestCase
     {
         $this->calls = [];
         $queue = $responses;
-        $transport = function (string $method, string $url, array $headers, ?string $body, int $timeout) use (&$queue): array {
+        $transport = function (string $method, string $url, array $headers, string|array|null $body, int $timeout) use (&$queue): array {
             $this->calls[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body];
             $next = array_shift($queue);
             self::assertNotNull($next, 'chiamata HTTP inattesa: coda risposte esaurita');
@@ -271,9 +271,65 @@ final class GoldenSneakersDropshipClientTest extends TestCase
 
         $created = $client->createOrder($this->payload());
         $details = $client->orderDetails(123);
+        $package = $client->packageDetails(456);
+        $upload = $client->uploadShippingLabel(123, __FILE__, 'label.pdf', 'application/pdf', ['ABC-1234']);
 
         self::assertTrue($created['simulated']);
         self::assertTrue($details['simulated']);
+        self::assertTrue($package['simulated']);
+        self::assertTrue($upload['simulated']);
         self::assertCount(0, $this->calls, 'in simulazione nessuna chiamata HTTP, mai');
+    }
+
+    public function testUploadLabelLiveSendsMultipartAndParsesResponse(): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'lbl');
+        self::assertIsString($tmp);
+        file_put_contents($tmp, "%PDF-1.4\n");
+
+        $client = $this->client([[
+            'status' => 201,
+            'body' => (string) json_encode([
+                'message' => 'Shipping label uploaded successfully',
+                'order_id' => 123, 'file_id' => 456,
+                'tracking_numbers' => ['1234567890', '0987654321'],
+            ]),
+        ]]);
+
+        $result = $client->uploadShippingLabel(123, $tmp, 'etichetta.pdf', 'application/pdf', ['1234567890', '0987654321']);
+
+        self::assertFalse($result['simulated']);
+        self::assertSame(456, $result['file_id']);
+        self::assertSame(['1234567890', '0987654321'], $result['tracking_numbers']);
+
+        $call = $this->calls[0];
+        self::assertSame('POST', $call['method']);
+        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/upload-shipping-label/123/', $call['url']);
+        self::assertIsArray($call['body'], 'multipart: i campi viaggiano come array, non JSON');
+        self::assertInstanceOf(\CURLFile::class, $call['body']['shipping_label']);
+        self::assertSame('etichetta.pdf', $call['body']['shipping_label']->getPostFilename());
+        self::assertSame('["1234567890","0987654321"]', $call['body']['tracking_numbers']);
+        // multipart: niente Content-Type manuale, il boundary lo mette cURL
+        self::assertNotContains('Content-Type: application/json', $call['headers']);
+    }
+
+    public function testUploadLabelRejectedBySupplier(): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'lbl');
+        self::assertIsString($tmp);
+        file_put_contents($tmp, "%PDF-1.4\n");
+
+        $client = $this->client([[
+            'status' => 400,
+            'body' => (string) json_encode(['detail' => 'Order already has shipping labels uploaded']),
+        ]]);
+
+        try {
+            $client->uploadShippingLabel(123, $tmp, 'etichetta.pdf', 'application/pdf', ['1234567890']);
+            self::fail('attesa DropshipException');
+        } catch (DropshipException $e) {
+            self::assertStringContainsString('already has shipping labels', $e->getMessage());
+        }
+        self::assertCount(1, $this->calls, 'nessun retry automatico');
     }
 }

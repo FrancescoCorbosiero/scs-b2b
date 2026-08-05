@@ -44,12 +44,14 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   | POST | `/orders-dropship/create-order/` | creazione ordine (implementato) |
   | GET | `/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
   | GET | `/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
-  | POST | `/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (NON implementato) |
+  | POST | `/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (implementato) |
 
   `upload-shipping-label` è multipart/form-data (file PDF/JPG/PNG +
   `tracking_numbers` come array JSON) e vale solo per ordini creati con
   `client_provides_shipping_label=True`, senza etichette già caricate:
-  da implementare solo se/quando decideremo di fornire noi le etichette.
+  l'API accetta UN solo upload per ordine e rifiuta i duplicati (per questo
+  ritentare dopo un errore di rete è sicuro). Risposta:
+  `{ "message", "order_id", "file_id", "tracking_numbers" }`.
 
 - **Creazione ordine** (POST `DROPSHIP_CREATE_ENDPOINT`): payload
 
@@ -151,9 +153,40 @@ simulazione: risposta fittizia, nessuna chiamata).
 | `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (confermato su Swagger) |
 | `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli ordine (confermato su Swagger) |
 | `DROPSHIP_PACKAGE_ENDPOINT` | path GET dettagli pacchetto (confermato su Swagger) |
+| `DROPSHIP_LABEL_ENDPOINT` | path POST upload etichetta (confermato su Swagger) |
 
 Auth live: bearer `FEED_BEARER_TOKEN` (lo stesso del feed); senza token il
 client rifiuta prima di inviare qualsiasi cosa.
+
+## Dropshipping per il rivenditore (consegna al SUO cliente finale)
+
+Al checkout il rivenditore sceglie la consegna (default: al proprio
+indirizzo, comportamento storico):
+
+- **"A un mio cliente (dropshipping)"** (`ship_to=customer`): compila un
+  destinatario dedicato (nome, indirizzo, paese, telefono) salvato nei campi
+  `recipient_*` di `order_requests` (migrazione `0010`). L'ordine dropship
+  (manuale o automatico) parte con QUELL'indirizzo; l'email di contatto verso
+  il fornitore resta quella del rivenditore (il cliente finale non riceve
+  comunicazioni). Il VAT continua a calcolarsi sul paese del RIVENDITORE
+  (è lui il nostro cliente B2B), non su quello di consegna.
+- **"Fornirò io l'etichetta"** (`client_provides_label=1`, solo con
+  dropshipping): l'ordine viene creato con
+  `client_provides_shipping_label=True`; il fornitore NON spedisce finché
+  non carichiamo etichetta + tracking. In `/admin/dropship/{id}` compare la
+  sezione dedicata: file PDF/JPG/PNG (max 10 MB, MIME verificato) e tracking
+  (uno per riga), inviati con l'endpoint upload-shipping-label. L'esito è
+  registrato in `label_uploaded_at`/`label_file_name` e i tracking finiscono
+  in `tracking_numbers`.
+
+L'admin vede la richiesta dropshipping (badge + destinatario) nel dettaglio
+richiesta e nell'email; il rivenditore vede i tracking dei propri ordini in
+`/account/ordini` (solo tracking e stato: mai costi o dettagli fornitore).
+
+⚠ Aperto (fiscale, non tecnico): per il dropshipping con consegna in un
+paese diverso da quello del rivenditore, verificare col commercialista il
+trattamento VAT (place of supply). Oggi il VAT segue il paese del
+rivenditore.
 
 ## Auto-dropship alla richiesta d'ordine (M8)
 

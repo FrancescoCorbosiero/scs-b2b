@@ -164,6 +164,37 @@
                 {% endif %}
             </div>
 
+            {# ── Etichetta di spedizione (client_provides_shipping_label) ── #}
+            {% if label_pending or ds.label_uploaded_at %}
+                <div class="bg-white rounded-xl border {{ label_pending ? 'border-amber-300' : 'border-neutral-200' }} p-5 text-sm space-y-3">
+                    <h2 class="font-semibold">{{ t('dropship.label_section') }}</h2>
+                    {% if ds.label_uploaded_at %}
+                        <p class="text-emerald-700">
+                            ✓ {{ t('dropship.label_uploaded_at') }}: {{ ds.label_uploaded_at }}
+                            {% if ds.label_file_name %}<span class="font-mono text-xs text-neutral-500 block">{{ ds.label_file_name }}</span>{% endif %}
+                        </p>
+                    {% else %}
+                        <p class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900">{{ t('dropship.label_pending_notice') }}</p>
+                        <form method="post" action="/admin/dropship/{{ ds.id }}/etichetta" enctype="multipart/form-data" class="space-y-3">
+                            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                            <div>
+                                <label for="label-file" class="block text-xs font-medium mb-1">{{ t('dropship.label_file_label') }}</label>
+                                <input type="file" id="label-file" name="shipping_label" required accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                                       class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-900 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-semibold hover:file:bg-neutral-700">
+                            </div>
+                            <div>
+                                <label for="label-tracking" class="block text-xs font-medium mb-1">{{ t('dropship.label_tracking_label') }}</label>
+                                <textarea id="label-tracking" name="tracking_numbers" rows="2" required
+                                          class="w-full rounded-lg border-neutral-300 text-xs font-mono focus:border-amber-500 focus:ring-amber-500"></textarea>
+                            </div>
+                            <button type="submit" class="w-full rounded-lg bg-amber-400 text-neutral-900 font-bold py-2.5 hover:bg-amber-300">
+                                {{ t('dropship.label_upload_button') }}
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% endif %}
+
             <form method="post" action="/admin/dropship/{{ ds.id }}/aggiorna">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">

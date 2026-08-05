@@ -252,6 +252,34 @@ final class OrderLifecycleTest extends TestCase
         self::assertSame([['size_id' => 11769, 'quantity' => 6]], $payload['items']);
     }
 
+    public function testRecipientAndLabelChoicePersistOnInsert(): void
+    {
+        $id = $this->orders->insert([
+            'customer_name' => 'Mario Rossi', 'company' => null,
+            'email' => 'mario.rossi@example.it', 'phone' => '+393401234567',
+            'address_street' => 'Via Montenapoleone 12', 'address_city' => 'Milano', 'address_zip' => '20121',
+            'notes' => null, 'locale' => 'it', 'country_code' => 'IT', 'vat_number' => null,
+            'vat_scheme' => 'domestic', 'vat_rate' => '22.00', 'vat_amount' => '22.00',
+            'total_gross' => '122.00', 'total_items' => 1, 'total_amount' => '100.00',
+            'cart_snapshot' => '{"lines":[]}', 'ip_address' => '127.0.0.1', 'user_agent' => null,
+            'ship_to' => 'customer',
+            'recipient_name' => 'Luca Bianchi',
+            'recipient_street' => 'Rue de Rivoli 10',
+            'recipient_city' => 'Paris',
+            'recipient_zip' => '75001',
+            'recipient_country' => 'FR',
+            'recipient_phone' => '+33123456789',
+            'client_provides_label' => 1,
+        ]);
+
+        $order = $this->orders->find($id);
+        self::assertNotNull($order);
+        self::assertSame('customer', $order['ship_to']);
+        self::assertSame('Luca Bianchi', $order['recipient_name']);
+        self::assertSame('FR', $order['recipient_country']);
+        self::assertSame(1, (int) $order['client_provides_label']);
+    }
+
     public function testAutoDropshipFailsGracefullyWithoutAddress(): void
     {
         $id = $this->seedPendingOrder();

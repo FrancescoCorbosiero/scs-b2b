@@ -80,7 +80,9 @@ final class DropshipOrderService
 
     /**
      * Righe proposte (dal cart_snapshot della richiesta, verificate contro lo
-     * stock corrente) e indirizzo precompilato coi dati del cliente.
+     * stock corrente) e indirizzo precompilato: quello del destinatario finale
+     * se il rivenditore ha chiesto il dropshipping (ship_to=customer),
+     * altrimenti i dati del rivenditore stesso.
      *
      * @param array<string, mixed> $orderRequest riga di order_requests
      * @return array{address: array<string, string>, lines: list<array<string, mixed>>,
@@ -89,17 +91,43 @@ final class DropshipOrderService
     public function prepare(array $orderRequest): array
     {
         return [
-            'address' => [
-                'name' => (string) ($orderRequest['customer_name'] ?? ''),
-                'street' => '',
-                'city' => '',
-                'zip_code' => '',
-                'country_code' => 'IT',
-                'phone' => (string) ($orderRequest['phone'] ?? ''),
-                'email' => (string) ($orderRequest['email'] ?? ''),
-            ],
+            'address' => $this->deliveryAddressFor($orderRequest),
             'lines' => $this->linesFromSnapshot($orderRequest),
-            'client_provides_shipping_label' => false,
+            'client_provides_shipping_label' => (int) ($orderRequest['client_provides_label'] ?? 0) === 1,
+        ];
+    }
+
+    /**
+     * Indirizzo di consegna della richiesta: destinatario finale con
+     * ship_to=customer, altrimenti il rivenditore. L'email di contatto resta
+     * SEMPRE quella del rivenditore: il cliente finale non deve ricevere
+     * comunicazioni dal fornitore.
+     *
+     * @param array<string, mixed> $orderRequest
+     * @return array<string, string>
+     */
+    private function deliveryAddressFor(array $orderRequest): array
+    {
+        if (($orderRequest['ship_to'] ?? '') === 'customer') {
+            return [
+                'name' => (string) ($orderRequest['recipient_name'] ?? ''),
+                'street' => (string) ($orderRequest['recipient_street'] ?? ''),
+                'city' => (string) ($orderRequest['recipient_city'] ?? ''),
+                'zip_code' => (string) ($orderRequest['recipient_zip'] ?? ''),
+                'country_code' => (string) ($orderRequest['recipient_country'] ?? ''),
+                'phone' => (string) ($orderRequest['recipient_phone'] ?? ''),
+                'email' => (string) ($orderRequest['email'] ?? ''),
+            ];
+        }
+
+        return [
+            'name' => (string) ($orderRequest['customer_name'] ?? ''),
+            'street' => (string) ($orderRequest['address_street'] ?? ''),
+            'city' => (string) ($orderRequest['address_city'] ?? ''),
+            'zip_code' => (string) ($orderRequest['address_zip'] ?? ''),
+            'country_code' => (string) ($orderRequest['country_code'] ?? ''),
+            'phone' => (string) ($orderRequest['phone'] ?? ''),
+            'email' => (string) ($orderRequest['email'] ?? ''),
         ];
     }
 
@@ -330,15 +358,9 @@ final class DropshipOrderService
         }
 
         $errors = [];
-        $address = $this->validateAddress([
-            'name' => (string) ($order['customer_name'] ?? ''),
-            'street' => (string) ($order['address_street'] ?? ''),
-            'city' => (string) ($order['address_city'] ?? ''),
-            'zip_code' => (string) ($order['address_zip'] ?? ''),
-            'country_code' => (string) ($order['country_code'] ?? ''),
-            'phone' => (string) ($order['phone'] ?? ''),
-            'email' => (string) ($order['email'] ?? ''),
-        ], $errors);
+        // con ship_to=customer l'ordine parte con l'indirizzo del cliente
+        // finale del rivenditore (dropshipping, docs/09)
+        $address = $this->validateAddress($this->deliveryAddressFor($order), $errors);
         if ($errors !== []) {
             return $fail(implode(' ', $errors));
         }
@@ -370,7 +392,7 @@ final class DropshipOrderService
 
         $payload = [
             'delivery_address' => $address,
-            'client_provides_shipping_label' => false,
+            'client_provides_shipping_label' => (int) ($order['client_provides_label'] ?? 0) === 1,
             'items' => $items,
         ];
         try {
@@ -471,6 +493,112 @@ final class DropshipOrderService
                 $details['simulated'] ? 'dropship.refresh_simulated' : 'dropship.refresh_done',
                 ['status' => $status]
             ),
+        ];
+    }
+
+    // ── Upload etichetta di spedizione (docs/09) ─────────────────────
+
+    /** Estensioni/MIME ammessi dall'API upload-shipping-label. */
+    private const LABEL_TYPES = [
+        'pdf' => 'application/pdf',
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+    ];
+    private const LABEL_MAX_BYTES = 10 * 1024 * 1024;
+    private const LABEL_MAX_TRACKING = 20;
+
+    /**
+     * L'ordine aspetta un'etichetta nostra e non ne ha ancora una caricata.
+     *
+     * @param array<string, mixed> $dropshipOrder
+     */
+    public function labelPending(array $dropshipOrder): bool
+    {
+        $payload = json_decode(is_string($dropshipOrder['request_payload'] ?? null) ? $dropshipOrder['request_payload'] : '{}', true);
+
+        return is_array($payload)
+            && ($payload['client_provides_shipping_label'] ?? false) === true
+            && ($dropshipOrder['label_uploaded_at'] ?? null) === null
+            && (int) ($dropshipOrder['vendor_order_id'] ?? 0) > 0
+            && $dropshipOrder['status'] !== 'UNKNOWN';
+    }
+
+    /**
+     * Carica l'etichetta presso il fornitore. L'upload è MONOUSO lato API
+     * (i duplicati vengono rifiutati), quindi un retry dopo un errore di
+     * rete è sicuro.
+     *
+     * @param array<string, mixed> $dropshipOrder riga di dropship_orders
+     * @param array{tmp_path: string, name: string, size: int} $file file ricevuto dal form
+     * @param string $trackingInput tracking separati da virgola/riga
+     * @return array{ok: bool, message: string}
+     */
+    public function uploadLabel(array $dropshipOrder, array $file, string $trackingInput): array
+    {
+        $fail = fn (string $key, array $params = []): array => ['ok' => false, 'message' => $this->lang->t($key, $params)];
+
+        if (!$this->labelPending($dropshipOrder)) {
+            return $fail('dropship.label_not_pending');
+        }
+
+        // file: estensione, MIME reale e dimensione
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $mime = self::LABEL_TYPES[$ext] ?? null;
+        if ($mime === null) {
+            return $fail('dropship.label_bad_type');
+        }
+        if (!is_file($file['tmp_path']) || $file['size'] <= 0 || $file['size'] > self::LABEL_MAX_BYTES) {
+            return $fail('dropship.label_bad_size');
+        }
+        $detected = mime_content_type($file['tmp_path']);
+        if ($detected !== $mime) {
+            return $fail('dropship.label_bad_type');
+        }
+
+        // tracking: uno per riga o separati da virgola, formato corriere
+        $tracking = [];
+        foreach (preg_split('/[\s,;]+/', $trackingInput) ?: [] as $number) {
+            $number = trim($number);
+            if ($number === '') {
+                continue;
+            }
+            if (preg_match('/^[A-Za-z0-9\-]{4,64}$/', $number) !== 1) {
+                return $fail('dropship.label_bad_tracking', ['number' => $number]);
+            }
+            $tracking[] = $number;
+        }
+        $tracking = array_values(array_unique($tracking));
+        if ($tracking === [] || count($tracking) > self::LABEL_MAX_TRACKING) {
+            return $fail('dropship.label_tracking_required');
+        }
+
+        $safeName = mb_substr(basename($file['name']), 0, 255);
+        try {
+            $response = $this->client->uploadShippingLabel(
+                (int) $dropshipOrder['vendor_order_id'],
+                $file['tmp_path'],
+                $safeName,
+                $mime,
+                $tracking,
+            );
+        } catch (DropshipException $e) {
+            $this->logger->error('Upload etichetta dropship fallito', [
+                'dropship_id' => $dropshipOrder['id'] ?? null, 'error' => $e->getMessage(),
+            ]);
+
+            return ['ok' => false, 'message' => $e->getMessage()];
+        }
+
+        $this->dropshipOrders->markLabelUploaded((int) $dropshipOrder['id'], $safeName, $response['tracking_numbers']);
+        $this->logger->info('Etichetta dropship caricata', [
+            'dropship_id' => $dropshipOrder['id'] ?? null,
+            'simulated' => $response['simulated'],
+        ]);
+
+        return [
+            'ok' => true,
+            'message' => $this->lang->t($response['simulated'] ? 'dropship.label_uploaded_simulated' : 'dropship.label_uploaded'),
         ];
     }
 

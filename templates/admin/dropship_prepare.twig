@@ -128,7 +128,9 @@
                            class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <label class="flex items-start gap-2 text-xs text-neutral-600 pt-1">
+                    {# preselezionata se il rivenditore ha chiesto l'etichetta propria al checkout #}
                     <input type="checkbox" name="client_provides_shipping_label" value="1"
+                           {{ draft.client_provides_shipping_label ? 'checked' }}
                            class="mt-0.5 rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
                     {{ t('dropship.shipping_label') }}
                 </label>

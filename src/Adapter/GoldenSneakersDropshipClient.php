@@ -10,9 +10,8 @@ use Psr\Log\LoggerInterface;
 /**
  * Client per il dominio "orders-dropship" dell'API GoldenSneakers
  * (POST create-order/, GET order-details/{order_id}/,
- * GET package-details/{package_id}/ — path confermati su Swagger).
- * L'endpoint upload-shipping-label/{order_id}/ (multipart, solo ordini con
- * client_provides_shipping_label=True) NON è implementato.
+ * GET package-details/{package_id}/, POST upload-shipping-label/{order_id}/
+ * — path confermati su Swagger).
  *
  * Due modalità (DROPSHIP_MODE):
  *  - simulation (default): NESSUNA chiamata HTTP, risposte fittizie marcate
@@ -340,6 +339,77 @@ final class GoldenSneakersDropshipClient
         ];
     }
 
+    /**
+     * POST upload-shipping-label/{order_id}/ — carica etichetta (PDF/JPG/PNG)
+     * e tracking per un ordine creato con client_provides_shipping_label=True.
+     * L'API accetta UN solo upload per ordine e rifiuta i duplicati: per
+     * questo un retry manuale dopo un errore di rete è sicuro (se il primo
+     * upload era passato, il secondo viene respinto senza danni).
+     *
+     * @param list<string> $trackingNumbers
+     * @return array{message: string, order_id: int, file_id: int|null,
+     *   tracking_numbers: list<string>, simulated: bool}
+     */
+    public function uploadShippingLabel(
+        int $vendorOrderId,
+        string $filePath,
+        string $fileName,
+        string $mimeType,
+        array $trackingNumbers,
+    ): array {
+        if ($this->isSimulation()) {
+            $this->logger->info('SIMULAZIONE upload etichetta dropship: nessuna chiamata HTTP effettuata', [
+                'vendor_order_id' => $vendorOrderId, 'file' => $fileName, 'tracking' => count($trackingNumbers),
+            ]);
+
+            return [
+                'message' => 'Shipping label uploaded successfully (SIMULAZIONE — nessun upload inviato)',
+                'order_id' => $vendorOrderId,
+                'file_id' => random_int(900000, 999999),
+                'tracking_numbers' => $trackingNumbers,
+                'simulated' => true,
+            ];
+        }
+
+        $url = $this->liveUrl('DROPSHIP_LABEL_ENDPOINT', '/api/orders-dropship/upload-shipping-label/')
+            . $vendorOrderId . '/';
+        $res = $this->request('POST', $url, [
+            'shipping_label' => new \CURLFile($filePath, $mimeType, $fileName),
+            'tracking_numbers' => (string) json_encode($trackingNumbers, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        if ($res['errno'] !== 0) {
+            throw new DropshipException(
+                "Upload etichetta fallito ({$res['error']}). Riprovare è sicuro: se il primo upload era arrivato, il fornitore rifiuta il duplicato."
+            );
+        }
+        if ($res['status'] >= 200 && $res['status'] < 300) {
+            $decoded = json_decode($res['body'], true);
+            if (!is_array($decoded)) {
+                throw new DropshipException(
+                    "Il fornitore ha risposto HTTP {$res['status']} ma senza JSON leggibile: verificare sul portale se l'etichetta risulta caricata."
+                );
+            }
+            /** @var array<string, mixed> $decoded */
+            $this->logger->info('Etichetta dropship caricata presso il fornitore', [
+                'vendor_order_id' => $vendorOrderId, 'file_id' => $decoded['file_id'] ?? null,
+            ]);
+
+            return [
+                'message' => is_string($decoded['message'] ?? null) ? $decoded['message'] : '',
+                'order_id' => $this->positiveInt($decoded['order_id'] ?? null) ?? $vendorOrderId,
+                'file_id' => $this->positiveInt($decoded['file_id'] ?? null),
+                'tracking_numbers' => $this->stringList($decoded['tracking_numbers'] ?? null) ?: $trackingNumbers,
+                'simulated' => false,
+            ];
+        }
+
+        $detail = $this->errorDetail($res['body']);
+        throw new DropshipException(
+            "Il fornitore ha rifiutato l'etichetta (HTTP {$res['status']}" . ($detail !== '' ? ": {$detail}" : '') . ').'
+        );
+    }
+
     // ── Interni (solo live) ──────────────────────────────────────────
 
     /**
@@ -412,17 +482,22 @@ final class GoldenSneakersDropshipClient
             . '/' . trim($endpoint, '/') . '/';
     }
 
-    /** @return array{status: int, body: string, errno: int, error: string} */
-    private function request(string $method, string $url, ?string $body): array
+    /**
+     * @param string|array<string, mixed>|null $body stringa = JSON;
+     *   array = campi multipart/form-data (i file come \CURLFile)
+     * @return array{status: int, body: string, errno: int, error: string}
+     */
+    private function request(string $method, string $url, string|array|null $body): array
     {
         $timeout = max(5, $this->config->int('DROPSHIP_HTTP_TIMEOUT', 30));
         $headers = [
             'Authorization: Bearer ' . $this->config->str('FEED_BEARER_TOKEN'),
             'Accept: application/json',
         ];
-        if ($body !== null) {
+        if (is_string($body)) {
             $headers[] = 'Content-Type: application/json';
         }
+        // multipart (array): il Content-Type col boundary lo imposta cURL
 
         if ($this->transport !== null) {
             /** @var array{status: int, body: string, errno: int, error: string} */

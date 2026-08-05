@@ -70,6 +70,89 @@
                     <p class="mt-1 text-xs text-neutral-400">{{ t('order.vat_number_hint') }}</p>
                 </div>
             </div>
+            {# ── Dropshipping: consegna diretta al cliente finale del rivenditore ── #}
+            <div x-data="{ shipTo: '{{ (old.ship_to ?? 'reseller') == 'customer' ? 'customer' : 'reseller' }}' }"
+                 class="rounded-xl border border-neutral-200 overflow-hidden">
+                <div class="bg-neutral-50 px-4 py-3">
+                    <p class="text-sm font-semibold">{{ t('order.dropship_title') }}</p>
+                    <p class="text-xs text-neutral-500 mt-0.5">{{ t('order.dropship_intro') }}</p>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <label class="flex-1 flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors"
+                               :class="shipTo == 'reseller' ? 'border-amber-400 bg-amber-50/60' : 'border-neutral-200 hover:border-neutral-300'">
+                            <input type="radio" name="ship_to" value="reseller" x-model="shipTo" class="mt-0.5 text-amber-500 focus:ring-amber-500">
+                            <span class="text-sm">
+                                <span class="font-medium block">{{ t('order.ship_to_me') }}</span>
+                                <span class="text-xs text-neutral-500">{{ t('order.ship_to_me_hint') }}</span>
+                            </span>
+                        </label>
+                        <label class="flex-1 flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors"
+                               :class="shipTo == 'customer' ? 'border-amber-400 bg-amber-50/60' : 'border-neutral-200 hover:border-neutral-300'">
+                            <input type="radio" name="ship_to" value="customer" x-model="shipTo" class="mt-0.5 text-amber-500 focus:ring-amber-500">
+                            <span class="text-sm">
+                                <span class="font-medium block">{{ t('order.ship_to_customer') }}</span>
+                                <span class="text-xs text-neutral-500">{{ t('order.ship_to_customer_hint') }}</span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div x-show="shipTo == 'customer'" x-cloak class="space-y-4">
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <div class="sm:col-span-2">
+                                <label for="r-name" class="block text-sm font-medium mb-1">{{ t('order.recipient_name') }}</label>
+                                <input type="text" id="r-name" name="recipient_name" maxlength="128" value="{{ old.recipient_name ?? '' }}"
+                                       :required="shipTo == 'customer'"
+                                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label for="r-street" class="block text-sm font-medium mb-1">{{ t('order.street') }}</label>
+                                <input type="text" id="r-street" name="recipient_street" maxlength="255" value="{{ old.recipient_street ?? '' }}"
+                                       :required="shipTo == 'customer'"
+                                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="r-city" class="block text-sm font-medium mb-1">{{ t('order.city') }}</label>
+                                <input type="text" id="r-city" name="recipient_city" maxlength="128" value="{{ old.recipient_city ?? '' }}"
+                                       :required="shipTo == 'customer'"
+                                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="r-zip" class="block text-sm font-medium mb-1">{{ t('order.zip') }}</label>
+                                <input type="text" id="r-zip" name="recipient_zip" maxlength="16" value="{{ old.recipient_zip ?? '' }}"
+                                       :required="shipTo == 'customer'"
+                                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="r-country" class="block text-sm font-medium mb-1">{{ t('order.country') }}</label>
+                                <select id="r-country" name="recipient_country" :required="shipTo == 'customer'"
+                                        class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                                    {% set recipient_country = old.recipient_country ?? country %}
+                                    {% for c in countries %}
+                                        <option value="{{ c.code }}" {{ recipient_country == c.code ? 'selected' }}>{{ c.name }} ({{ c.code }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="r-phone" class="block text-sm font-medium mb-1">{{ t('order.recipient_phone') }}</label>
+                                <input type="tel" id="r-phone" name="recipient_phone" maxlength="32" value="{{ old.recipient_phone ?? '' }}"
+                                       :required="shipTo == 'customer'"
+                                       class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                        </div>
+
+                        <label class="flex items-start gap-2.5 text-sm cursor-pointer">
+                            <input type="checkbox" name="client_provides_label" value="1" {{ (old.client_provides_label ?? '') == '1' ? 'checked' }}
+                                   class="mt-0.5 rounded text-amber-500 focus:ring-amber-500">
+                            <span>
+                                <span class="font-medium block">{{ t('order.own_label') }}</span>
+                                <span class="text-xs text-neutral-500">{{ t('order.own_label_hint') }}</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <label for="o-notes" class="block text-sm font-medium mb-1">{{ t('order.notes') }}</label>
                 <textarea id="o-notes" name="notes" rows="4" maxlength="2000"

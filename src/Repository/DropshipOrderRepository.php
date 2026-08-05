@@ -78,6 +78,62 @@ final class DropshipOrderRepository
     }
 
     /**
+     * Registra l'etichetta caricata presso il fornitore (upload monouso) e
+     * i tracking comunicati con l'upload.
+     *
+     * @param list<string> $trackingNumbers
+     */
+    public function markLabelUploaded(int $id, string $fileName, array $trackingNumbers): void
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE dropship_orders SET label_uploaded_at = ?, label_file_name = ?, tracking_numbers = ?, updated_at = ? WHERE id = ?'
+        );
+        $now = date('Y-m-d H:i:s');
+        $stmt->execute([
+            $now,
+            $fileName,
+            $trackingNumbers === [] ? null : (string) json_encode($trackingNumbers, JSON_UNESCAPED_UNICODE),
+            $now,
+            $id,
+        ]);
+    }
+
+    /**
+     * Tracking (e stato) degli ordini dropship per le richieste indicate:
+     * SOLO campi mostrabili al rivenditore — mai costi o payload.
+     *
+     * @param list<int> $orderRequestIds
+     * @return array<int, array{status: string, tracking: list<string>}>
+     */
+    public function trackingByOrderRequestIds(array $orderRequestIds): array
+    {
+        $ids = array_values(array_filter(array_map(intval(...), $orderRequestIds), static fn (int $id): bool => $id > 0));
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare(
+            "SELECT order_request_id, status, tracking_numbers
+             FROM dropship_orders
+             WHERE order_request_id IN ({$placeholders}) AND status <> 'UNKNOWN'
+             ORDER BY id ASC"
+        );
+        $stmt->execute($ids);
+
+        $map = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $tracking = json_decode(is_string($row['tracking_numbers'] ?? null) ? $row['tracking_numbers'] : '[]', true);
+            // l'ultimo ordine per richiesta vince (di norma ce n'è uno solo)
+            $map[(int) $row['order_request_id']] = [
+                'status' => (string) $row['status'],
+                'tracking' => is_array($tracking) ? array_values(array_filter($tracking, is_string(...))) : [],
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
      * Aggiorna la riga con l'ultima lettura dal fornitore (order-details +
      * eventuale package-details). total_price/package_id si toccano solo se
      * il fornitore li fornisce; details_payload è lo snapshot JSON completo.
