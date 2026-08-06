@@ -116,7 +116,11 @@ final class OrderService
             'country' => strtoupper($this->cleanString($input['recipient_country'] ?? null, 2)),
             'phone' => $this->cleanString($input['recipient_phone'] ?? null, 32),
         ];
-        $clientProvidesLabel = $shipTo === 'customer' && ($input['client_provides_label'] ?? '') === '1';
+        // Opzione "etichetta fornita dal cliente" NASCOSTA per ora (docs/09):
+        // si forza false qualunque cosa arrivi dal form. Spedizione ed
+        // etichetta le gestisce sempre GoldenSneakers. Il flusso completo
+        // (upload etichetta+tracking) resta pronto lato admin.
+        $clientProvidesLabel = false;
         if ($shipTo === 'customer') {
             foreach (['name', 'street', 'city', 'zip', 'phone'] as $field) {
                 if ($recipient[$field] === '') {
