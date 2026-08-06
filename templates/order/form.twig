@@ -146,14 +146,12 @@
                             </div>
                         </div>
 
-                        <label class="flex items-start gap-2.5 text-sm cursor-pointer">
-                            <input type="checkbox" name="client_provides_label" value="1" {{ (old.client_provides_label ?? '') == '1' ? 'checked' }}
-                                   class="mt-0.5 rounded text-amber-500 focus:ring-amber-500">
-                            <span>
-                                <span class="font-medium block">{{ t('order.own_label') }}</span>
-                                <span class="text-xs text-neutral-500">{{ t('order.own_label_hint') }}</span>
-                            </span>
-                        </label>
+                        {# Opzione "etichetta fornita dal cliente" NASCOSTA per ora
+                           (docs/09): spedizione ed etichetta le gestisce sempre il
+                           fornitore. Il flusso completo (upload etichetta+tracking)
+                           esiste già lato admin: per riattivare l'opzione basta
+                           ripristinare qui la checkbox client_provides_label e
+                           togliere il forzato a false in OrderService::submit(). #}
                     </div>
                 </div>
             </div>

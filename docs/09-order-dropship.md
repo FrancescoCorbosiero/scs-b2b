@@ -149,7 +149,7 @@ simulazione: risposta fittizia, nessuna chiamata).
 | `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` invia davvero |
 | `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate live (default 30, min 5) |
 | `DROPSHIP_MAX_ORDER_EUR` | tetto sul costo fornitore stimato di un ordine; oltre ⇒ invio rifiutato prima della chiamata (0 = nessun tetto) |
-| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` permette all'auto-dropship di inviare in live; con 0 (default) in live l'auto rifiuta e resta solo il flusso manuale |
+| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` (default del flusso standard) permette all'auto-dropship di inviare in live; con 0 in live l'auto rifiuta e resta solo il flusso manuale |
 | `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (confermato su Swagger) |
 | `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli ordine (confermato su Swagger) |
 | `DROPSHIP_PACKAGE_ENDPOINT` | path GET dettagli pacchetto (confermato su Swagger) |
@@ -170,14 +170,21 @@ indirizzo, comportamento storico):
   il fornitore resta quella del rivenditore (il cliente finale non riceve
   comunicazioni). Il VAT continua a calcolarsi sul paese del RIVENDITORE
   (è lui il nostro cliente B2B), non su quello di consegna.
-- **"Fornirò io l'etichetta"** (`client_provides_label=1`, solo con
-  dropshipping): l'ordine viene creato con
-  `client_provides_shipping_label=True`; il fornitore NON spedisce finché
-  non carichiamo etichetta + tracking. In `/admin/dropship/{id}` compare la
-  sezione dedicata: file PDF/JPG/PNG (max 10 MB, MIME verificato) e tracking
-  (uno per riga), inviati con l'endpoint upload-shipping-label. L'esito è
-  registrato in `label_uploaded_at`/`label_file_name` e i tracking finiscono
-  in `tracking_numbers`.
+- **"Fornirò io l'etichetta"** — ⚠ **NASCOSTA per ora** (decisione del
+  06/08/2026): spedizione ed etichetta le gestisce SEMPRE GoldenSneakers,
+  perché manca il dato operativo indispensabile (indirizzo di
+  ritiro/mittente del magazzino GS per generare etichette corrette — vedi
+  Domande aperte). Il flusso completo resta implementato e pronto:
+  checkbox rimossa dal checkout (`templates/order/form.twig`) e flag
+  forzato a `false` in `OrderService::submit()`; per riattivarla basta
+  ripristinare quei due punti. Quando attiva: l'ordine viene creato con
+  `client_provides_shipping_label=True`, il fornitore NON spedisce finché
+  non carichiamo etichetta + tracking da `/admin/dropship/{id}` (file
+  PDF/JPG/PNG max 10 MB, MIME verificato; endpoint upload-shipping-label,
+  monouso). L'esito è registrato in `label_uploaded_at`/`label_file_name`
+  e i tracking finiscono in `tracking_numbers`. Il flusso manuale admin
+  può comunque creare ordini con etichetta nostra già oggi (checkbox nello
+  step 1).
 
 L'admin vede la richiesta dropshipping (badge + destinatario) nel dettaglio
 richiesta e nell'email; il rivenditore vede i tracking dei propri ordini in
@@ -188,9 +195,11 @@ paese diverso da quello del rivenditore, verificare col commercialista il
 trattamento VAT (place of supply). Oggi il VAT segue il paese del
 rivenditore.
 
-## Auto-dropship alla richiesta d'ordine (M8)
+## Auto-dropship alla richiesta d'ordine (M8) — flusso di DEFAULT
 
-Con `AUTO_DROPSHIP_ON_REQUEST=1`, alla richiesta del cliente parte subito
+Dal 06/08/2026 è il flusso standard: `.env.example` porta
+`AUTO_DROPSHIP_ON_REQUEST=1` e `AUTO_DROPSHIP_ALLOW_LIVE=1` (entrambi
+restano kill-switch). Con `AUTO_DROPSHIP_ON_REQUEST=1`, alla richiesta del cliente parte subito
 `DropshipOrderService::autoCreateFromRequest()`: ordine creato con l'indirizzo
 di spedizione del cliente (nuovi campi del form) e le righe dello snapshot
 clampate allo stock, saltando il flusso a 3 conferme (che resta per l'uso
@@ -202,9 +211,9 @@ abbia accesso al catalogo può innescare la chiamata autenticata al fornitore.
 Paracadute in atto:
 - flag `.env` dedicato = kill-switch immediato (default 0);
 - in `DROPSHIP_MODE=simulation` nessuna chiamata parte;
-- **in live l'auto-dropship rifiuta comunque salvo `AUTO_DROPSHIP_ALLOW_LIVE=1`**
-  (doppio opt-in: di default gli ordini reali partono SOLO dal flusso manuale
-  admin a tre conferme);
+- **in live l'auto-dropship richiede anche `AUTO_DROPSHIP_ALLOW_LIVE=1`**
+  (nel flusso di default è attivo; azzerarlo riporta gli ordini reali al
+  solo flusso manuale admin a tre conferme);
 - tetto opzionale `DROPSHIP_MAX_ORDER_EUR` anche su questo percorso;
 - restano rate limit richieste (3/ora/IP) e ordine minimo;
 - l'esito (o il fallimento, che non blocca mai la richiesta) è riportato
@@ -229,9 +238,14 @@ o approvazione admin entro una finestra temporale.
 
 - Codici e messaggi d'errore reali della creazione (lo Swagger non li
   elenca): da osservare nei primi ordini live.
-- Se/quando fornire noi le etichette di spedizione
-  (`client_provides_shipping_label=True` + endpoint upload-shipping-label,
-  oggi non implementato).
+- Indirizzo di ritiro/mittente del magazzino GoldenSneakers e modalità di
+  consegna al corriere (ritiro o drop-off): indispensabile PRIMA di
+  riattivare l'opzione "etichetta fornita dal cliente" al checkout — senza,
+  le etichette dei rivenditori nascerebbero sbagliate. Da chiedere al
+  fornitore.
+- Cosa stampa GoldenSneakers come mittente sul pacco e quali documenti
+  mette dentro con la spedizione standard: per il dropshipping verso il
+  cliente finale serve un pacco "neutro" (mai prezzi wholesale).
 - La valuta è sempre EUR? (`currency` compare nella risposta dettagli).
 - `client_provides_shipping_label=true`: quale flusso operativo per caricare
   l'etichetta?
