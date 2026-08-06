@@ -81,7 +81,10 @@
                     <div class="flex flex-col sm:flex-row gap-2">
                         <label class="flex-1 flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors"
                                :class="shipTo == 'reseller' ? 'border-amber-400 bg-amber-50/60' : 'border-neutral-200 hover:border-neutral-300'">
-                            <input type="radio" name="ship_to" value="reseller" x-model="shipTo" class="mt-0.5 text-amber-500 focus:ring-amber-500">
+                            {# checked lato server: il default resta "al mio indirizzo" anche senza JS #}
+                            <input type="radio" name="ship_to" value="reseller" x-model="shipTo"
+                                   {{ (old.ship_to ?? 'reseller') != 'customer' ? 'checked' }}
+                                   class="mt-0.5 text-amber-500 focus:ring-amber-500">
                             <span class="text-sm">
                                 <span class="font-medium block">{{ t('order.ship_to_me') }}</span>
                                 <span class="text-xs text-neutral-500">{{ t('order.ship_to_me_hint') }}</span>
@@ -89,7 +92,9 @@
                         </label>
                         <label class="flex-1 flex items-start gap-2 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors"
                                :class="shipTo == 'customer' ? 'border-amber-400 bg-amber-50/60' : 'border-neutral-200 hover:border-neutral-300'">
-                            <input type="radio" name="ship_to" value="customer" x-model="shipTo" class="mt-0.5 text-amber-500 focus:ring-amber-500">
+                            <input type="radio" name="ship_to" value="customer" x-model="shipTo"
+                                   {{ (old.ship_to ?? '') == 'customer' ? 'checked' }}
+                                   class="mt-0.5 text-amber-500 focus:ring-amber-500">
                             <span class="text-sm">
                                 <span class="font-medium block">{{ t('order.ship_to_customer') }}</span>
                                 <span class="text-xs text-neutral-500">{{ t('order.ship_to_customer_hint') }}</span>
