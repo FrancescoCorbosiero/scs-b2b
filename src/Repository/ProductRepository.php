@@ -54,8 +54,11 @@ final class ProductRepository
             return ['id' => (int) $this->pdo->lastInsertId(), 'created' => true];
         }
 
+        // image_url con COALESCE: un sync in cui il feed arriva SENZA campi
+        // immagine (glitch del fornitore) non deve cancellare le immagini
+        // già note — meglio un'immagine vecchia che nessuna immagine
         $stmt = $this->pdo->prepare(
-            'UPDATE products SET name = ?, brand = ?, size_mapper = ?, image_url = ?, is_active = 1,
+            'UPDATE products SET name = ?, brand = ?, size_mapper = ?, image_url = COALESCE(?, image_url), is_active = 1,
                 total_quantity = ?, min_price = ?, updated_at = ?, last_seen_at = ?
              WHERE id = ?'
         );

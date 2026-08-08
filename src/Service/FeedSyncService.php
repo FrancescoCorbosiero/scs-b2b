@@ -120,6 +120,16 @@ final class FeedSyncService
                 $counters[$result['created'] ? 'products_created' : 'products_updated']++;
             }
             $counters['products_deactivated'] = $this->products->deactivateExcept($seenIds, $seenAt);
+            // visibilità sui feed "monchi": le immagini note NON vengono
+            // cancellate (COALESCE nell'upsert), ma un feed senza immagini
+            // va notato subito nei log invece che scoperto dal catalogo
+            $noImage = count(array_filter($grouped, static fn (array $p): bool => $p['image_url'] === null));
+            if ($noImage > 0) {
+                $this->logger->warning('Feed senza immagini per alcuni prodotti (le immagini già note restano)', [
+                    'products_without_image' => $noImage,
+                    'products_total' => count($grouped),
+                ]);
+            }
             $this->pdo->commit();
 
             $this->syncLogs->finish($logId, 'ok', $counters);
