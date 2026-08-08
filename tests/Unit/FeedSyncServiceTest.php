@@ -186,6 +186,45 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame('4067907638411', (string) $sizeRow['barcode']);
     }
 
+    /**
+     * Un sync in cui il feed arriva SENZA campi immagine (glitch del
+     * fornitore) non deve cancellare le immagini già note: meglio
+     * un'immagine vecchia che il catalogo pieno di placeholder.
+     */
+    public function testSyncWithoutImagesKeepsKnownImages(): void
+    {
+        file_put_contents($this->workDir . '/feed.json', json_encode([
+            ['sku' => 'KJ8969', 'product_name' => 'Climacool 4D', 'brand_name' => 'Adidas',
+             'size_eu' => '42', 'offer_price' => 50, 'available_quantity' => 3,
+             'image_full_url' => 'https://www.goldensneakers.net/images/KJ8969/main/', 'image_name' => 'foto.png'],
+        ]));
+        $this->serviceFor($this->workDir . '/feed.json')->run();
+        $url = $this->pdo->query("SELECT image_url FROM products WHERE sku = 'KJ8969'")->fetchColumn();
+        self::assertSame('https://www.goldensneakers.net/images/KJ8969/main/foto.png', $url);
+
+        // stesso feed, ma senza i campi immagine
+        file_put_contents($this->workDir . '/feed.json', json_encode([
+            ['sku' => 'KJ8969', 'product_name' => 'Climacool 4D', 'brand_name' => 'Adidas',
+             'size_eu' => '42', 'offer_price' => 50, 'available_quantity' => 3],
+        ]));
+        $result = $this->serviceFor($this->workDir . '/feed.json')->run();
+
+        self::assertSame('ok', $result['status'], (string) $result['message']);
+        $url = $this->pdo->query("SELECT image_url FROM products WHERE sku = 'KJ8969'")->fetchColumn();
+        self::assertSame('https://www.goldensneakers.net/images/KJ8969/main/foto.png', $url,
+            'l\'immagine nota sopravvive a un sync senza immagini');
+
+        // e quando il feed torna a portare un'immagine NUOVA, questa vince
+        file_put_contents($this->workDir . '/feed.json', json_encode([
+            ['sku' => 'KJ8969', 'product_name' => 'Climacool 4D', 'brand_name' => 'Adidas',
+             'size_eu' => '42', 'offer_price' => 50, 'available_quantity' => 3,
+             'image_full_url' => 'https://www.goldensneakers.net/images/KJ8969/main/', 'image_name' => 'nuova.png'],
+        ]));
+        $this->serviceFor($this->workDir . '/feed.json')->run();
+        $url = $this->pdo->query("SELECT image_url FROM products WHERE sku = 'KJ8969'")->fetchColumn();
+        self::assertSame('https://www.goldensneakers.net/images/KJ8969/main/nuova.png', $url);
+    }
+
     public function testRepriceAppliesUpdatedDefaultMargin(): void
     {
         $this->serviceFor($this->realFixture())->run();

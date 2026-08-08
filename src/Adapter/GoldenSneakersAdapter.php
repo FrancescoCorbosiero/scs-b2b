@@ -21,7 +21,10 @@ use Psr\Log\LoggerInterface;
  */
 final class GoldenSneakersAdapter
 {
-    private const ALLOWED_IMAGE_HOSTS = ['goldensneakers.net', 'www.goldensneakers.net'];
+    // dominio immagini: il fornitore ha già cambiato host una volta
+    // (www.goldensneakers.net → media.goldensneakers.net, 08/2026), quindi
+    // si accetta il dominio e QUALSIASI suo sottodominio — mai domini terzi
+    private const IMAGE_DOMAIN = 'goldensneakers.net';
     private const MAX_PAGES = 200;
 
     public function __construct(
@@ -230,7 +233,11 @@ final class GoldenSneakersAdapter
         $url = rtrim($base, '/') . '/' . rawurlencode(ltrim($file, '/'));
         $host = parse_url($url, PHP_URL_HOST);
         $scheme = parse_url($url, PHP_URL_SCHEME);
-        if ($scheme !== 'https' || !is_string($host) || !in_array(strtolower($host), self::ALLOWED_IMAGE_HOSTS, true)) {
+        if ($scheme !== 'https' || !is_string($host)) {
+            return null;
+        }
+        $host = strtolower($host);
+        if ($host !== self::IMAGE_DOMAIN && !str_ends_with($host, '.' . self::IMAGE_DOMAIN)) {
             return null;
         }
 
