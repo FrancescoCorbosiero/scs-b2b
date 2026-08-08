@@ -9,11 +9,34 @@ use PHPMailer\PHPMailer\PHPMailer;
 /**
  * Invio SMTP condiviso (PHPMailer): usato da OrderMailer e AccountMailer.
  * Configurazione da .env (vedi README § Email via AWS SES).
+ *
+ * $to accetta anche PIÙ indirizzi separati da virgola (es. ADMIN_EMAIL con
+ * admin + collaboratori): partono come un'unica email con più destinatari.
  */
 final class SmtpMailer
 {
     public function __construct(private readonly Config $config)
     {
+    }
+
+    /**
+     * Indirizzi validi da una stringa con separatore virgola (o punto e
+     * virgola). Gli invalidi vengono scartati: un refuso in ADMIN_EMAIL non
+     * deve far perdere l'email anche agli altri destinatari.
+     *
+     * @return list<string>
+     */
+    public static function recipients(string $to): array
+    {
+        $list = [];
+        foreach (preg_split('/[,;]+/', $to) ?: [] as $address) {
+            $address = trim($address);
+            if ($address !== '' && filter_var($address, FILTER_VALIDATE_EMAIL) !== false) {
+                $list[] = $address;
+            }
+        }
+
+        return array_values(array_unique($list));
     }
 
     /** @param array{content: string, name: string}|null $attachment */
@@ -46,7 +69,13 @@ final class SmtpMailer
             $this->config->str('MAIL_FROM_ADDRESS', 'noreply@shoesclothingstore.com'),
             $this->config->str('MAIL_FROM_NAME', 'SHOES & CLOTHING RESELLING'),
         );
-        $mailer->addAddress($to);
+        $recipients = self::recipients($to);
+        if ($recipients === []) {
+            throw new \RuntimeException("Nessun destinatario valido in \"{$to}\"");
+        }
+        foreach ($recipients as $address) {
+            $mailer->addAddress($address);
+        }
         if ($replyTo !== null) {
             $mailer->addReplyTo($replyTo);
         }
