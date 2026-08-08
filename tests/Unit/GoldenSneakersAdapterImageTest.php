@@ -49,9 +49,20 @@ final class GoldenSneakersAdapterImageTest extends TestCase
         return $rows[0]['image_url'];
     }
 
-    public function testNewMediaSubdomainIsAccepted(): void
+    public function testNewFormatFullUrlIsNotDuplicated(): void
     {
-        // formato reale post-cambio del fornitore (08/2026)
+        // formato reale post-cambio del fornitore (08/2026): image_full_url
+        // è GIÀ l'URL completo del file; image_name è solo il nome. Il join
+        // cieco produceva ".../x.png/x.png" → 404 su tutto il catalogo.
+        self::assertSame(
+            'https://media.goldensneakers.net/products/images/2913_KJ8969/raw/c67b5534062a.png',
+            $this->imageUrlFor('https://media.goldensneakers.net/products/images/2913_KJ8969/raw/c67b5534062a.png', 'c67b5534062a.png'),
+        );
+    }
+
+    public function testNewMediaSubdomainWithBaseFolderStillJoins(): void
+    {
+        // variante "cartella base" su nuovo host: il join resta corretto
         self::assertSame(
             'https://media.goldensneakers.net/products/images/2913_KJ8969/raw/c67b5534062a.png',
             $this->imageUrlFor('https://media.goldensneakers.net/products/images/2913_KJ8969/raw/', 'c67b5534062a.png'),

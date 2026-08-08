@@ -230,7 +230,18 @@ final class GoldenSneakersAdapter
         if (!is_string($base) || $base === '' || !is_string($file) || $file === '') {
             return null;
         }
-        $url = rtrim($base, '/') . '/' . rawurlencode(ltrim($file, '/'));
+        // Due formati del feed:
+        //  - storico (fino a 08/2026): image_full_url = cartella base
+        //    ("https://www.../images/SKU/main/") da unire a image_name;
+        //  - attuale: image_full_url è GIÀ l'URL completo del file
+        //    ("https://media.../raw/c67b5534062a.png") e image_name è solo
+        //    il nome. Concatenare anche qui duplicherebbe il file name
+        //    (".../x.png/x.png" → 404 su tutto il catalogo).
+        $file = ltrim($file, '/');
+        $basePath = (string) parse_url($base, PHP_URL_PATH);
+        $url = basename($basePath) === $file
+            ? $base
+            : rtrim($base, '/') . '/' . rawurlencode($file);
         $host = parse_url($url, PHP_URL_HOST);
         $scheme = parse_url($url, PHP_URL_SCHEME);
         if ($scheme !== 'https' || !is_string($host)) {
