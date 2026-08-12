@@ -272,6 +272,25 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame($expected, number_format((float) $row['price'], 2, '.', ''));
     }
 
+    public function testRepriceAppliesSkuRuleOverBrandRule(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+
+        // la regola SKU vince sul brand anche con priority più alta: 47 + 10 = 57
+        $rules = new MarginRuleRepository($this->pdo);
+        $brand = (string) $this->pdo->query("SELECT brand FROM products WHERE sku = 'JS3801'")->fetchColumn();
+        $rules->insert(10, 'brand', $brand, 'fixed', 3.0);
+        $rules->insert(500, 'sku', 'js3801', 'fixed', 10.0);
+
+        $result = $this->serviceFor($this->realFixture(), 'none')->run(repriceOnly: true);
+
+        self::assertSame('ok', $result['status']);
+        $stmt = $this->pdo->query(
+            "SELECT s.price FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801' LIMIT 1"
+        );
+        self::assertSame('57.00', number_format((float) ($stmt === false ? 0 : $stmt->fetchColumn()), 2, '.', ''));
+    }
+
     /** @return list<array<string, mixed>> */
     private function dumpCatalog(): array
     {

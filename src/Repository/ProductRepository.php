@@ -125,15 +125,15 @@ final class ProductRepository
     }
 
     /**
-     * Tutte le taglie con offer_price + brand/nome del prodotto, per il
+     * Tutte le taglie con offer_price + brand/nome/SKU del prodotto, per il
      * ricalcolo prezzi (--reprice) con le regole margine. SOLO USO INTERNO.
      *
-     * @return list<array{id: int, product_id: int, offer_price: string, brand: string, name: string}>
+     * @return list<array{id: int, product_id: int, offer_price: string, brand: string, name: string, sku: string}>
      */
     public function allSizesWithCost(): array
     {
         $stmt = $this->pdo->query(
-            'SELECT s.id, s.product_id, s.offer_price, p.brand, p.name
+            'SELECT s.id, s.product_id, s.offer_price, p.brand, p.name, p.sku
              FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
              ORDER BY s.product_id, s.id'
         );
@@ -145,6 +145,7 @@ final class ProductRepository
                 'offer_price' => (string) $row['offer_price'],
                 'brand' => (string) $row['brand'],
                 'name' => (string) $row['name'],
+                'sku' => (string) $row['sku'],
             ];
         }
 

@@ -67,16 +67,18 @@
                         <select id="r-match-type" name="match_type" class="w-full rounded-lg border-neutral-300">
                             <option value="brand">{{ t('margins.match_brand') }}</option>
                             <option value="name">{{ t('margins.match_name') }}</option>
+                            <option value="sku">{{ t('margins.match_sku') }}</option>
                         </select>
                     </div>
                     <div>
                         <label for="r-match-value" class="block font-medium mb-1">{{ t('margins.field_match_value') }}</label>
-                        <input type="text" id="r-match-value" name="match_value" required maxlength="128" list="brands-list"
+                        <input type="text" id="r-match-value" name="match_value" required maxlength="255" list="brands-list"
                                placeholder="{{ t('margins.field_match_value_placeholder') }}"
                                class="w-full rounded-lg border-neutral-300">
                         <datalist id="brands-list">
                             {% for brand in brands %}<option value="{{ brand }}"></option>{% endfor %}
                         </datalist>
+                        <p class="mt-1 text-xs text-neutral-400">{{ t('margins.field_match_value_hint') }}</p>
                     </div>
                     <div>
                         <label for="r-margin-type" class="block font-medium mb-1">{{ t('margins.field_margin_type') }}</label>

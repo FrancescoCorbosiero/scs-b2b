@@ -73,6 +73,44 @@ final class MarginResolverTest extends TestCase
         self::assertSame(['percent', 12.0], [$margin['margin_type'], $margin['margin_value']]);
     }
 
+    public function testSkuRuleTargetsOnlyListedSkus(): void
+    {
+        // più SKU nella stessa regola, separati da virgola, case-insensitive
+        $this->rules->insert(100, 'sku', 'JS3801, dd1391-100', 'fixed', 10.0);
+        $resolver = $this->resolver();
+
+        $hit = $resolver->resolve('Adidas', "adidas Gazelle Indoor J 'Better Scarlet'", 'js3801');
+        self::assertSame(['fixed', 10.0], [$hit['margin_type'], $hit['margin_value']]);
+        self::assertSame(['fixed', 10.0], [
+            $resolver->resolve('Nike', 'Nike Dunk Low', 'DD1391-100')['margin_type'],
+            $resolver->resolve('Nike', 'Nike Dunk Low', 'DD1391-100')['margin_value'],
+        ]);
+
+        // SKU non elencato → margine di default (seed: 30%)
+        $miss = $resolver->resolve('Adidas', 'adidas Samba OG', 'IE3439');
+        self::assertSame(30.0, $miss['margin_value']);
+        self::assertNull($miss['rule_id']);
+    }
+
+    public function testSkuRuleBeatsBrandAndNameRulesRegardlessOfPriority(): void
+    {
+        // la regola SKU è la più specifica: vince anche con priority più alta
+        $this->rules->insert(1, 'brand', 'Nike', 'percent', 5.0);
+        $this->rules->insert(1, 'name', 'dunk', 'percent', 7.0);
+        $this->rules->insert(999, 'sku', 'DD1391-100', 'fixed', 12.0);
+
+        $margin = $this->resolver()->resolve('Nike', 'Nike Dunk Low Retro', 'DD1391-100');
+        self::assertSame(['fixed', 12.0], [$margin['margin_type'], $margin['margin_value']]);
+    }
+
+    public function testWithoutSkuArgumentSkuRulesNeverMatch(): void
+    {
+        $this->rules->insert(10, 'sku', 'JS3801', 'fixed', 10.0);
+
+        // chiamata "legacy" senza SKU: si ricade sul default, nessun falso match
+        self::assertSame(30.0, $this->resolver()->resolve('Adidas', 'adidas Gazelle')['margin_value']);
+    }
+
     public function testInactiveRulesAreIgnored(): void
     {
         $id = $this->rules->insert(10, 'brand', 'Nike', 'percent', 9.0);

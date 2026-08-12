@@ -303,13 +303,14 @@ final class AdminController
     {
         $body = (array) ($request->getParsedBody() ?? []);
         $matchType = is_string($body['match_type'] ?? null) ? $body['match_type'] : '';
-        $matchValue = is_string($body['match_value'] ?? null) ? trim(mb_substr($body['match_value'], 0, 128)) : '';
+        $matchValue = is_string($body['match_value'] ?? null) ? trim(mb_substr($body['match_value'], 0, 255)) : '';
         $marginType = is_string($body['margin_type'] ?? null) ? $body['margin_type'] : '';
         $marginValue = $body['margin_value'] ?? null;
         $priority = is_numeric($body['priority'] ?? null) ? (int) $body['priority'] : 100;
 
         if (!in_array($matchType, MarginRuleRepository::MATCH_TYPES, true)
             || $matchValue === ''
+            || ($matchType === 'sku' && MarginRuleRepository::skuTokens($matchValue) === [])
             || !in_array($marginType, PricingService::MARGIN_TYPES, true)
             || !is_numeric($marginValue)
             || (float) $marginValue < -100 || (float) $marginValue > 10000) {
