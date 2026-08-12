@@ -9,9 +9,11 @@ use App\Repository\SettingsRepository;
 
 /**
  * Risolve il margine di un prodotto dalle regole admin (/admin/margini):
- * la prima regola attiva che corrisponde (priority crescente) vince, altrimenti
- * si applica il margine di default dalla tabella settings. Esempio tipico:
- * "Air Force 1 al 7%" (name), "Jordan +3€ fissi" (brand), "tutto il resto 5%".
+ * prima le regole SKU (le più specifiche, a prescindere dalla priority), poi
+ * la prima regola brand/nome attiva che corrisponde (priority crescente);
+ * altrimenti si applica il margine di default dalla tabella settings. Esempio:
+ * "JS3801 a 10€ fissi" (sku), "Air Force 1 al 7%" (name), "Jordan +3€ fissi"
+ * (brand), "tutto il resto 5%".
  */
 final class MarginResolver
 {
@@ -28,20 +30,25 @@ final class MarginResolver
     }
 
     /** @return array{margin_type: string, margin_value: float, rule_id: int|null} */
-    public function resolve(string $brand, string $name): array
+    public function resolve(string $brand, string $name, string $sku = ''): array
     {
+        // activeOrdered() restituisce le regole già in ordine di valutazione:
+        // prima le 'sku', poi le altre per priority crescente
         $this->rules ??= $this->ruleRepo->activeOrdered();
 
         $brandLower = mb_strtolower(trim($brand));
         $nameLower = mb_strtolower($name);
+        $skuLower = mb_strtolower(trim($sku));
         foreach ($this->rules as $rule) {
             $value = mb_strtolower(trim($rule['match_value']));
             if ($value === '') {
                 continue;
             }
-            $matches = $rule['match_type'] === 'brand'
-                ? $brandLower === $value
-                : str_contains($nameLower, $value);
+            $matches = match ($rule['match_type']) {
+                'sku' => $skuLower !== '' && in_array($skuLower, MarginRuleRepository::skuTokens($rule['match_value']), true),
+                'brand' => $brandLower === $value,
+                default => str_contains($nameLower, $value),
+            };
             if ($matches) {
                 return [
                     'margin_type' => $rule['margin_type'],

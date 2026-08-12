@@ -85,7 +85,7 @@ final class FeedSyncService
             foreach ($grouped as $sku => $product) {
                 // gli SKU numerici diventano chiavi int in PHP: si ricasta
                 $sku = (string) $sku;
-                $margin = $this->margins->resolve($product['brand'], $product['name']);
+                $margin = $this->margins->resolve($product['brand'], $product['name'], $sku);
                 $sizes = [];
                 $totalQuantity = 0;
                 $min = null;
@@ -164,9 +164,9 @@ final class FeedSyncService
             $this->pdo->beginTransaction();
             $marginByProduct = [];
             foreach ($this->products->allSizesWithCost() as $size) {
-                // il margine dipende solo da brand/nome: si risolve una volta per prodotto
+                // il margine dipende solo da brand/nome/SKU: si risolve una volta per prodotto
                 $margin = $marginByProduct[$size['product_id']]
-                    ??= $this->margins->resolve($size['brand'], $size['name']);
+                    ??= $this->margins->resolve($size['brand'], $size['name'], $size['sku']);
                 $this->products->updateSizePrice(
                     $size['id'],
                     $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']),

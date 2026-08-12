@@ -16,12 +16,18 @@ prezzo_netto = arrotonda( offer_price + margine )
 dove il margine viene dalle **regole admin** (`/admin/margini`, tabella
 `margin_rules`) risolte in quest'ordine:
 
-1. La prima regola **attiva** che corrisponde al prodotto, in ordine di
-   `priority` crescente (a parità, la più vecchia). Corrispondenza:
+1. Le regole **SKU** attive: sono le più specifiche e vengono valutate
+   **prima di tutte le altre**, a prescindere dalla `priority` (tra loro
+   vale comunque la priority crescente). Corrispondenza: uguaglianza
+   case-insensitive con uno dei codici in `match_value` (uno o più SKU
+   separati da virgola, es. "JS3801, DD1391-100") — così l'admin decide
+   esattamente quali SKU influenzare col margine.
+2. La prima regola brand/nome **attiva** che corrisponde al prodotto, in
+   ordine di `priority` crescente (a parità, la più vecchia). Corrispondenza:
    - `brand`: uguaglianza case-insensitive col brand del feed;
    - `name`: il nome prodotto **contiene** il valore (case-insensitive) —
      es. "air force 1".
-2. Nessuna regola → **margine di default** (tabella `settings`:
+3. Nessuna regola → **margine di default** (tabella `settings`:
    `default_margin_type` + `default_margin_value`).
 
 Ogni regola (e il default) è `percent` (`offer × (1 + m/100)`) oppure `fixed`

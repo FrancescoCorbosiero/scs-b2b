@@ -94,8 +94,10 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `response_payload` TEXT NULL, `tracking_numbers` TEXT NULL (JSON)
 
 ## `margin_rules` (gestione margini da /admin/margini — docs/04)
-- `id` PK, `priority` INT (crescente = valutata prima)
-- `match_type` ENUM('brand','name'), `match_value` VARCHAR(128)
+- `id` PK, `priority` INT (crescente = valutata prima; le regole 'sku'
+  vengono comunque valutate prima di brand/nome)
+- `match_type` ENUM('brand','name','sku'), `match_value` VARCHAR(255)
+  (per 'sku': uno o più codici separati da virgola)
 - `margin_type` ENUM('percent','fixed'), `margin_value` DECIMAL(8,2)
 - `is_active` TINYINT, `created_at`, `updated_at`
 - Indice: (`is_active`, `priority`)

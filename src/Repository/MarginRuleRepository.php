@@ -7,12 +7,16 @@ namespace App\Repository;
 use PDO;
 
 /**
- * Regole margine gestite da /admin/margini. Vince la prima regola attiva in
- * ordine di priority crescente (a parità, quella creata prima).
+ * Regole margine gestite da /admin/margini. Le regole SKU (le più specifiche)
+ * vengono valutate per prime; poi vince la prima regola attiva in ordine di
+ * priority crescente (a parità, quella creata prima).
  */
 final class MarginRuleRepository
 {
-    public const MATCH_TYPES = ['brand', 'name'];
+    public const MATCH_TYPES = ['brand', 'name', 'sku'];
+
+    /** SKU first, poi priority: stesso ordine di valutazione del MarginResolver. */
+    private const EVAL_ORDER = "ORDER BY CASE WHEN match_type = 'sku' THEN 0 ELSE 1 END, priority ASC, id ASC";
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -23,7 +27,7 @@ final class MarginRuleRepository
     {
         $stmt = $this->pdo->query(
             'SELECT id, priority, match_type, match_value, margin_type, margin_value, is_active
-             FROM margin_rules ORDER BY priority ASC, id ASC'
+             FROM margin_rules ' . self::EVAL_ORDER
         );
 
         return array_map(self::hydrate(...), $stmt === false ? [] : $stmt->fetchAll());
@@ -34,7 +38,7 @@ final class MarginRuleRepository
     {
         $stmt = $this->pdo->query(
             'SELECT id, priority, match_type, match_value, margin_type, margin_value, is_active
-             FROM margin_rules WHERE is_active = 1 ORDER BY priority ASC, id ASC'
+             FROM margin_rules WHERE is_active = 1 ' . self::EVAL_ORDER
         );
 
         return array_map(self::hydrate(...), $stmt === false ? [] : $stmt->fetchAll());
@@ -71,7 +75,17 @@ final class MarginRuleRepository
     /** Quanti prodotti attivi corrispondono a una regola (anteprima in /admin/margini). */
     public function matchingProductsCount(string $matchType, string $matchValue): int
     {
-        if ($matchType === 'brand') {
+        if ($matchType === 'sku') {
+            $skus = self::skuTokens($matchValue);
+            if ($skus === []) {
+                return 0;
+            }
+            $placeholders = implode(', ', array_fill(0, count($skus), '?'));
+            $stmt = $this->pdo->prepare(
+                "SELECT COUNT(*) FROM products WHERE is_active = 1 AND LOWER(sku) IN ({$placeholders})"
+            );
+            $stmt->execute($skus);
+        } elseif ($matchType === 'brand') {
             $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM products WHERE is_active = 1 AND LOWER(brand) = LOWER(?)');
             $stmt->execute([$matchValue]);
         } else {
@@ -80,6 +94,25 @@ final class MarginRuleRepository
         }
 
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * SKU di una regola 'sku': match_value spezzato sulle virgole, minuscolo,
+     * senza spazi ai bordi (tokenizzazione condivisa con MarginResolver).
+     *
+     * @return list<string>
+     */
+    public static function skuTokens(string $matchValue): array
+    {
+        $tokens = [];
+        foreach (explode(',', mb_strtolower($matchValue)) as $token) {
+            $token = trim($token);
+            if ($token !== '') {
+                $tokens[] = $token;
+            }
+        }
+
+        return $tokens;
     }
 
     /**

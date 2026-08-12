@@ -41,6 +41,45 @@
                     </a>
                 </div>
 
+                {# ── Come ordinare: gli stessi 5 passi delle pagine pubbliche,
+                      in versione compatta e richiudibile (stato in localStorage) ── #}
+                <section x-data="{ howto: localStorage.getItem('scs-catalog-howto') !== '0' }"
+                         class="mb-4 rounded-2xl border border-neutral-200 bg-white">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-5">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-amber-400">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-sm font-black tracking-tight sm:text-base">{{ t('catalog.howto_title') }}</h2>
+                            <p class="text-xs text-neutral-500">{{ t('catalog.howto_subtitle') }}</p>
+                        </div>
+                        <div class="ml-auto flex items-center gap-2">
+                            <a href="/come-ordinare" class="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold transition-colors hover:border-neutral-900">
+                                {{ t('catalog.howto_full_guide') }}
+                            </a>
+                            <button type="button" @click="howto = !howto; localStorage.setItem('scs-catalog-howto', howto ? '1' : '0')"
+                                    :aria-expanded="howto" aria-controls="catalog-howto"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-600 transition-colors hover:bg-neutral-200">
+                                <span x-show="!howto">{{ t('catalog.howto_show') }}</span>
+                                <span x-show="howto" x-cloak>{{ t('catalog.howto_hide') }}</span>
+                                <svg class="h-3.5 w-3.5 transition-transform duration-200" :class="howto && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <ol id="catalog-howto" x-show="howto" x-cloak x-transition.opacity.duration.150ms
+                        class="grid gap-3 border-t border-neutral-100 px-4 py-4 sm:grid-cols-2 sm:px-5 xl:grid-cols-5">
+                        {% for i in 1..5 %}
+                            <li class="rounded-xl bg-neutral-50 p-3.5">
+                                <div class="flex items-center gap-2">
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-[11px] font-black text-white">{{ i }}</span>
+                                    <h3 class="text-sm font-bold leading-tight">{{ t('steps.' ~ i ~ '_title') }}</h3>
+                                </div>
+                                <p class="mt-2 text-xs leading-relaxed text-neutral-500">{{ t('steps.' ~ i ~ '_short') }}</p>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                </section>
+
                 {# ── Toolbar sticky: ricerca, ordinamento, vista ── #}
                 <div class="sticky top-14 z-30 -mx-4 mb-3 border-b border-neutral-200 bg-neutral-100/95 px-4 py-3 backdrop-blur sm:top-[3.75rem] lg:mx-0 lg:rounded-2xl lg:border lg:px-4">
                     <div class="flex flex-wrap items-center gap-2">
