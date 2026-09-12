@@ -35,7 +35,7 @@ Il token non va mai committato né loggato.
 | `offer_price` | number | **prezzo wholesale — RISERVATO, mai esposto al client** |
 | `presented_price` | number | prezzo calcolato dall'API coi query param — **ignorare** |
 | `available_quantity` | int | stock per quella taglia |
-| `image` / `image_full_url` | string | directory immagine |
+| `image` / `image_full_url` | string | immagine: **formato non coerente** — a volte URL assoluto (`https://media.goldensneakers.net/...`), a volte percorso relativo senza host (`/images/IH6001/main/`); a volte cartella base, a volte già il file completo |
 | `image_name` | string | filename immagine |
 
 ## Normalizzazione (flat → modello relazionale)
@@ -45,8 +45,15 @@ Il token non va mai committato né loggato.
 2. Ogni riga → 1 record `product_sizes` (size_eu, size_us, barcode, quantity).
 3. Se `offer_price` varia tra taglie dello stesso SKU, salvarlo **per taglia**
    (il pricing si calcola a livello taglia; verificare sul feed reale se accade).
-4. URL immagine: candidato `image_full_url + image_name`
-   (es. `https://www.goldensneakers.net/images/JS3801/main/Screenshot_....png`).
+4. URL immagine: si parte da `image_full_url` (fallback su `image` se vuoto) e
+   si normalizza, perché il fornitore manda formati misti e non li sistemerà:
+   - percorso relativo (`/images/IH6001/main/`) → risolto contro `FEED_BASE_URL`;
+     idem protocol-relative (`//media.goldensneakers.net/...` → schema `https`);
+   - se il percorso finisce già col filename di `image_name` non si concatena
+     (altrimenti `.../x.png/x.png` → 404), altrimenti si unisce `+ image_name`
+     (es. `https://www.goldensneakers.net/images/JS3801/main/Screenshot_....png`).
+   La whitelist di dominio (`goldensneakers.net` e sottodomini, solo `https`)
+   si applica **dopo** la risoluzione: quel che non passa diventa `null`.
    **Verificare empiricamente** alla prima integrazione; prevedere placeholder di
    fallback se l'immagine è 404 e un flag di config `IMAGE_CACHE_LOCAL` (default off)
    per scaricare/cachare le immagini in locale qualora gli URL risultino instabili

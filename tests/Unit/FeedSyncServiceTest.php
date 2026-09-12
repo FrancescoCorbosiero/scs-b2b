@@ -63,13 +63,35 @@ final class FeedSyncServiceTest extends TestCase
         return dirname(__DIR__, 2) . '/fixtures/goldensneakers-dev.json';
     }
 
+    /** Righe (SKU+taglia) della fixture: derivate, così crescerla non rompe i test. */
+    private function fixtureRowCount(): int
+    {
+        $rows = json_decode((string) file_get_contents($this->realFixture()), true);
+
+        return is_array($rows) ? count($rows) : 0;
+    }
+
+    /** Prodotti distinti (SKU) della fixture. */
+    private function fixtureSkuCount(): int
+    {
+        $rows = json_decode((string) file_get_contents($this->realFixture()), true);
+        $skus = [];
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            if (is_array($row) && isset($row['sku'])) {
+                $skus[(string) $row['sku']] = true;
+            }
+        }
+
+        return count($skus);
+    }
+
     public function testSyncFromFixturePopulatesNetPrices(): void
     {
         $result = $this->serviceFor($this->realFixture())->run();
 
         self::assertSame('ok', $result['status']);
-        self::assertSame(63, $result['rows_read']);
-        self::assertSame(12, $result['products_created']);
+        self::assertSame($this->fixtureRowCount(), $result['rows_read']);
+        self::assertSame($this->fixtureSkuCount(), $result['products_created']);
         self::assertSame(0, $result['products_updated']);
 
         // sample reale: offer 47, margine default 30%, rounding whole → 61 (NETTO, senza IVA)
@@ -103,7 +125,7 @@ final class FeedSyncServiceTest extends TestCase
 
         self::assertSame('ok', $result['status']);
         self::assertSame(0, $result['products_created'], 'Secondo run: nessun prodotto nuovo');
-        self::assertSame(12, $result['products_updated']);
+        self::assertSame($this->fixtureSkuCount(), $result['products_updated']);
         self::assertSame(0, $result['products_deactivated']);
         self::assertSame($before, $this->dumpCatalog(), 'Lo stato del catalogo non cambia');
     }
@@ -120,11 +142,11 @@ final class FeedSyncServiceTest extends TestCase
         $result = $this->serviceFor($this->workDir . '/feed.json')->run();
 
         self::assertSame('ok', $result['status']);
-        self::assertSame(11, $result['products_deactivated']);
+        self::assertSame($this->fixtureSkuCount() - 1, $result['products_deactivated']);
         $active = (int) ($this->pdo->query('SELECT COUNT(*) FROM products WHERE is_active = 1')?->fetchColumn() ?: 0);
         $total = (int) ($this->pdo->query('SELECT COUNT(*) FROM products')?->fetchColumn() ?: 0);
         self::assertSame(1, $active);
-        self::assertSame(12, $total, 'I prodotti spariti restano a DB (disattivati)');
+        self::assertSame($this->fixtureSkuCount(), $total, 'I prodotti spariti restano a DB (disattivati)');
     }
 
     public function testBrokenFeedLeavesCatalogUntouched(): void
