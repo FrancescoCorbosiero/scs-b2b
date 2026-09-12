@@ -28,7 +28,8 @@ final class GoldenSneakersAdapterImageTest extends TestCase
         @unlink($this->fixturePath);
     }
 
-    private function imageUrlFor(?string $base, ?string $file): ?string
+    /** @param array<string, string> $extraRow */
+    private function imageUrlFor(?string $base, ?string $file, array $extraRow = [], ?string $feedBaseUrl = null): ?string
     {
         $row = ['sku' => 'KJ8969', 'product_name' => 'Climacool 4D', 'brand_name' => 'Adidas',
             'size_eu' => '42', 'offer_price' => 50, 'available_quantity' => 3];
@@ -38,12 +39,17 @@ final class GoldenSneakersAdapterImageTest extends TestCase
         if ($file !== null) {
             $row['image_name'] = $file;
         }
+        $row = array_merge($row, $extraRow);
         file_put_contents($this->fixturePath, json_encode([$row]));
-        $config = new Config([
+        $env = [
             'ROOT_PATH' => sys_get_temp_dir(),
             'FEED_SOURCE' => 'fixture',
             'FEED_FIXTURE_PATH' => $this->fixturePath,
-        ]);
+        ];
+        if ($feedBaseUrl !== null) {
+            $env['FEED_BASE_URL'] = $feedBaseUrl;
+        }
+        $config = new Config($env);
         $rows = (new GoldenSneakersAdapter($config, new NullLogger()))->fetch();
 
         return $rows[0]['image_url'];
@@ -92,6 +98,64 @@ final class GoldenSneakersAdapterImageTest extends TestCase
     public function testPlainHttpRejected(): void
     {
         self::assertNull($this->imageUrlFor('http://media.goldensneakers.net/img/', 'foto.png'));
+    }
+
+    public function testRelativePathIsResolvedAgainstFeedBaseUrl(): void
+    {
+        // il fornitore manda, su una parte delle righe, un percorso relativo
+        // senza host: senza risoluzione l'immagine spariva dal catalogo
+        self::assertSame(
+            'https://www.goldensneakers.net/images/IH6001/main/Screenshot_2026-08-24_at_12.25.46.png',
+            $this->imageUrlFor('/images/IH6001/main/', 'Screenshot_2026-08-24_at_12.25.46.png'),
+        );
+    }
+
+    public function testRelativeFullFilePathIsNotDuplicatedAfterResolution(): void
+    {
+        self::assertSame(
+            'https://www.goldensneakers.net/products/images/1520_JI2626/raw/b086c2487cf4.png',
+            $this->imageUrlFor('/products/images/1520_JI2626/raw/b086c2487cf4.png', 'b086c2487cf4.png'),
+        );
+    }
+
+    public function testRelativePathWithoutLeadingSlashIsResolved(): void
+    {
+        self::assertSame(
+            'https://www.goldensneakers.net/images/IH6001/main/foto.png',
+            $this->imageUrlFor('images/IH6001/main/', 'foto.png'),
+        );
+    }
+
+    public function testRelativePathUsesConfiguredFeedBaseUrl(): void
+    {
+        self::assertSame(
+            'https://media.goldensneakers.net/images/IH6001/main/foto.png',
+            $this->imageUrlFor('/images/IH6001/main/', 'foto.png', [], 'https://media.goldensneakers.net/'),
+        );
+    }
+
+    public function testProtocolRelativeUrlGetsHttpsScheme(): void
+    {
+        self::assertSame(
+            'https://media.goldensneakers.net/images/IH6001/main/foto.png',
+            $this->imageUrlFor('//media.goldensneakers.net/images/IH6001/main/', 'foto.png'),
+        );
+    }
+
+    public function testFallsBackToImageFieldWhenFullUrlIsEmpty(): void
+    {
+        self::assertSame(
+            'https://www.goldensneakers.net/images/IH6001/main/foto.png',
+            $this->imageUrlFor('', 'foto.png', ['image' => '/images/IH6001/main/']),
+        );
+    }
+
+    public function testResolvedRelativePathStillHonoursDomainWhitelist(): void
+    {
+        // se FEED_BASE_URL puntasse altrove, la whitelist a valle deve reggere
+        self::assertNull(
+            $this->imageUrlFor('/images/IH6001/main/', 'foto.png', [], 'https://cdn.example.com'),
+        );
     }
 
     public function testMissingFieldsGiveNull(): void

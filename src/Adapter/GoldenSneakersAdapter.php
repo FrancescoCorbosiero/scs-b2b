@@ -225,9 +225,23 @@ final class GoldenSneakersAdapter
     /** @param array<mixed> $raw */
     private function imageUrl(array $raw): ?string
     {
+        // il feed usa image_full_url quando c'è, altrimenti image: su alcune
+        // righe il primo è vuoto e solo il secondo porta il percorso
         $base = $raw['image_full_url'] ?? null;
+        if (!is_string($base) || trim($base) === '') {
+            $base = $raw['image'] ?? null;
+        }
         $file = $raw['image_name'] ?? null;
-        if (!is_string($base) || $base === '' || !is_string($file) || $file === '') {
+        if (!is_string($base) || !is_string($file)) {
+            return null;
+        }
+        $base = trim($base);
+        $file = trim($file);
+        if ($base === '' || $file === '') {
+            return null;
+        }
+        $base = $this->absoluteImageUrl($base);
+        if ($base === null) {
             return null;
         }
         // Due formati del feed:
@@ -253,6 +267,30 @@ final class GoldenSneakersAdapter
         }
 
         return strlen($url) <= 512 ? $url : null;
+    }
+
+    /**
+     * Il feed non è coerente: alcune righe mandano un URL assoluto
+     * ("https://media.goldensneakers.net/products/images/…"), altre un
+     * percorso relativo senza host ("/images/IH6001/main/"). Il fornitore non
+     * lo sistemerà, quindi il percorso relativo si risolve qui contro
+     * FEED_BASE_URL; la whitelist del dominio resta a valle e vale comunque.
+     */
+    private function absoluteImageUrl(string $candidate): ?string
+    {
+        if (preg_match('~^[a-z][a-z0-9+.\-]*://~i', $candidate) === 1) {
+            return $candidate;
+        }
+        if (str_starts_with($candidate, '//')) {
+            // protocol-relative: manca solo lo schema
+            return 'https:' . $candidate;
+        }
+        $base = rtrim($this->config->str('FEED_BASE_URL', 'https://www.goldensneakers.net'), '/');
+        if ($base === '' || parse_url($base, PHP_URL_HOST) === null) {
+            return null;
+        }
+
+        return $base . '/' . ltrim($candidate, '/');
     }
 
     /** @param array<mixed> $raw */
