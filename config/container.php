@@ -6,6 +6,7 @@ use App\Repository\AccountRequestRepository;
 use App\Repository\UserRepository;
 use App\Repository\VatRateRepository;
 use App\Service\PricingService;
+use App\Service\VatService;
 use App\Support\Config;
 use App\Support\Db;
 use App\Support\Lang;
@@ -41,6 +42,12 @@ return [
     Lang::class => static fn (ContainerInterface $c): Lang => new Lang($c->get(Config::class)->rootPath()),
 
     PricingService::class => static fn (ContainerInterface $c): PricingService => PricingService::fromConfig($c->get(Config::class)),
+
+    // VAT_ON_ORDER decide se l'imposta è addebitata al cliente (default: no)
+    VatService::class => static fn (ContainerInterface $c): VatService => VatService::fromConfig(
+        $c->get(VatRateRepository::class),
+        $c->get(Config::class),
+    ),
 
     Environment::class => static function (ContainerInterface $c): Environment {
         $config = $c->get(Config::class);

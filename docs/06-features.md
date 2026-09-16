@@ -111,6 +111,13 @@ carrello" scrive le quantità nel carrello di sessione via `/carrello/aggiorna`
 lasciare il catalogo. `Esc` o clic fuori chiudono. Dati esposti: SOLO stock e
 prezzi netti (mai offer_price).
 
+**IVA mai addebitata** (`VAT_ON_ORDER=0`, docs/04): il totale della richiesta
+è `merce + spedizione` e coincide con l'importo da bonificare. Il messaggio è
+ripetuto lungo tutto il percorso — banner catalogo, footer, riepilogo
+carrello, anteprima del form ordine ("Totale da bonificare"), email con le
+coordinate bancarie, ricevuta pro-forma, home e `/come-ordinare` — perché è
+la promessa B2B della piattaforma.
+
 **Azzera / Ripristina** (`components/_reset.twig` + `assets/js/app.js`): due
 componenti riusabili presenti dove si seleziona o si configura qualcosa.
 - lato client, un contenitore `data-reset-group` raccoglie i campi: `Azzera`

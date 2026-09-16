@@ -454,10 +454,24 @@
             var netCents = Math.round(parseFloat(vatPreview.getAttribute('data-net') || '0') * 100)
                 + Math.round(parseFloat(vatPreview.getAttribute('data-shipping') || '0') * 100);
             var countrySelect = document.getElementById('o-country');
+            var vatCharged = vatPreview.getAttribute('data-vat-charged') !== '0';
             var vatNumberInput = document.getElementById('o-vat-number');
 
             var updateVatPreview = function () {
                 var code = countrySelect ? countrySelect.value : 'IT';
+                // VAT_ON_ORDER=0: nessuna imposta addebitata, si bonifica il netto
+                if (!vatCharged) {
+                    var noneLabel = vatPreview.querySelector('[data-vat-label]');
+                    if (noneLabel) noneLabel.textContent = vatPreview.getAttribute('data-label-none') || '';
+                    var noneAmount = vatPreview.querySelector('[data-vat-amount]');
+                    if (noneAmount) noneAmount.textContent = '—';
+                    var noneGross = vatPreview.querySelector('[data-vat-gross]');
+                    if (noneGross) noneGross.textContent = formatEur(netCents / 100);
+                    var noneHint = vatPreview.querySelector('[data-vat-hint]');
+                    if (noneHint) noneHint.textContent = vatPreview.getAttribute('data-hint-none') || '';
+
+                    return;
+                }
                 var entry = vatByCode[code] || { rate: 0, is_eu: true };
                 var hasVatNumber = vatNumberInput && vatNumberInput.value.trim() !== '';
                 var scheme, rate;
@@ -582,7 +596,12 @@
                     var rate = parseFloat(rateEl.getAttribute('data-vat-rate')) || 0;
                     var netCents = Math.round(parseFloat(data.total_amount) * 100) + shippingCents;
                     var vatCents = Math.round(netCents * rate / 100);
-                    setAllText('[data-summary-vat]', formatEur(vatCents / 100));
+                    // imposta non addebitata: la riga resta "—", il totale è il netto
+                    if (rateEl.getAttribute('data-vat-charged') === '0') {
+                        setAllText('[data-summary-vat]', '—');
+                    } else {
+                        setAllText('[data-summary-vat]', formatEur(vatCents / 100));
+                    }
                     setAllText('[data-summary-gross]', formatEur((netCents + vatCents) / 100));
                 }
 

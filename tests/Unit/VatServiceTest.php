@@ -9,14 +9,55 @@ use App\Service\VatService;
 use App\Tests\Support\TestDb;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Gli schemi fiscali per paese (VAT_ON_ORDER=1) e il comportamento di
+ * default della piattaforma: VAT_ON_ORDER=0, nessuna imposta addebitata al
+ * cliente — il rivenditore bonifica sempre il netto.
+ */
 final class VatServiceTest extends TestCase
 {
+    /** Imposta addebitata: documenta gli schemi di legge. */
     private VatService $vat;
+
+    /** Comportamento di default: il cliente bonifica il netto. */
+    private VatService $netOnly;
 
     protected function setUp(): void
     {
-        $this->vat = new VatService(new VatRateRepository(TestDb::create()));
+        $rates = new VatRateRepository(TestDb::create());
+        $this->vat = new VatService($rates, chargeVat: true);
+        $this->netOnly = new VatService($rates);
     }
+
+    // ── Default: nessuna imposta addebitata (VAT_ON_ORDER=0) ─────────
+
+    public function testByDefaultNoVatIsChargedToTheCustomer(): void
+    {
+        self::assertFalse($this->netOnly->chargesVat());
+
+        // lo schema resta quello di legge (serve a fatture e note della
+        // ricevuta), ma l'aliquota addebitata è 0 per tutti
+        foreach ([['IT', null, VatService::SCHEME_DOMESTIC],
+                  ['DE', null, VatService::SCHEME_EU],
+                  ['DE', 'DE123456789', VatService::SCHEME_REVERSE_CHARGE],
+                  ['GB', null, VatService::SCHEME_EXPORT]] as [$country, $vatNumber, $scheme]) {
+            $resolved = $this->netOnly->resolve($country, $vatNumber);
+            self::assertSame($scheme, $resolved['scheme'], $country);
+            self::assertSame(0.0, $resolved['rate'], $country . ': nessuna imposta addebitata');
+        }
+    }
+
+    /** Il totale da bonificare coincide con l'imponibile: niente sorprese. */
+    public function testAmountToTransferEqualsTheNetTotal(): void
+    {
+        $italian = $this->netOnly->resolve('IT', 'IT01234567890');
+        $vatAmount = VatService::vatAmount('610.00', $italian['rate']);
+
+        self::assertSame('0.00', $vatAmount);
+        self::assertSame('610.00', VatService::grossTotal('610.00', $vatAmount));
+    }
+
+    // ── VAT_ON_ORDER=1: schemi di legge per paese ────────────────────
 
     public function testItalyIsAlwaysDomesticEvenWithVatNumber(): void
     {

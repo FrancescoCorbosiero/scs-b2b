@@ -201,6 +201,11 @@
                         }) }}
                     </div>
                 </div>
+                {% if not vat_charged %}
+                    <p class="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-900">
+                        {{ t('margins.vat_not_charged') }}
+                    </p>
+                {% endif %}
                 <p class="text-xs text-neutral-500 mb-3">{{ t('margins.vat_hint') }}</p>
                 <div class="max-h-96 overflow-y-auto divide-y divide-neutral-100">
                     {% for rate in vat_rates %}

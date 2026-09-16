@@ -138,17 +138,27 @@ final class OrderLifecycleTest extends TestCase
         self::assertFalse($bogus['ok'], 'Formato implausibile → rifiutata');
     }
 
-    /** Cliente UE con P.IVA: reverse charge, VAT 0. Cliente IT: aliquota interna. */
-    public function testVatSchemeFollowsCountryWithMandatoryVatNumber(): void
+    /**
+     * Il cliente bonifica SEMPRE il netto (VAT_ON_ORDER=0, default): nessuna
+     * imposta sommata al totale, né per l'Italia né per l'estero. Lo schema
+     * fiscale resta registrato sull'ordine per la fatturazione.
+     */
+    public function testCustomerAlwaysTransfersTheNetTotal(): void
     {
         $this->seedCart();
         $ok = $this->service->submit($this->orderInput(), '127.0.0.1', '');
         self::assertTrue($ok['ok'], implode(' / ', $ok['errors']));
 
         $italian = $this->orders->find((int) $ok['order_id']);
-        self::assertSame('domestic', $italian['vat_scheme']);
+        self::assertSame('domestic', $italian['vat_scheme'], 'Lo schema di legge resta tracciato');
         self::assertSame('IT01234567890', $italian['vat_number']);
-        self::assertGreaterThan(0.0, (float) $italian['vat_amount'], 'In Italia il VAT si applica anche al B2B');
+        self::assertSame('0.00', number_format((float) $italian['vat_amount'], 2, '.', ''), 'Nessuna IVA addebitata');
+        // totale da bonificare = merce + spedizione
+        $expected = (float) $italian['total_amount'] + (float) $italian['shipping_amount'];
+        self::assertSame(
+            number_format($expected, 2, '.', ''),
+            number_format((float) $italian['total_gross'], 2, '.', ''),
+        );
 
         $this->seedCart();
         $german = $this->service->submit(

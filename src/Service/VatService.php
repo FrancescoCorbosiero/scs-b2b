@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Repository\VatRateRepository;
+use App\Support\Config;
 
 /**
  * Applicazione del VAT in base al paese del cliente (solo nel riepilogo
@@ -22,6 +23,13 @@ use App\Repository\VatRateRepository;
  * lo schema 'eu' (UE senza partita IVA) non è più raggiungibile dai nuovi
  * ordini e resta solo per gli ordini storici già a DB.
  *
+ * ⚠ `VAT_ON_ORDER` (default 0) decide se l'imposta viene **addebitata al
+ * cliente**. Con 0 — la scelta del titolare — il rivenditore bonifica sempre
+ * l'importo netto: l'aliquota risolta qui diventa 0 per tutti gli schemi e
+ * l'eventuale imposta dovuta è definita in fattura, fuori dalla piattaforma.
+ * Lo schema (domestic/reverse_charge/export) continua a essere calcolato e
+ * salvato: serve all'amministrazione e alle note della ricevuta.
+ *
  * La partita IVA è validata solo nel FORMATO (normalizzazione + plausibilità):
  * nessuna chiamata VIES. La verifica sostanziale resta a carico del titolare
  * in fase di conferma ordine.
@@ -33,14 +41,45 @@ final class VatService
     public const SCHEME_REVERSE_CHARGE = 'reverse_charge';
     public const SCHEME_EXPORT = 'export';
 
-    public function __construct(private readonly VatRateRepository $rates)
+    public function __construct(
+        private readonly VatRateRepository $rates,
+        /** Se false (default) l'imposta non viene mai addebitata: si bonifica il netto. */
+        private readonly bool $chargeVat = false,
+    ) {
+    }
+
+    public static function fromConfig(VatRateRepository $rates, Config $config): self
     {
+        return new self($rates, $config->bool('VAT_ON_ORDER', false));
+    }
+
+    /** L'imposta viene addebitata al cliente nella richiesta d'ordine? */
+    public function chargesVat(): bool
+    {
+        return $this->chargeVat;
     }
 
     /**
      * @return array{country_code: string, scheme: string, rate: float, vat_number: string|null}
      */
     public function resolve(string $countryCode, ?string $vatNumber): array
+    {
+        $resolved = $this->resolveScheme($countryCode, $vatNumber);
+        // VAT_ON_ORDER=0: il cliente bonifica il netto, aliquota azzerata
+        if (!$this->chargeVat) {
+            $resolved['rate'] = 0.0;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Schema fiscale "di legge", a prescindere da VAT_ON_ORDER: è quello che
+     * si salva sull'ordine e che decide le note della ricevuta.
+     *
+     * @return array{country_code: string, scheme: string, rate: float, vat_number: string|null}
+     */
+    private function resolveScheme(string $countryCode, ?string $vatNumber): array
     {
         $country = $this->rates->find($countryCode) ?? $this->rates->find('IT');
         if ($country === null) {
