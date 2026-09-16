@@ -1,3 +1,4 @@
+{% import 'components/_reset.twig' as reset %}
 {# Pannello filtri: rail fisso su desktop, drawer a scorrimento su mobile.
    È un solo blocco DOM (niente input duplicati): i campi appartengono al form
    GET #catalog-filters via attributo form=, così lo stato resta nell'URL. #}
@@ -12,8 +13,11 @@
 
 <div class="space-y-4 p-4 lg:p-0">
     {# ── Disponibilità (primo filtro: è quello che si usa di più) ── #}
-    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_availability') }}</h2>
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+        <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+            {{ t('catalog.filter_availability') }}
+            {% if filters.availability %}{{ reset.buttons({}) }}{% endif %}
+        </h2>
         <div class="grid grid-cols-2 gap-1.5">
             {% for a in ['', 'alta', 'media', 'bassa'] %}
                 <label class="cursor-pointer">
@@ -60,12 +64,15 @@
     </section>
 
     {# ── Categoria di taglia: normali / GS / PS ──────────────── #}
-    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 class="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-neutral-400">
-            {{ t('catalog.filter_size_category') }}
-            {% if filters.size_categories is not empty %}
-                <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.size_categories|length }}</span>
-            {% endif %}
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+        <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+            <span class="flex items-center gap-1.5">
+                {{ t('catalog.filter_size_category') }}
+                {% if filters.size_categories is not empty %}
+                    <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.size_categories|length }}</span>
+                {% endif %}
+            </span>
+            {% if filters.size_categories is not empty %}{{ reset.buttons({}) }}{% endif %}
         </h2>
         <div class="space-y-1.5">
             {% for category, products in size_category_facets %}
@@ -86,12 +93,15 @@
 
     {# ── Taglie (solo quelle con stock) ──────────────────────── #}
     {% if size_facets is not empty %}
-        <section class="rounded-2xl border border-neutral-200 bg-white p-4">
-            <h2 class="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-neutral-400">
-                {{ t('catalog.filter_sizes') }}
-                {% if filters.sizes is not empty %}
-                    <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.sizes|length }}</span>
-                {% endif %}
+        <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+            <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+                <span class="flex items-center gap-1.5">
+                    {{ t('catalog.filter_sizes') }}
+                    {% if filters.sizes is not empty %}
+                        <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.sizes|length }}</span>
+                    {% endif %}
+                </span>
+                {% if filters.sizes is not empty %}{{ reset.buttons({}) }}{% endif %}
             </h2>
             <p class="mb-2 text-[11px] text-neutral-400">{{ t('catalog.filter_sizes_hint') }}</p>
             <div class="grid grid-cols-4 gap-1.5 sm:grid-cols-5 lg:grid-cols-4">
@@ -113,8 +123,11 @@
     {% endif %}
 
     {# ── Prezzo (netto, VAT esclusa) ─────────────────────────── #}
-    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
-        <h2 class="mb-2 text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.filter_price') }}</h2>
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+        <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+            {{ t('catalog.filter_price') }}
+            {% if filters.price_min is not null or filters.price_max is not null %}{{ reset.buttons({}) }}{% endif %}
+        </h2>
         <div class="flex items-center gap-2">
             <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" inputmode="numeric"
                    form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_min_short') }}"
@@ -129,7 +142,10 @@
     </section>
 
     {# ── Interruttori rapidi ─────────────────────────────────── #}
-    <section class="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4">
+    <section class="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+        {% if filters.recommended or filters.in_stock %}
+            <div class="flex justify-end">{{ reset.buttons({}) }}</div>
+        {% endif %}
         {% for toggle in [
             {name: 'recommended', on: filters.recommended, label: t('catalog.filter_recommended')},
             {name: 'disponibili', on: filters.in_stock, label: t('catalog.filter_in_stock')}

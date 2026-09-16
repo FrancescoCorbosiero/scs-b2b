@@ -22,19 +22,26 @@
             {{ shipping.free ? t('cart.shipping_free') : shipping.amount|eur }}
         </strong>
     </div>
-    {# stima VAT sul paese in header: si aggiorna con le quantità (JS) #}
-    <div class="flex justify-between text-sm" data-vat-rate="{{ cart_vat.rate }}">
+    {# VAT: con VAT_ON_ORDER=0 non si addebita nulla, quindi si dice a chiare
+       lettere che il totale è l'importo da bonificare #}
+    <div class="flex justify-between text-sm" data-vat-rate="{{ cart_vat.rate }}" data-vat-charged="{{ vat_charged ? '1' : '0' }}">
         <span class="text-neutral-500">
-            {% if cart_vat.scheme == 'export' %}{{ t('vat.label_export') }}{% else %}{{ t('vat.label_rate', {rate: cart_vat.rate}) }} · {{ cart_vat.country }}{% endif %}
-            <span class="text-neutral-400">({{ t('cart.estimate') }})</span>
+            {% if not vat_charged %}{{ t('vat.label_not_charged') }}
+            {% elseif cart_vat.scheme == 'export' %}{{ t('vat.label_export') }}
+            {% else %}{{ t('vat.label_rate', {rate: cart_vat.rate}) }} · {{ cart_vat.country }}{% endif %}
+            {% if vat_charged %}<span class="text-neutral-400">({{ t('cart.estimate') }})</span>{% endif %}
         </span>
-        <span data-summary-vat>{{ cart_vat.amount|eur }}</span>
+        <span data-summary-vat>{{ vat_charged ? cart_vat.amount|eur : '—' }}</span>
     </div>
     <div class="flex justify-between border-t border-neutral-200 pt-2 text-sm">
-        <span class="font-semibold">{{ t('order.total_estimated') }}</span>
+        <span class="font-semibold">{{ vat_charged ? t('order.total_estimated') : t('order.total_to_pay') }}</span>
         <strong class="text-lg" data-summary-gross>{{ cart_vat.gross|eur }}</strong>
     </div>
-    <p class="text-xs text-neutral-500">{{ t('cart.vat_note', {country: t('country.' ~ country)}) }}</p>
+    <p class="text-xs {{ vat_charged ? 'text-neutral-500' : 'font-medium text-emerald-700' }}">
+        {{ vat_charged
+            ? t('cart.vat_note_charged', {country: t('country.' ~ country)})
+            : t('cart.vat_note') }}
+    </p>
     <div class="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
         {{ t('cart.shipping_notice', {n: shipping.free_from, fee: shipping.fee|eur}) }}
         <span data-shipping-hint class="{{ shipping.free ? 'hidden' }} mt-1 block font-medium text-neutral-700">

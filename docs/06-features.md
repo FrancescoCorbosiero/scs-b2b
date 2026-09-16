@@ -111,6 +111,24 @@ carrello" scrive le quantità nel carrello di sessione via `/carrello/aggiorna`
 lasciare il catalogo. `Esc` o clic fuori chiudono. Dati esposti: SOLO stock e
 prezzi netti (mai offer_price).
 
+**IVA mai addebitata** (`VAT_ON_ORDER=0`, docs/04): il totale della richiesta
+è `merce + spedizione` e coincide con l'importo da bonificare. Il messaggio è
+ripetuto lungo tutto il percorso — banner catalogo, footer, riepilogo
+carrello, anteprima del form ordine ("Totale da bonificare"), email con le
+coordinate bancarie, ricevuta pro-forma, home e `/come-ordinare` — perché è
+la promessa B2B della piattaforma.
+
+**Azzera / Ripristina** (`components/_reset.twig` + `assets/js/app.js`): due
+componenti riusabili presenti dove si seleziona o si configura qualcosa.
+- lato client, un contenitore `data-reset-group` raccoglie i campi: `Azzera`
+  li svuota, `Ripristina` li riporta al loro `data-default`. Con
+  `data-reset-submit` il form parte subito (usato da ogni sezione del pannello
+  filtri del catalogo, che così si azzera senza toccare gli altri filtri);
+- lato server, per i dati salvati a DB, i bottoni sono piccoli form POST (quindi
+  funzionano anche senza JS): in `/admin/margini` azzerano o ripristinano le
+  regole margine (set di partenza, migrazione 0006), il margine di default e le
+  aliquote VAT (tutte o per singolo paese).
+
 **Pannello filtri** (`catalog/_filters.twig`): un unico blocco DOM che su
 desktop è un rail sticky e su mobile un drawer a scorrimento. I campi sono
 legati al form GET `#catalog-filters` con l'attributo `form=`, così lo stato

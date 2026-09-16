@@ -10,8 +10,9 @@ Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
 compongono un carrello e inviano una **richiesta d'ordine** che riceve subito le
 istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
 **confermato dall'admin all'arrivo del pagamento**, momento in cui parte l'email
-di conferma con la ricevuta pro-forma PDF. Il VAT si calcola alla richiesta in
-base al paese di residenza (reverse charge per B2B UE con P.IVA). Con
+di conferma con la ricevuta pro-forma PDF. La **partita IVA è obbligatoria per
+tutti i clienti** e il VAT si calcola alla richiesta in base al paese di
+residenza (reverse charge per B2B UE, 22% per l'Italia). Con
 `AUTO_DROPSHIP_ON_REQUEST=1` la richiesta crea subito l'ordine dropship presso
 GoldenSneakers (docs/09) per bloccare lo stock prima del bonifico.
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).

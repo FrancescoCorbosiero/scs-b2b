@@ -51,6 +51,9 @@ final class View
             'current_path' => parse_url($uri, PHP_URL_PATH) ?: '/',
             'current_uri' => $uri,
             'app_env' => $this->config->str('APP_ENV', 'production'),
+            // VAT_ON_ORDER=0 (default): al cliente non si addebita imposta,
+            // bonifica il netto — i testi cambiano di conseguenza
+            'vat_charged' => $this->config->bool('VAT_ON_ORDER', false),
             // immagini pagine pubbliche (sostituibili con foto in public/img/custom)
             'images' => $this->images->all(),
             'app_url' => rtrim($this->config->str('APP_URL', 'https://b2b.shoesclothingstore.com'), '/'),

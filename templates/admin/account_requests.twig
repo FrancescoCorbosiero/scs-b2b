@@ -63,6 +63,13 @@
                             <form method="post" action="/admin/richieste-profilo/{{ r.id }}/approva"
                                   data-confirm="{{ t('signup.admin_approve_confirm')|e('html_attr') }}">
                                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                {% if not r.vat_number %}
+                                    {# richiesta inviata prima dell'obbligo di P.IVA: si completa qui #}
+                                    <label for="rq-vat-{{ r.id }}" class="mb-1 block text-xs font-medium text-neutral-500">{{ t('admin.vat_number') }}</label>
+                                    <input type="text" id="rq-vat-{{ r.id }}" name="vat_number" required maxlength="32"
+                                           placeholder="{{ t('order.vat_number_placeholder') }}"
+                                           class="mb-2 w-full rounded-lg border-neutral-300 text-sm">
+                                {% endif %}
                                 <button type="submit" class="w-full rounded-lg bg-emerald-600 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-emerald-500">
                                     {{ t('signup.admin_approve') }}
                                 </button>

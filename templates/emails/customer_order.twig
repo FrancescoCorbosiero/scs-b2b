@@ -58,6 +58,7 @@
             <td style="color: #525252;">
                 {% if order.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
                 {% elseif order.vat_scheme == 'export' %}{{ t('vat.label_export') }}
+                {% elseif (order.vat_rate ?? 0) == 0 %}{{ t('vat.label_not_charged') }}
                 {% else %}{{ t('vat.label_rate', {rate: order.vat_rate}) }}{% endif %}
             </td>
             <td align="right">{{ order.vat_amount|eur }}</td>
@@ -82,14 +83,21 @@
     {% else %}
         <p style="font-size: 13px; background: #fafafa; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px;">{{ t('payment.details_missing') }}</p>
     {% endif %}
+    {# nessuna imposta addebitata: lo si dice accanto all'importo, non in fondo #}
+    {% if (order.vat_rate ?? 0) == 0 %}
+        <p style="font-size: 13px; font-weight: bold; color: #047857;">{{ t('email.payment_net_notice') }}</p>
+    {% endif %}
     <p style="font-size: 12px; color: #525252;">{{ t('email.payment_after') }}</p>
 
     {% if order.vat_scheme == 'reverse_charge' %}
         <p style="color: #525252; font-size: 12px;">{{ t('vat.note_reverse') }}</p>
     {% elseif order.vat_scheme == 'export' %}
         <p style="color: #525252; font-size: 12px;">{{ t('vat.note_export') }}</p>
+    {% elseif (order.vat_rate ?? 0) == 0 %}
+        <p style="color: #525252; font-size: 12px;">{{ t('vat.note_not_charged') }}</p>
+    {% else %}
+        <p style="color: #525252; font-size: 12px;">{{ t('email.customer_vat_disclaimer', {country: t('country.' ~ order.country_code)}) }}</p>
     {% endif %}
-    <p style="color: #525252; font-size: 12px;">{{ t('email.customer_vat_disclaimer', {country: t('country.' ~ order.country_code)}) }}</p>
 
     <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
     <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>

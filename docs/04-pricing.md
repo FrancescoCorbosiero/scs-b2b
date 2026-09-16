@@ -65,27 +65,55 @@ taglie del prodotto.
   è anche la regola valutata per prima, quindi un prezzo fisso batte sempre
   le regole di brand/nome/categoria.
 
-## Niente IVA nel listino
+## Niente IVA: il cliente bonifica il netto
 
 **I prezzi mostrati sono sempre VAT esclusa** — catalogo, carrello, export
-Excel, email. Ovunque compare la dicitura esplicita. Il VAT si calcola SOLO
-alla richiesta d'ordine, in base al paese di residenza (`VatService`):
+Excel, email — e con `VAT_ON_ORDER=0` (default) **nessuna imposta viene
+addebitata al cliente**: il totale della richiesta d'ordine è `merce +
+spedizione` ed è esattamente l'importo da bonificare. È la scelta del titolare
+per il B2B: l'eventuale IVA dovuta si definisce in fattura, fuori dalla
+piattaforma (la ricevuta della piattaforma è una **pro-forma**).
 
-| Caso | Scheme | VAT applicato |
-|---|---|---|
-| Italia (con o senza P.IVA) | `domestic` | aliquota IT (22%) |
-| UE ≠ IT **con** P.IVA plausibile | `reverse_charge` | 0% (artt. 194–196 Dir. 2006/112/CE) |
-| UE ≠ IT senza P.IVA | `eu` | aliquota standard del paese |
-| Extra-UE (UK, CH) | `export` | 0% (art. 8 DPR 633/72) |
+⚠ Da tenere presente in amministrazione: per una cessione interna italiana
+l'IVA resta dovuta e comparirà in fattura, quindi l'importo bonificato dal
+cliente italiano e il totale della fattura non coincidono — la quadratura è a
+carico del titolare/commercialista. La piattaforma non nasconde il punto: il
+cliente legge "IVA/VAT non addebitata … il trattamento IVA è definito nella
+fattura".
+
+La **partita IVA è obbligatoria per tutti i clienti** (stessa decisione): il
+catalogo è riservato ai rivenditori, quindi il campo è `required` nella
+richiesta d'ordine, nella richiesta di accesso, nel profilo cliente e nella
+creazione account da /admin.
+
+Lo **schema fiscale** continua a essere calcolato e salvato sull'ordine — serve
+alla fatturazione e alle note della ricevuta — anche quando l'aliquota
+addebitata è 0:
+
+| Caso | Scheme | VAT addebitato (`VAT_ON_ORDER=0`) | Con `VAT_ON_ORDER=1` |
+|---|---|---|---|
+| Italia (con P.IVA) | `domestic` | **0%** | aliquota IT (22%) |
+| UE ≠ IT **con** P.IVA plausibile | `reverse_charge` | 0% | 0% (artt. 194–196 Dir. 2006/112/CE) |
+| UE ≠ IT senza P.IVA | `eu` | **0%** | aliquota del paese — non più raggiungibile dai nuovi ordini (P.IVA obbligatoria), resta per lo storico |
+| Extra-UE (UK, CH) | `export` | 0% | 0% (art. 8 DPR 633/72) |
+
+Dove si dice al cliente, a chiare lettere: banner del catalogo, footer di ogni
+pagina, riepilogo del carrello, anteprima del form ordine ("Totale da
+bonificare"), email di richiesta accanto all'importo, ricevuta pro-forma e
+pagine pubbliche (home § prezzi netti, `/come-ordinare` passi 2 e 3).
 
 - Aliquote standard per paese in tabella `vat_rates` (UE-27 + GB + CH),
-  modificabili da `/admin/margini`. Extra-UE: `is_eu = 0`.
+  modificabili da `/admin/margini`, dove i bottoni **Azzera** (tutte a 0) e
+  **Ripristina** (valori di legge, `VatRateRepository::STANDARD_RATES`)
+  riportano la tabella a uno stato noto, anche per singolo paese.
+  Extra-UE: `is_eu = 0`.
 - La P.IVA è validata solo nel **formato** (normalizzazione + plausibilità,
   prefisso VIES `EL` per la Grecia): niente chiamata VIES, la verifica
   sostanziale resta al titolare in fase di conferma.
 - Il paese si sceglie dal selettore in header (default IT, persiste in
-  sessione) e si conferma nel form ordine; il form mostra un'anteprima live
-  di imponibile/spedizione/VAT/totale (il server resta l'unica verità).
+  sessione) e si conferma nel form ordine; il form mostra un'anteprima live di
+  merce/spedizione/totale da bonificare (il server resta l'unica verità).
+  Riattivare l'addebito è una riga di `.env`: `VAT_ON_ORDER=1`.
 - La **spedizione** (`ShippingService`, docs/06 § /carrello) è netta e segue lo
   stesso regime dei beni perché accessoria alla cessione (art. 12 DPR 633/72 ·
   art. 78 Dir. 2006/112/CE): l'imponibile è `merce + spedizione`, quindi in

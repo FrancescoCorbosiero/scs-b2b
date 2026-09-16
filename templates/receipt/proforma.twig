@@ -100,6 +100,7 @@
             <td class="muted">
                 {% if order.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
                 {% elseif order.vat_scheme == 'export' %}{{ t('vat.label_export') }}
+                {% elseif (order.vat_rate ?? 0) == 0 %}{{ t('vat.label_not_charged') }}
                 {% else %}{{ t('vat.label_rate', {rate: order.vat_rate ?? 0}) }}{% endif %}
             </td>
             <td class="right">{{ (order.vat_amount ?? '0.00')|eur }}</td>
@@ -114,6 +115,8 @@
         <p class="note">{{ t('vat.note_reverse') }}</p>
     {% elseif order.vat_scheme == 'export' %}
         <p class="note">{{ t('vat.note_export') }}</p>
+    {% elseif (order.vat_rate ?? 0) == 0 %}
+        <p class="note">{{ t('vat.note_not_charged') }}</p>
     {% endif %}
     <p class="note">{{ t('receipt.disclaimer') }}</p>
 </body>

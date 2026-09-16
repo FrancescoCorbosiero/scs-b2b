@@ -123,6 +123,15 @@ final class AccountRequestServiceTest extends TestCase
         self::assertSame(0, $this->requests->countPending());
     }
 
+    /** P.IVA obbligatoria: il profilo si attiva solo ad aziende con partita IVA. */
+    public function testVatNumberIsMandatory(): void
+    {
+        $result = $this->submit(['vat_number' => '']);
+
+        self::assertFalse($result['ok']);
+        self::assertSame(0, $this->requests->countPending());
+    }
+
     public function testHoneypotSilentlyRejects(): void
     {
         $result = $this->submit(['website' => 'http://spam.example']);
@@ -185,6 +194,27 @@ final class AccountRequestServiceTest extends TestCase
         self::assertSame('20121', $user['address_zip']);
         self::assertSame('IT', $user['country_code']);
         self::assertNull($user['password_hash'], 'La password la imposta il cliente dall\'invito');
+    }
+
+    /**
+     * Le richieste arrivate prima dell'obbligo di P.IVA restano approvabili:
+     * l'admin la completa nel form di approvazione.
+     */
+    public function testLegacyRequestWithoutVatIsApprovedWithAdminOverride(): void
+    {
+        $id = $this->requests->insert([
+            'company' => 'Vecchia Richiesta SRL', 'vat_number' => null, 'name' => 'Luigi Verdi',
+            'email' => 'luigi@vecchia.it', 'phone' => '+390000000', 'address_street' => 'Via Vecchia 1',
+            'address_city' => 'Roma', 'address_zip' => '00100', 'country_code' => 'IT', 'locale' => 'it',
+            'notes' => null, 'ip_address' => '127.0.0.1', 'user_agent' => null,
+        ]);
+
+        $blocked = $this->service->approve($id);
+        self::assertFalse($blocked['ok'], 'Senza P.IVA l\'account non si crea');
+
+        $approved = $this->service->approve($id, 'IT01234567890');
+        self::assertTrue($approved['ok'], (string) $approved['error']);
+        self::assertSame('IT01234567890', $this->users->findByEmail('luigi@vecchia.it')['vat_number']);
     }
 
     public function testApprovalIsIdempotent(): void

@@ -9,6 +9,13 @@ use PDO;
 /** Impostazioni chiave/valore modificabili da /admin (es. margine di default). */
 final class SettingsRepository
 {
+    /**
+     * Margine di default "di fabbrica": i valori indicati dal titolare nella
+     * migrazione 0006 (5% sui brand non elencati). È ciò a cui torna il
+     * bottone "Ripristina" in /admin/margini.
+     */
+    public const FACTORY_DEFAULT_MARGIN = ['type' => 'percent', 'value' => '5.00'];
+
     public function __construct(private readonly PDO $pdo)
     {
     }

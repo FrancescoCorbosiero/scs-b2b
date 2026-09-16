@@ -63,7 +63,7 @@
                 </div>
                 <div>
                     <label for="p-vat" class="block font-medium mb-1">{{ t('order.vat_number') }}</label>
-                    <input type="text" id="p-vat" name="vat_number" maxlength="32" value="{{ user.vat_number ?? '' }}"
+                    <input type="text" id="p-vat" name="vat_number" required maxlength="32" value="{{ user.vat_number ?? '' }}"
                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>

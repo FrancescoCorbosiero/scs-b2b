@@ -49,7 +49,7 @@
                             </div>
                             <div>
                                 <label for="s-vat" class="mb-1 block text-sm font-medium">{{ t('signup.vat_number') }}</label>
-                                <input type="text" id="s-vat" name="vat_number" maxlength="32" value="{{ old.vat_number ?? '' }}"
+                                <input type="text" id="s-vat" name="vat_number" required maxlength="32" value="{{ old.vat_number ?? '' }}"
                                        placeholder="{{ t('order.vat_number_placeholder') }}"
                                        class="w-full rounded-xl border-neutral-300 transition-colors focus:border-amber-500 focus:ring-amber-500">
                                 <p class="mt-1 text-xs text-neutral-400">{{ t('signup.vat_hint') }}</p>

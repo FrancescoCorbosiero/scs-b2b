@@ -69,6 +69,10 @@ final class UserService
         if (!$this->vat->isValidCountry($country)) {
             $errors[] = $this->lang->t('order.error_country');
         }
+        // P.IVA obbligatoria anche qui: un account senza non potrebbe ordinare
+        if (!VatService::isRequiredVatNumberValid($vatNumber, $country !== '' ? $country : 'IT')) {
+            $errors[] = $this->lang->t($vatNumber === '' ? 'order.error_vat_required' : 'order.error_vat_number');
+        }
         if ($errors !== []) {
             return ['ok' => false, 'errors' => $errors, 'user_id' => null, 'email_sent' => false];
         }
@@ -231,8 +235,8 @@ final class UserService
         if (!$this->vat->isValidCountry($country)) {
             $errors[] = $this->lang->t('order.error_country');
         }
-        if ($vatNumber !== '' && !VatService::isPlausibleVatNumber($vatNumber, $country !== '' ? $country : 'IT')) {
-            $errors[] = $this->lang->t('order.error_vat_number');
+        if (!VatService::isRequiredVatNumberValid($vatNumber, $country !== '' ? $country : 'IT')) {
+            $errors[] = $this->lang->t($vatNumber === '' ? 'order.error_vat_required' : 'order.error_vat_number');
         }
         if ($errors !== []) {
             return ['ok' => false, 'errors' => $errors];

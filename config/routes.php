@@ -121,6 +121,12 @@ return static function (App $app): void {
         $group->post('/margini/regole/{id:[0-9]+}/elimina', [AdminController::class, 'marginRuleDelete']);
         $group->post('/margini/default', [AdminController::class, 'marginDefaultSave']);
         $group->post('/margini/vat', [AdminController::class, 'vatRateSave']);
+        // azzera/ripristina: i due componenti UX presenti in tutta l'area margini
+        $group->post('/margini/regole/azzera', [AdminController::class, 'marginRulesClear']);
+        $group->post('/margini/regole/ripristina', [AdminController::class, 'marginRulesRestore']);
+        $group->post('/margini/default/ripristina', [AdminController::class, 'marginDefaultRestore']);
+        $group->post('/margini/vat/azzera', [AdminController::class, 'vatRatesClear']);
+        $group->post('/margini/vat/ripristina', [AdminController::class, 'vatRatesRestore']);
 
         // ricevuta pro-forma della richiesta (rigenerata dallo snapshot)
         $group->get('/richieste/{id:[0-9]+}/ricevuta.pdf', [AdminController::class, 'receiptPdf']);

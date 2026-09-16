@@ -100,8 +100,9 @@ final class OrderService
         if (!$this->vat->isValidCountry($country)) {
             $errors[] = $this->lang->t('order.error_country');
         }
-        if ($vatNumberRaw !== '' && !VatService::isPlausibleVatNumber($vatNumberRaw, $country !== '' ? $country : 'IT')) {
-            $errors[] = $this->lang->t('order.error_vat_number');
+        // P.IVA obbligatoria per tutti: il catalogo è riservato ai rivenditori
+        if (!VatService::isRequiredVatNumberValid($vatNumberRaw, $country !== '' ? $country : 'IT')) {
+            $errors[] = $this->lang->t($vatNumberRaw === '' ? 'order.error_vat_required' : 'order.error_vat_number');
         }
 
         // dropshipping: consegna al cliente finale del rivenditore (docs/09).
