@@ -1,0 +1,84 @@
+{# Componenti UX "Azzera" e "Ripristina".
+
+   Client-side: il contenitore porta data-reset-group (+ data-reset-submit per
+   i filtri che si applicano da soli) e i campi dentro di esso si svuotano
+   (clear) o tornano al loro data-default (default) — vedi assets/js/app.js.
+
+   Server-side: per i dati salvati a DB (margine di default, aliquote VAT,
+   regole) i bottoni sono submit di piccoli form POST, quindi funzionano
+   anche senza JavaScript. #}
+
+{# Coppia di bottoni client-side. Opzioni:
+   clear/default (bool), clear_label/default_label (string), class (string) #}
+{% macro buttons(options) %}
+    {% set o = {clear: true, default: false, clear_label: null, default_label: null, class: ''}|merge(options|default({})) %}
+    <span class="inline-flex items-center gap-1 {{ o.class }}">
+        {% if o.clear %}
+            <button type="button" data-reset="clear" title="{{ (o.clear_label ?: t('ui.reset_clear'))|e('html_attr') }}"
+                    class="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 text-[11px] font-semibold text-neutral-500
+                           transition-colors hover:border-neutral-400 hover:text-neutral-900">
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                {{ o.clear_label ?: t('ui.reset_clear') }}
+            </button>
+        {% endif %}
+        {% if o.default %}
+            <button type="button" data-reset="default" title="{{ (o.default_label ?: t('ui.reset_default'))|e('html_attr') }}"
+                    class="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2 py-1 text-[11px] font-semibold text-neutral-500
+                           transition-colors hover:border-neutral-400 hover:text-neutral-900">
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356m-4.993 4.992l3.181-3.183a8.25 8.25 0 00-13.803 3.7M4.031 9.865v4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7"/></svg>
+                {{ o.default_label ?: t('ui.reset_default') }}
+            </button>
+        {% endif %}
+    </span>
+{% endmacro %}
+
+{# Stile condiviso dei bottoni POST (usato anche da remote_button). #}
+{% macro post_classes(style) %}rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors {{ style == 'default' ? 'border-neutral-200 text-neutral-500 hover:border-neutral-400 hover:text-neutral-900' : 'border-red-200 text-red-600 hover:border-red-400 hover:text-red-700' }}{% endmacro %}
+
+{# Form POST "vuoto" da mettere FUORI da altri form (i form annidati non sono
+   HTML valido): il bottone lo referenzia con form="<id>" via remote_button. #}
+{% macro post_form(options) %}
+    {% set o = {confirm: null}|merge(options|default({})) %}
+    <form id="{{ o.id }}" method="post" action="{{ o.action }}" class="hidden"
+          {% if o.confirm %}data-confirm="{{ o.confirm|e('html_attr') }}"{% endif %}>
+        <input type="hidden" name="_csrf" value="{{ o.csrf }}">
+    </form>
+{% endmacro %}
+
+{# Bottone collegato a un post_form per id: si può mettere dentro un altro form. #}
+{% macro remote_button(options) %}
+    {% import _self as self %}
+    {% set o = {style: 'default'}|merge(options|default({})) %}
+    <button type="submit" form="{{ o.form }}"
+            class="inline-flex items-center gap-1 {{ self.post_classes(o.style)|trim }}">
+        {% if o.style == 'default' %}
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356m-4.993 4.992l3.181-3.183a8.25 8.25 0 00-13.803 3.7M4.031 9.865v4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7"/></svg>
+        {% else %}
+            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        {% endif %}
+        {{ o.label }}
+    </button>
+{% endmacro %}
+
+{# Bottone che invia un POST (dati persistiti), con il suo form: da usare SOLO
+   fuori da altri form. Opzioni: action, csrf, label, confirm, style, name/value #}
+{% macro post_button(options) %}
+    {% set o = {style: 'clear', confirm: null, name: null, value: null, form_class: ''}|merge(options|default({})) %}
+    <form method="post" action="{{ o.action }}" class="inline {{ o.form_class }}"
+          {% if o.confirm %}data-confirm="{{ o.confirm|e('html_attr') }}"{% endif %}>
+        <input type="hidden" name="_csrf" value="{{ o.csrf }}">
+        {% if o.name %}<input type="hidden" name="{{ o.name }}" value="{{ o.value }}">{% endif %}
+        <button type="submit"
+                class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors
+                       {{ o.style == 'default'
+                          ? 'border-neutral-200 text-neutral-500 hover:border-neutral-400 hover:text-neutral-900'
+                          : 'border-red-200 text-red-600 hover:border-red-400 hover:text-red-700' }}">
+            {% if o.style == 'default' %}
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992V4.356m-4.993 4.992l3.181-3.183a8.25 8.25 0 00-13.803 3.7M4.031 9.865v4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7"/></svg>
+            {% else %}
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            {% endif %}
+            {{ o.label }}
+        </button>
+    </form>
+{% endmacro %}

@@ -112,12 +112,67 @@
         form.submit();
     }
 
+
+    // ── Azzera / Ripristina (componenti UX riusabili) ────────────────
+    // Un contenitore [data-reset-group] raccoglie i campi su cui agiscono i
+    // bottoni [data-reset="clear"] (svuota) e [data-reset="default"] (torna
+    // ai valori data-default). Con data-reset-submit il form parte subito
+    // (filtri catalogo); altrimenti si notifica il cambio ad Alpine.
+    function resetField(el, mode) {
+        var def = el.getAttribute('data-default');
+        if (el.type === 'checkbox' || el.type === 'radio') {
+            var wanted = mode === 'default' && def !== null ? el.value === def : el.value === '';
+            if (el.checked === wanted) return false;
+            el.checked = wanted;
+
+            return true;
+        }
+        var next = mode === 'default' && def !== null ? def : '';
+        if (el.tagName === 'SELECT' && next === '' && !Array.prototype.some.call(el.options, function (o) { return o.value === ''; })) {
+            next = el.options.length ? el.options[0].value : '';
+        }
+        if (String(el.value) === String(next)) return false;
+        el.value = next;
+
+        return true;
+    }
+
+    function resetGroup(group, mode) {
+        var autosubmit = group.hasAttribute('data-reset-submit');
+        var form = null;
+        var touched = [];
+        group.querySelectorAll('input[name], select[name], textarea[name]').forEach(function (el) {
+            if (el.type === 'hidden' || el.disabled) return;
+            form = form || el.form;
+            if (resetField(el, mode)) touched.push(el);
+        });
+        if (autosubmit) {
+            // un solo invio per tutto il gruppo, non uno per campo
+            submitWithFeedback(form);
+
+            return;
+        }
+        touched.forEach(function (el) {
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         // ── Select/checkbox che inviano il proprio form al change ────
         document.querySelectorAll('[data-autosubmit]').forEach(function (el) {
             el.addEventListener('change', function () {
                 submitWithFeedback(el.form);
             });
+        });
+
+        // ── Bottoni Azzera / Ripristina ──────────────────────────────
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('[data-reset]');
+            if (!btn) return;
+            var group = btn.closest('[data-reset-group]');
+            if (!group) return;
+            e.preventDefault();
+            resetGroup(group, btn.getAttribute('data-reset'));
         });
 
         // ── Campi che inviano il form dopo una pausa di digitazione ──

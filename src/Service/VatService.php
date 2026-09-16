@@ -10,11 +10,17 @@ use App\Repository\VatRateRepository;
  * Applicazione del VAT in base al paese del cliente (solo nel riepilogo
  * ordine e nella ricevuta pro-forma: i prezzi di listino restano netti).
  *
- * - Italia → 'domestic': aliquota IT (anche con partita IVA).
+ * - Italia → 'domestic': aliquota IT (anche con partita IVA: sui beni il
+ *   reverse charge non si applica alle cessioni interne).
  * - UE ≠ IT con partita IVA plausibile → 'reverse_charge': VAT 0%
  *   (inversione contabile, art. 194–196 Dir. 2006/112/CE).
  * - UE ≠ IT senza partita IVA → 'eu': aliquota standard del paese.
  * - Extra-UE (UK, CH) → 'export': VAT 0% (operazione non imponibile).
+ *
+ * La **partita IVA è obbligatoria per tutti i clienti** (decisione del
+ * titolare, settembre 2026): il catalogo è riservato ai rivenditori, quindi
+ * lo schema 'eu' (UE senza partita IVA) non è più raggiungibile dai nuovi
+ * ordini e resta solo per gli ordini storici già a DB.
  *
  * La partita IVA è validata solo nel FORMATO (normalizzazione + plausibilità):
  * nessuna chiamata VIES. La verifica sostanziale resta a carico del titolare
@@ -87,12 +93,23 @@ final class VatService
         return $prefix . $clean;
     }
 
+    /**
+     * P.IVA obbligatoria: presente E plausibile nel formato. È la regola
+     * applicata a tutti i form cliente (ordine, richiesta accesso, profilo)
+     * e alla creazione account da /admin.
+     */
+    public static function isRequiredVatNumberValid(?string $raw, string $countryCode): bool
+    {
+        return self::normalizeVatNumber($raw, $countryCode) !== null
+            && self::isPlausibleVatNumber($raw, $countryCode);
+    }
+
     /** Controllo di plausibilità del formato (7–13 alfanumerici dopo il prefisso paese). */
     public static function isPlausibleVatNumber(?string $raw, string $countryCode): bool
     {
         $normalized = self::normalizeVatNumber($raw, $countryCode);
         if ($normalized === null) {
-            return true; // assente = ammesso (il campo è facoltativo)
+            return true; // assente = ammesso QUI: l'obbligo lo impone isRequiredVatNumberValid()
         }
         $body = substr($normalized, 2);
 

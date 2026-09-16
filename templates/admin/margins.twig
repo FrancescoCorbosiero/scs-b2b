@@ -1,4 +1,5 @@
 {% extends 'layout.twig' %}
+{% import 'components/_reset.twig' as reset %}
 
 {% block title %}{{ t('admin.margins') }} — {{ t('admin.title') }}{% endblock %}
 
@@ -9,7 +10,22 @@
     <div class="grid lg:grid-cols-3 gap-5 items-start">
         <div class="lg:col-span-2 space-y-5">
             {# ── Regole attive ── #}
-            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+            <div class="bg-white rounded-xl border border-neutral-200">
+                <div class="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2.5">
+                    <h2 class="text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('margins.rules_title') }}</h2>
+                    <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-500">{{ rules|length }}</span>
+                    <div class="ml-auto flex items-center gap-1.5">
+                        {{ reset.post_button({
+                            action: '/admin/margini/regole/ripristina', csrf: csrf_token, style: 'default',
+                            label: t('ui.reset_default'), confirm: t('margins.rules_restore_confirm')
+                        }) }}
+                        {{ reset.post_button({
+                            action: '/admin/margini/regole/azzera', csrf: csrf_token, style: 'clear',
+                            label: t('ui.reset_clear'), confirm: t('margins.rules_clear_confirm')
+                        }) }}
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="bg-neutral-50 text-neutral-500 text-left">
@@ -69,17 +85,21 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                </div>
             </div>
 
             {# ── Nuova regola ── #}
             <form method="post" action="/admin/margini/regole" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-4"
-                  x-data="{ matchType: 'brand', marginType: 'percent' }">
-                <h2 class="font-bold">{{ t('margins.new_rule') }}</h2>
+                  x-data="{ matchType: 'brand', marginType: 'percent' }" data-reset-group>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="font-bold">{{ t('margins.new_rule') }}</h2>
+                    <div class="ml-auto">{{ reset.buttons({clear: true, default: true}) }}</div>
+                </div>
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                     <div>
                         <label for="r-match-type" class="block font-medium mb-1">{{ t('margins.field_match_type') }}</label>
-                        <select id="r-match-type" name="match_type" x-model="matchType" class="w-full rounded-lg border-neutral-300">
+                        <select id="r-match-type" name="match_type" x-model="matchType" data-default="brand" class="w-full rounded-lg border-neutral-300">
                             <option value="brand">{{ t('margins.match_brand') }}</option>
                             <option value="name">{{ t('margins.match_name') }}</option>
                             <option value="sku">{{ t('margins.match_sku') }}</option>
@@ -107,7 +127,7 @@
                     </div>
                     <div>
                         <label for="r-margin-type" class="block font-medium mb-1">{{ t('margins.field_margin_type') }}</label>
-                        <select id="r-margin-type" name="margin_type" x-model="marginType" class="w-full rounded-lg border-neutral-300">
+                        <select id="r-margin-type" name="margin_type" x-model="marginType" data-default="percent" class="w-full rounded-lg border-neutral-300">
                             <option value="percent">{{ t('margins.type_percent') }}</option>
                             <option value="fixed">{{ t('margins.type_fixed') }}</option>
                             <option value="fixed_price">{{ t('margins.type_fixed_price') }}</option>
@@ -126,7 +146,7 @@
                     </div>
                     <div>
                         <label for="r-priority" class="block font-medium mb-1">{{ t('margins.field_priority') }}</label>
-                        <input type="number" id="r-priority" name="priority" value="100" step="1" min="1" max="9999"
+                        <input type="number" id="r-priority" name="priority" value="100" data-default="100" step="1" min="1" max="9999"
                                class="w-full rounded-lg border-neutral-300">
                         <p class="mt-1 text-xs text-neutral-400">{{ t('margins.field_priority_hint') }}</p>
                     </div>
@@ -139,16 +159,28 @@
 
         <aside class="space-y-5">
             {# ── Margine di default ── #}
-            <form method="post" action="/admin/margini/default" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm">
-                <h2 class="font-bold">{{ t('margins.default_title') }}</h2>
+            {{ reset.post_form({id: 'restore-default-margin', action: '/admin/margini/default/ripristina', csrf: csrf_token}) }}
+            <form method="post" action="/admin/margini/default" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm"
+                  data-reset-group>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="font-bold">{{ t('margins.default_title') }}</h2>
+                    <div class="ml-auto flex items-center gap-1.5">
+                        {{ reset.buttons({clear: false, default: true, default_label: t('margins.reset_form')}) }}
+                        {{ reset.remote_button({
+                            form: 'restore-default-margin', style: 'default',
+                            label: t('margins.factory_value', {value: factory_margin.value ~ (factory_margin.type == 'percent' ? '%' : ' €')})
+                        }) }}
+                    </div>
+                </div>
                 <p class="text-xs text-neutral-500">{{ t('margins.default_hint') }}</p>
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <div class="flex gap-2">
-                    <select name="margin_type" class="rounded-lg border-neutral-300">
+                    <select name="margin_type" data-default="{{ factory_margin.type }}" class="rounded-lg border-neutral-300">
                         <option value="percent" {{ default_margin_type == 'percent' ? 'selected' }}>{{ t('margins.type_percent') }}</option>
                         <option value="fixed" {{ default_margin_type == 'fixed' ? 'selected' }}>{{ t('margins.type_fixed') }}</option>
                     </select>
-                    <input type="number" name="margin_value" value="{{ default_margin_value }}" required step="0.01" min="-100" max="10000"
+                    <input type="number" name="margin_value" value="{{ default_margin_value }}" data-default="{{ factory_margin.value }}"
+                           required step="0.01" min="-100" max="10000"
                            class="w-24 rounded-lg border-neutral-300">
                     <button type="submit" class="rounded-lg bg-neutral-900 text-white px-4 font-semibold hover:bg-neutral-700">{{ t('margins.save') }}</button>
                 </div>
@@ -156,7 +188,19 @@
 
             {# ── Aliquote VAT ── #}
             <div class="bg-white rounded-xl border border-neutral-200 p-5 text-sm">
-                <h2 class="font-bold mb-1">{{ t('margins.vat_title') }}</h2>
+                <div class="mb-1 flex flex-wrap items-center gap-2">
+                    <h2 class="font-bold">{{ t('margins.vat_title') }}</h2>
+                    <div class="ml-auto flex items-center gap-1.5">
+                        {{ reset.post_button({
+                            action: '/admin/margini/vat/ripristina', csrf: csrf_token, style: 'default',
+                            label: t('ui.reset_default'), confirm: t('margins.vat_restore_confirm')
+                        }) }}
+                        {{ reset.post_button({
+                            action: '/admin/margini/vat/azzera', csrf: csrf_token, style: 'clear',
+                            label: t('ui.reset_clear'), confirm: t('margins.vat_clear_confirm')
+                        }) }}
+                    </div>
+                </div>
                 <p class="text-xs text-neutral-500 mb-3">{{ t('margins.vat_hint') }}</p>
                 <div class="max-h-96 overflow-y-auto divide-y divide-neutral-100">
                     {% for rate in vat_rates %}
@@ -171,6 +215,13 @@
                             <input type="number" name="vat_rate" value="{{ rate.vat_rate }}" step="0.1" min="0" max="100"
                                    class="w-20 rounded-md border-neutral-300 text-right text-xs py-1">
                             <button type="submit" class="text-xs font-semibold underline text-neutral-500 hover:text-neutral-900">{{ t('margins.save') }}</button>
+                            {% set standard = standard_vat_rates[rate.country_code] ?? null %}
+                            {% if standard is not null and (rate.vat_rate - standard)|abs >= 0.005 %}
+                                {# aliquota modificata a mano: si torna a quella di legge in un clic #}
+                                <button type="submit" name="action" value="restore"
+                                        title="{{ t('margins.vat_restore_row', {rate: standard})|e('html_attr') }}"
+                                        class="text-xs font-semibold underline text-amber-700 hover:text-amber-900">{{ t('ui.reset_default') }}</button>
+                            {% endif %}
                         </form>
                     {% endfor %}
                 </div>

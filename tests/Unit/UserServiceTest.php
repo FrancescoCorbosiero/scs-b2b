@@ -68,7 +68,7 @@ final class UserServiceTest extends TestCase
     {
         $result = $this->service->create([
             'name' => 'Bob Cliente', 'email' => $email, 'company' => 'Bob Srl',
-            'country' => 'IT', 'locale' => 'it',
+            'vat_number' => 'IT01234567890', 'country' => 'IT', 'locale' => 'it',
         ]);
         self::assertTrue($result['ok'], implode(' / ', $result['errors']));
 
@@ -78,7 +78,8 @@ final class UserServiceTest extends TestCase
     public function testCreateIssuesInviteTokenEvenIfEmailFails(): void
     {
         $result = $this->service->create([
-            'name' => 'Bob Cliente', 'email' => 'bob@example.it', 'country' => 'IT', 'locale' => 'it',
+            'name' => 'Bob Cliente', 'email' => 'bob@example.it', 'vat_number' => 'IT01234567890',
+            'country' => 'IT', 'locale' => 'it',
         ]);
 
         self::assertTrue($result['ok']);
@@ -94,9 +95,45 @@ final class UserServiceTest extends TestCase
     {
         $this->createUser();
         $result = $this->service->create([
-            'name' => 'Altro', 'email' => 'BOB@example.it', 'country' => 'IT', 'locale' => 'it',
+            'name' => 'Altro', 'email' => 'BOB@example.it', 'vat_number' => 'IT09876543210',
+            'country' => 'IT', 'locale' => 'it',
         ]);
         self::assertFalse($result['ok'], 'Email uguale (case-insensitive) → rifiutata');
+    }
+
+    /**
+     * La P.IVA è obbligatoria per tutti i clienti (decisione del titolare):
+     * un account senza non potrebbe nemmeno inviare una richiesta d'ordine.
+     */
+    public function testVatNumberIsMandatoryOnCreate(): void
+    {
+        $noVat = $this->service->create([
+            'name' => 'Senza P.IVA', 'email' => 'senza@example.it', 'country' => 'IT', 'locale' => 'it',
+        ]);
+        self::assertFalse($noVat['ok']);
+
+        $bogus = $this->service->create([
+            'name' => 'P.IVA corta', 'email' => 'corta@example.it', 'vat_number' => 'IT123',
+            'country' => 'IT', 'locale' => 'it',
+        ]);
+        self::assertFalse($bogus['ok'], 'Formato implausibile → rifiutata');
+    }
+
+    /** Stessa regola nell'area personale: la P.IVA non si può svuotare. */
+    public function testVatNumberIsMandatoryOnProfileUpdate(): void
+    {
+        $userId = $this->createUser();
+
+        $cleared = $this->service->updateProfile($userId, [
+            'name' => 'Bob Cliente', 'country' => 'IT', 'locale' => 'it', 'vat_number' => '',
+        ]);
+        self::assertFalse($cleared['ok']);
+
+        $ok = $this->service->updateProfile($userId, [
+            'name' => 'Bob Cliente', 'country' => 'DE', 'locale' => 'it', 'vat_number' => 'DE123456789',
+        ]);
+        self::assertTrue($ok['ok'], implode(' / ', $ok['errors']));
+        self::assertSame('DE123456789', $this->users->find($userId)['vat_number']);
     }
 
     public function testInviteTokenSetsPasswordAndLogsIn(): void

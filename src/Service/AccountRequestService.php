@@ -92,8 +92,9 @@ final class AccountRequestService
         if (!$this->vat->isValidCountry($country)) {
             $errors[] = $this->lang->t('order.error_country');
         }
-        if ($vatNumber !== '' && !VatService::isPlausibleVatNumber($vatNumber, $country !== '' ? $country : 'IT')) {
-            $errors[] = $this->lang->t('order.error_vat_number');
+        // P.IVA obbligatoria: senza non si attiva il profilo rivenditore
+        if (!VatService::isRequiredVatNumberValid($vatNumber, $country !== '' ? $country : 'IT')) {
+            $errors[] = $this->lang->t($vatNumber === '' ? 'order.error_vat_required' : 'order.error_vat_number');
         }
         if ($errors !== []) {
             return ['ok' => false, 'request_id' => null, 'errors' => $errors];
@@ -110,7 +111,7 @@ final class AccountRequestService
         $locale = $this->session->locale();
         $requestId = $this->requests->insert([
             'company' => $company,
-            'vat_number' => $vatNumber !== '' ? VatService::normalizeVatNumber($vatNumber, $country) : null,
+            'vat_number' => VatService::normalizeVatNumber($vatNumber, $country),
             'name' => $name,
             'email' => $email,
             'phone' => $phone,
@@ -147,7 +148,7 @@ final class AccountRequestService
      *
      * @return array{ok: bool, error: string|null, email_sent: bool}
      */
-    public function approve(int $requestId): array
+    public function approve(int $requestId, string $vatNumberOverride = ''): array
     {
         $request = $this->requests->find($requestId);
         if ($request === null) {
@@ -162,7 +163,9 @@ final class AccountRequestService
             'email' => (string) $request['email'],
             'company' => (string) ($request['company'] ?? ''),
             'phone' => (string) ($request['phone'] ?? ''),
-            'vat_number' => (string) ($request['vat_number'] ?? ''),
+            // le richieste inviate prima dell'obbligo di P.IVA non ce l'hanno:
+            // l'admin la completa al momento dell'approvazione
+            'vat_number' => $vatNumberOverride !== '' ? $vatNumberOverride : (string) ($request['vat_number'] ?? ''),
             'address_street' => (string) ($request['address_street'] ?? ''),
             'address_city' => (string) ($request['address_city'] ?? ''),
             'address_zip' => (string) ($request['address_zip'] ?? ''),

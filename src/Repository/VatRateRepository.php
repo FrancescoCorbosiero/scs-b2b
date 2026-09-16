@@ -12,8 +12,62 @@ use PDO;
  */
 final class VatRateRepository
 {
+    /**
+     * Aliquote standard "di fabbrica" (le stesse della migrazione 0003): sono
+     * la fonte di verità del bottone "Ripristina" in /admin/margini, che
+     * riporta indietro una riga modificata a mano.
+     *
+     * @var array<string, float>
+     */
+    public const STANDARD_RATES = [
+        'IT' => 22.0, 'AT' => 20.0, 'BE' => 21.0, 'BG' => 20.0, 'CY' => 19.0, 'CZ' => 21.0,
+        'DE' => 19.0, 'DK' => 25.0, 'EE' => 24.0, 'ES' => 21.0, 'FI' => 25.5, 'FR' => 20.0,
+        'GR' => 24.0, 'HR' => 25.0, 'HU' => 27.0, 'IE' => 23.0, 'LT' => 21.0, 'LU' => 17.0,
+        'LV' => 21.0, 'MT' => 18.0, 'NL' => 21.0, 'PL' => 23.0, 'PT' => 23.0, 'RO' => 21.0,
+        'SE' => 25.0, 'SI' => 22.0, 'SK' => 23.0, 'GB' => 20.0, 'CH' => 8.1,
+    ];
+
     public function __construct(private readonly PDO $pdo)
     {
+    }
+
+    /** Aliquota standard di un paese, se conosciuta. */
+    public static function standardRate(string $countryCode): ?float
+    {
+        return self::STANDARD_RATES[strtoupper($countryCode)] ?? null;
+    }
+
+    /**
+     * Riporta tutte le aliquote ai valori standard (bottone "Ripristina").
+     *
+     * @return int paesi aggiornati
+     */
+    public function restoreStandardRates(): int
+    {
+        $changed = 0;
+        foreach (self::STANDARD_RATES as $country => $rate) {
+            $current = $this->find($country);
+            if ($current !== null && abs($current['vat_rate'] - $rate) >= 0.005) {
+                $this->updateRate($country, $rate);
+                $changed++;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Azzera tutte le aliquote (bottone "Azzera"): utile quando la fatturazione
+     * IVA è gestita fuori dalla piattaforma. Reversibile con "Ripristina".
+     *
+     * @return int paesi aggiornati
+     */
+    public function zeroAllRates(): int
+    {
+        $stmt = $this->pdo->prepare('UPDATE vat_rates SET vat_rate = 0, updated_at = ? WHERE vat_rate <> 0');
+        $stmt->execute([date('Y-m-d H:i:s')]);
+
+        return $stmt->rowCount();
     }
 
     /** @return list<array{country_code: string, vat_rate: float, is_eu: bool, sort_order: int}> */

@@ -1,4 +1,5 @@
 {% extends 'layout.twig' %}
+{% import 'components/_reset.twig' as reset %}
 
 {% block title %}{{ t('users.title') }} — {{ t('admin.title') }}{% endblock %}
 
@@ -66,8 +67,12 @@
         </div>
 
         {# ── Nuovo cliente ── #}
-        <form method="post" action="/admin/clienti" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm">
-            <h2 class="font-bold">{{ t('users.new_title') }}</h2>
+        <form method="post" action="/admin/clienti" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3 text-sm"
+              data-reset-group>
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="font-bold">{{ t('users.new_title') }}</h2>
+                <div class="ml-auto">{{ reset.buttons({clear: true, default: true}) }}</div>
+            </div>
             <p class="text-xs text-neutral-500">{{ t('users.new_hint') }}</p>
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <div>
@@ -88,12 +93,12 @@
             </div>
             <div>
                 <label for="u-vat" class="block font-medium mb-1">{{ t('order.vat_number') }}</label>
-                <input type="text" id="u-vat" name="vat_number" maxlength="32" class="w-full rounded-lg border-neutral-300">
+                <input type="text" id="u-vat" name="vat_number" required maxlength="32" class="w-full rounded-lg border-neutral-300">
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label for="u-country" class="block font-medium mb-1">{{ t('admin.country') }}</label>
-                    <select id="u-country" name="country" class="w-full rounded-lg border-neutral-300">
+                    <select id="u-country" name="country" data-default="IT" class="w-full rounded-lg border-neutral-300">
                         {% for c in vat_countries %}
                             <option value="{{ c.country_code }}" {{ c.country_code == 'IT' ? 'selected' }}>{{ c.country_code }} — {{ t('country.' ~ c.country_code) }}</option>
                         {% endfor %}
@@ -101,7 +106,7 @@
                 </div>
                 <div>
                     <label for="u-locale" class="block font-medium mb-1">{{ t('nav.language_label') }}</label>
-                    <select id="u-locale" name="locale" class="w-full rounded-lg border-neutral-300">
+                    <select id="u-locale" name="locale" data-default="it" class="w-full rounded-lg border-neutral-300">
                         {% for l in locales %}
                             <option value="{{ l }}">{{ t('lang.' ~ l) }}</option>
                         {% endfor %}

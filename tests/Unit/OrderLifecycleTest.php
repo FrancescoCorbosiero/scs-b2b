@@ -38,6 +38,7 @@ final class OrderLifecycleTest extends TestCase
     private PDO $pdo;
     private OrderRequestRepository $orders;
     private OrderService $service;
+    private CartService $cart;
     private DropshipOrderService $dropship;
     private DropshipOrderRepository $dropshipOrders;
 
@@ -72,8 +73,9 @@ final class OrderLifecycleTest extends TestCase
             $lang,
             new NullLogger(),
         );
+        $this->cart = new CartService($session, $products, $config);
         $this->service = new OrderService(
-            new CartService($session, $products, $config),
+            $this->cart,
             $products,
             $this->orders,
             new OrderMailer($config, $twig, $lang, $receipts, new SmtpMailer($config)),
@@ -91,6 +93,73 @@ final class OrderLifecycleTest extends TestCase
     protected function tearDown(): void
     {
         $_SESSION = [];
+    }
+
+    /** Carrello valido (≥ MIN_ORDER_ITEMS) per i test su submit(). */
+    private function seedCart(): void
+    {
+        if ((new ProductRepository($this->pdo))->findIdBySku('NK1001') === null) {
+            TestDb::seedProduct($this->pdo, 'NK1001', 'Nike Dunk Low', 'Nike', [
+                ['size_eu' => '42', 'quantity' => 30, 'price' => '100.00'],
+            ]);
+        }
+        $this->cart->addProduct('NK1001');
+        $this->cart->setQuantity('NK1001', '42', 6);
+    }
+
+    /** @return array<string, mixed> */
+    private function orderInput(array $overrides = []): array
+    {
+        return $overrides + [
+            'customer_name' => 'Mario Rossi',
+            'email' => 'mario.rossi@example.it',
+            'phone' => '+393401234567',
+            'address_street' => 'Via Montenapoleone 12',
+            'address_city' => 'Milano',
+            'address_zip' => '20121',
+            'country' => 'IT',
+            'vat_number' => 'IT01234567890',
+        ];
+    }
+
+    /**
+     * P.IVA obbligatoria per tutti i clienti (decisione del titolare): senza,
+     * la richiesta d'ordine non parte. Il catalogo è riservato ai rivenditori.
+     */
+    public function testOrderRequiresVatNumber(): void
+    {
+        $this->seedCart();
+
+        $noVat = $this->service->submit($this->orderInput(['vat_number' => '']), '127.0.0.1', '');
+        self::assertFalse($noVat['ok']);
+        self::assertSame(0, $this->orders->countAll(), 'Nessuna richiesta salvata senza P.IVA');
+
+        $bogus = $this->service->submit($this->orderInput(['vat_number' => 'IT12']), '127.0.0.1', '');
+        self::assertFalse($bogus['ok'], 'Formato implausibile → rifiutata');
+    }
+
+    /** Cliente UE con P.IVA: reverse charge, VAT 0. Cliente IT: aliquota interna. */
+    public function testVatSchemeFollowsCountryWithMandatoryVatNumber(): void
+    {
+        $this->seedCart();
+        $ok = $this->service->submit($this->orderInput(), '127.0.0.1', '');
+        self::assertTrue($ok['ok'], implode(' / ', $ok['errors']));
+
+        $italian = $this->orders->find((int) $ok['order_id']);
+        self::assertSame('domestic', $italian['vat_scheme']);
+        self::assertSame('IT01234567890', $italian['vat_number']);
+        self::assertGreaterThan(0.0, (float) $italian['vat_amount'], 'In Italia il VAT si applica anche al B2B');
+
+        $this->seedCart();
+        $german = $this->service->submit(
+            $this->orderInput(['country' => 'DE', 'vat_number' => 'DE123456789']),
+            '127.0.0.2',
+            '',
+        );
+        self::assertTrue($german['ok'], implode(' / ', $german['errors']));
+        $order = $this->orders->find((int) $german['order_id']);
+        self::assertSame('reverse_charge', $order['vat_scheme']);
+        self::assertSame('0.00', number_format((float) $order['vat_amount'], 2, '.', ''));
     }
 
     private function seedPendingOrder(): int

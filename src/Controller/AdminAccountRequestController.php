@@ -43,7 +43,9 @@ final class AdminAccountRequestController
     /** @param array<string, string> $args */
     public function approve(Request $request, Response $response, array $args): Response
     {
-        $result = $this->service->approve((int) ($args['id'] ?? 0));
+        $body = (array) ($request->getParsedBody() ?? []);
+        $vatNumber = is_string($body['vat_number'] ?? null) ? trim($body['vat_number']) : '';
+        $result = $this->service->approve((int) ($args['id'] ?? 0), $vatNumber);
         if (!$result['ok']) {
             $this->session->flash('error', (string) $result['error']);
         } elseif ($result['email_sent']) {

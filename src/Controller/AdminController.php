@@ -296,6 +296,9 @@ final class AdminController
             'size_categories' => SizeCategory::ALL,
             'default_margin_type' => $this->settings->get('default_margin_type', 'percent'),
             'default_margin_value' => $this->settings->get('default_margin_value', '30'),
+            // valori "di fabbrica": alimentano i bottoni Ripristina lato client
+            'factory_margin' => SettingsRepository::FACTORY_DEFAULT_MARGIN,
+            'standard_vat_rates' => VatRateRepository::STANDARD_RATES,
             'vat_rates' => $this->vatRates->all(),
             'brands' => $this->products->activeBrands(),
         ]);
@@ -389,6 +392,10 @@ final class AdminController
         $body = (array) ($request->getParsedBody() ?? []);
         $country = is_string($body['country'] ?? null) ? strtoupper(trim($body['country'])) : '';
         $rate = $body['vat_rate'] ?? null;
+        // "Ripristina" sulla riga: l'aliquota torna a quella standard del paese
+        if (($body['action'] ?? '') === 'restore') {
+            $rate = VatRateRepository::standardRate($country);
+        }
 
         if (!is_numeric($rate) || (float) $rate < 0 || (float) $rate > 100
             || !$this->vatRates->updateRate($country, (float) $rate)) {
@@ -397,6 +404,54 @@ final class AdminController
             // le aliquote toccano solo il VAT a fine ordine: nessun reprice necessario
             $this->session->flash('success', $this->lang->t('margins.vat_saved', ['country' => $country]));
         }
+
+        return Http::redirect($response, '/admin/margini');
+    }
+
+    // ── Azzera / Ripristina (componenti UX di /admin/margini) ────────
+
+    /** Elimina tutte le regole: resta il solo margine di default. */
+    public function marginRulesClear(Request $request, Response $response): Response
+    {
+        $deleted = $this->marginRules->deleteAll();
+        $this->session->flash('success', $this->lang->t('margins.rules_cleared', ['n' => $deleted]));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    /** Rimette le regole di partenza indicate dal titolare (migrazione 0006). */
+    public function marginRulesRestore(Request $request, Response $response): Response
+    {
+        $restored = $this->marginRules->restoreStartingRules();
+        $this->session->flash('success', $this->lang->t('margins.rules_restored', ['n' => $restored]));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    /** Margine di default ai valori di fabbrica (5%). */
+    public function marginDefaultRestore(Request $request, Response $response): Response
+    {
+        $this->settings->set('default_margin_type', SettingsRepository::FACTORY_DEFAULT_MARGIN['type']);
+        $this->settings->set('default_margin_value', SettingsRepository::FACTORY_DEFAULT_MARGIN['value']);
+        $this->session->flash('success', $this->lang->t('margins.default_restored'));
+
+        return $this->repriceAndRedirect($response);
+    }
+
+    /** Tutte le aliquote VAT a 0 (nessun reprice: il VAT non tocca il listino). */
+    public function vatRatesClear(Request $request, Response $response): Response
+    {
+        $changed = $this->vatRates->zeroAllRates();
+        $this->session->flash('success', $this->lang->t('margins.vat_cleared', ['n' => $changed]));
+
+        return Http::redirect($response, '/admin/margini');
+    }
+
+    /** Tutte le aliquote VAT ai valori standard di legge. */
+    public function vatRatesRestore(Request $request, Response $response): Response
+    {
+        $changed = $this->vatRates->restoreStandardRates();
+        $this->session->flash('success', $this->lang->t('margins.vat_restored', ['n' => $changed]));
 
         return Http::redirect($response, '/admin/margini');
     }

@@ -64,7 +64,7 @@
                 </div>
                 <div>
                     <label for="o-vat-number" class="block text-sm font-medium mb-1">{{ t('order.vat_number') }}</label>
-                    <input type="text" id="o-vat-number" name="vat_number" maxlength="32" value="{{ old.vat_number ?? '' }}"
+                    <input type="text" id="o-vat-number" name="vat_number" required maxlength="32" value="{{ old.vat_number ?? '' }}"
                            placeholder="{{ t('order.vat_number_placeholder') }}"
                            class="w-full rounded-lg border-neutral-300 focus:border-amber-500 focus:ring-amber-500">
                     <p class="mt-1 text-xs text-neutral-400">{{ t('order.vat_number_hint') }}</p>

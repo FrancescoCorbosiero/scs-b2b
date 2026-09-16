@@ -71,15 +71,26 @@ taglie del prodotto.
 Excel, email. Ovunque compare la dicitura esplicita. Il VAT si calcola SOLO
 alla richiesta d'ordine, in base al paese di residenza (`VatService`):
 
+La **partita IVA è obbligatoria per tutti i clienti** (decisione del titolare,
+settembre 2026): il catalogo è riservato ai rivenditori, quindi il campo è
+`required` nella richiesta d'ordine, nella richiesta di accesso, nel profilo
+cliente e nella creazione account da /admin. Conseguenza fiscale: i clienti UE
+fuori dall'Italia vanno **sempre** in reverse charge (VAT 0%), mentre i clienti
+**italiani continuano a pagare il 22%** — sui beni la cessione interna non
+ammette inversione contabile, la P.IVA non la evita.
+
 | Caso | Scheme | VAT applicato |
 |---|---|---|
-| Italia (con o senza P.IVA) | `domestic` | aliquota IT (22%) |
+| Italia (con P.IVA) | `domestic` | aliquota IT (22%) |
 | UE ≠ IT **con** P.IVA plausibile | `reverse_charge` | 0% (artt. 194–196 Dir. 2006/112/CE) |
-| UE ≠ IT senza P.IVA | `eu` | aliquota standard del paese |
+| UE ≠ IT senza P.IVA | `eu` | aliquota standard del paese — **non più raggiungibile** dai nuovi ordini, resta per lo storico |
 | Extra-UE (UK, CH) | `export` | 0% (art. 8 DPR 633/72) |
 
 - Aliquote standard per paese in tabella `vat_rates` (UE-27 + GB + CH),
-  modificabili da `/admin/margini`. Extra-UE: `is_eu = 0`.
+  modificabili da `/admin/margini`, dove i bottoni **Azzera** (tutte a 0) e
+  **Ripristina** (valori di legge, `VatRateRepository::STANDARD_RATES`)
+  riportano la tabella a uno stato noto, anche per singolo paese.
+  Extra-UE: `is_eu = 0`.
 - La P.IVA è validata solo nel **formato** (normalizzazione + plausibilità,
   prefisso VIES `EL` per la Grecia): niente chiamata VIES, la verifica
   sostanziale resta al titolare in fase di conferma.

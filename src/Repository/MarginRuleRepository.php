@@ -16,6 +16,30 @@ final class MarginRuleRepository
 {
     public const MATCH_TYPES = ['brand', 'name', 'sku', 'size_category'];
 
+    /**
+     * Regole "di partenza" indicate dal titolare (migrazione 0006): sono ciò
+     * che ripristina il bottone "Ripristina" in /admin/margini dopo un
+     * azzeramento o una serie di modifiche.
+     *
+     * @var list<array{priority: int, match_type: string, match_value: string, margin_type: string, margin_value: float}>
+     */
+    public const STARTING_RULES = [
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Adidas', 'margin_type' => 'percent', 'margin_value' => 5.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Autry', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Asics', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Jordan', 'margin_type' => 'fixed', 'margin_value' => 3.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Nike', 'margin_type' => 'fixed', 'margin_value' => 3.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Puma', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Timberland', 'margin_type' => 'fixed', 'margin_value' => 3.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Ugg', 'margin_type' => 'fixed', 'margin_value' => 3.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Vans', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Yeezy', 'margin_type' => 'fixed', 'margin_value' => 3.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Birkenstock', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'New Balance', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'In', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+        ['priority' => 100, 'match_type' => 'brand', 'match_value' => 'Saucony', 'margin_type' => 'fixed', 'margin_value' => 2.0],
+    ];
+
     /** SKU first, poi priority: stesso ordine di valutazione del MarginResolver. */
     private const EVAL_ORDER = "ORDER BY CASE WHEN match_type = 'sku' THEN 0 ELSE 1 END, priority ASC, id ASC";
 
@@ -71,6 +95,42 @@ final class MarginRuleRepository
         $stmt->execute([$id]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Elimina tutte le regole (bottone "Azzera"): resta solo il margine di
+     * default. Reversibile con "Ripristina" (STARTING_RULES).
+     *
+     * @return int regole eliminate
+     */
+    public function deleteAll(): int
+    {
+        $stmt = $this->pdo->query('DELETE FROM margin_rules');
+
+        return $stmt === false ? 0 : $stmt->rowCount();
+    }
+
+    /**
+     * Rimette le regole di partenza al posto di quelle attuali (bottone
+     * "Ripristina"): sostituzione integrale, così il risultato è sempre lo
+     * stesso a prescindere da cosa c'era prima.
+     *
+     * @return int regole inserite
+     */
+    public function restoreStartingRules(): int
+    {
+        $this->deleteAll();
+        foreach (self::STARTING_RULES as $rule) {
+            $this->insert(
+                $rule['priority'],
+                $rule['match_type'],
+                $rule['match_value'],
+                $rule['margin_type'],
+                $rule['margin_value'],
+            );
+        }
+
+        return count(self::STARTING_RULES);
     }
 
     /** Quanti prodotti attivi corrispondono a una regola (anteprima in /admin/margini). */
