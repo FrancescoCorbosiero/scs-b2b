@@ -59,6 +59,25 @@ Il token non va mai committato né loggato.
    per scaricare/cachare le immagini in locale qualora gli URL risultino instabili
    o lenti.
 
+
+## Categoria di taglia (normali / GS / PS)
+
+Il feed **non** dichiara se un modello è da adulto, da ragazzo (GS, grade
+school) o da bambino (PS, pre-school). La si deduce a sync in
+`App\Service\SizeCategory` e si salva in `products.size_category`:
+
+1. sigle nel **nome**: `(GS)`, `(PS)`, `(TD)`, `Big Kids`, `Toddler`, `Junior`,
+   più la `J` finale di adidas ("Gazelle Indoor J" — solo in coda al modello,
+   così `'J Balvin'` resta una collaborazione da adulto);
+2. `size_mapper_name`, ma **solo se univoco**: `Nike GS` decide, `Adidas MENS/GS`
+   copre due scale e non decide nulla;
+3. **taglie EU**: fino alla 35 è per forza bambino. Il range GS (35,5–40) si
+   sovrappone all'adulto, quindi senza sigle il prodotto resta "normale".
+
+Alimenta il filtro del catalogo (docs/06) e le regole margine per categoria
+(docs/04). Se il fornitore aggiungesse un campo dedicato, diventerebbe la
+fonte di verità al posto dell'euristica.
+
 ## Strategia di sync (`bin/sync-feed.php`)
 
 - Eseguito da cron ogni `FEED_SYNC_INTERVAL` (default 2h) + trigger manuale da /admin.

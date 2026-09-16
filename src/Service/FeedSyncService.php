@@ -21,6 +21,8 @@ use Psr\Log\LoggerInterface;
  * - I prodotti spariti dal feed vengono disattivati (mai cancellati).
  * - Il prezzo netto (VAT esclusa) è precalcolato qui, a livello taglia, con
  *   il margine risolto dalle regole admin (MarginResolver).
+ * - La categoria di taglia (normali/GS/PS) è dedotta qui da nome, size_mapper
+ *   e taglie (SizeCategory) e salvata sul prodotto.
  * - Lock su file per evitare run concorrenti (cron + "Sincronizza ora").
  */
 final class FeedSyncService
@@ -85,7 +87,12 @@ final class FeedSyncService
             foreach ($grouped as $sku => $product) {
                 // gli SKU numerici diventano chiavi int in PHP: si ricasta
                 $sku = (string) $sku;
-                $margin = $this->margins->resolve($product['brand'], $product['name'], $sku);
+                $category = SizeCategory::classify(
+                    $product['name'],
+                    $product['size_mapper'],
+                    array_column($product['sizes'], 'size_eu'),
+                );
+                $margin = $this->margins->resolve($product['brand'], $product['name'], $sku, $category);
                 $sizes = [];
                 $totalQuantity = 0;
                 $min = null;
@@ -111,6 +118,7 @@ final class FeedSyncService
                     'name' => $product['name'],
                     'brand' => $product['brand'],
                     'size_mapper' => $product['size_mapper'],
+                    'size_category' => $category,
                     'image_url' => $product['image_url'],
                     'total_quantity' => $totalQuantity,
                     'min_price' => $min,
@@ -149,7 +157,9 @@ final class FeedSyncService
 
     /**
      * Ricalcola i prezzi da offer_price già in DB (dopo una modifica alle
-     * regole margine da /admin/margini, senza riscaricare il feed).
+     * regole margine da /admin/margini, senza riscaricare il feed). Ne
+     * approfitta per riallineare la categoria di taglia dei prodotti già in
+     * tabella, senza attendere il prossimo sync.
      *
      * @return array{status: string, rows_read: int, products_created: int,
      *   products_updated: int, products_deactivated: int, message: string|null}
@@ -161,17 +171,28 @@ final class FeedSyncService
 
         try {
             $this->margins->clearCache();
+            $rows = $this->products->allSizesWithCost();
+            ['categories' => $categories, 'stale' => $stale] = $this->classifyProducts($rows);
+
             $this->pdo->beginTransaction();
             $marginByProduct = [];
-            foreach ($this->products->allSizesWithCost() as $size) {
-                // il margine dipende solo da brand/nome/SKU: si risolve una volta per prodotto
-                $margin = $marginByProduct[$size['product_id']]
-                    ??= $this->margins->resolve($size['brand'], $size['name'], $size['sku']);
+            foreach ($rows as $size) {
+                $productId = $size['product_id'];
+                // il margine dipende solo da brand/nome/SKU/categoria: si risolve una volta per prodotto
+                $margin = $marginByProduct[$productId] ??= $this->margins->resolve(
+                    $size['brand'],
+                    $size['name'],
+                    $size['sku'],
+                    $categories[$productId] ?? SizeCategory::ADULT,
+                );
                 $this->products->updateSizePrice(
                     $size['id'],
                     $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']),
                 );
                 $counters['rows_read']++;
+            }
+            foreach ($stale as $productId) {
+                $this->products->updateSizeCategory($productId, $categories[$productId]);
             }
             $this->products->refreshMinPrices();
             $this->pdo->commit();
@@ -189,6 +210,38 @@ final class FeedSyncService
 
             return $counters + ['status' => 'error', 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Categoria di taglia dedotta per ogni prodotto già in tabella, a partire
+     * dalle righe del reprice (che portano nome, size_mapper e taglia EU).
+     * `stale` sono i prodotti da riscrivere perché la categoria salvata non
+     * combacia: dopo la migrazione 0013 sono tutti, poi quasi nessuno.
+     *
+     * @param list<array{product_id: int, name: string, size_mapper: string,
+     *   size_category: string, size_eu: string}> $rows
+     * @return array{categories: array<int, string>, stale: list<int>}
+     */
+    private function classifyProducts(array $rows): array
+    {
+        $byProduct = [];
+        foreach ($rows as $row) {
+            $id = $row['product_id'];
+            $byProduct[$id] ??= ['name' => $row['name'], 'mapper' => $row['size_mapper'],
+                'current' => $row['size_category'], 'sizes' => []];
+            $byProduct[$id]['sizes'][] = $row['size_eu'];
+        }
+
+        $categories = [];
+        $stale = [];
+        foreach ($byProduct as $id => $product) {
+            $categories[$id] = SizeCategory::classify($product['name'], $product['mapper'], $product['sizes']);
+            if ($categories[$id] !== $product['current']) {
+                $stale[] = $id;
+            }
+        }
+
+        return ['categories' => $categories, 'stale' => $stale];
     }
 
     /**

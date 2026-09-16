@@ -18,7 +18,7 @@ final class CatalogFilterTest extends TestCase
     private const FILTERS = [
         'q' => '', 'brand' => '', 'availability' => '', 'recommended' => false,
         'price_min' => null, 'price_max' => null, 'sort' => 'rilevanza',
-        'sizes' => [], 'in_stock' => false,
+        'sizes' => [], 'in_stock' => false, 'size_categories' => [],
     ];
 
     private PDO $pdo;
@@ -107,5 +107,60 @@ final class CatalogFilterTest extends TestCase
     {
         self::assertSame([], $this->skus(['sizes' => ['42'], 'brand' => 'Adidas']));
         self::assertSame(['NK1001'], $this->skus(['sizes' => ['42'], 'brand' => 'Nike']));
+    }
+
+    // ── Categoria di taglia (normali / GS / PS) ──────────────────────
+
+    private function seedKidsProducts(): void
+    {
+        TestDb::seedProduct($this->pdo, 'NK9001', "Nike Dunk Low 'Panda' (GS)", 'Nike', [
+            ['size_eu' => '37.5', 'quantity' => 4, 'price' => '70.00'],
+        ]);
+        TestDb::seedProduct($this->pdo, 'NK9002', "Nike Dunk Low 'Panda' (PS)", 'Nike', [
+            ['size_eu' => '31', 'quantity' => 2, 'price' => '55.00'],
+        ]);
+    }
+
+    public function testSizeCategoryFilterKeepsOnlyTheChosenCategories(): void
+    {
+        $this->seedKidsProducts();
+
+        self::assertSame(['NK9001'], $this->skus(['size_categories' => ['gs']]));
+        self::assertSame(['NK9002'], $this->skus(['size_categories' => ['ps']]));
+
+        $kids = $this->skus(['size_categories' => ['gs', 'ps']]);
+        sort($kids);
+        self::assertSame(['NK9001', 'NK9002'], $kids, 'Più categorie = OR');
+
+        $adults = $this->skus(['size_categories' => ['adult']]);
+        sort($adults);
+        self::assertSame(['AD2001', 'NK1001', 'PM5001'], $adults);
+    }
+
+    public function testSizeCategoryFilterCombinesWithOtherFilters(): void
+    {
+        $this->seedKidsProducts();
+
+        self::assertSame(['NK9001'], $this->skus(['size_categories' => ['gs'], 'brand' => 'Nike']));
+        self::assertSame([], $this->skus(['size_categories' => ['gs'], 'brand' => 'Adidas']));
+        self::assertSame([], $this->skus(['size_categories' => ['ps'], 'sizes' => ['42']]));
+    }
+
+    public function testWithoutCategoryFilterNothingIsHidden(): void
+    {
+        $this->seedKidsProducts();
+
+        self::assertCount(5, $this->skus([]));
+        self::assertCount(5, $this->skus(['size_categories' => ['adult', 'gs', 'ps']]), 'Tutte selezionate = nessun filtro');
+    }
+
+    public function testCategoryFacetsCountActiveProducts(): void
+    {
+        $this->seedKidsProducts();
+
+        self::assertSame(
+            ['adult' => 3, 'gs' => 1, 'ps' => 1],
+            $this->products->activeSizeCategoryCounts(),
+        );
     }
 }

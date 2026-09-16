@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Service\SizeCategory;
 use PDO;
 
 /**
@@ -33,7 +34,8 @@ final class ProductRepository
 
     /**
      * @param array{sku: string, name: string, brand: string, size_mapper: string,
-     *   image_url: string|null, total_quantity: int, min_price: string|null} $data
+     *   size_category: string, image_url: string|null, total_quantity: int,
+     *   min_price: string|null} $data
      * @return array{id: int, created: bool}
      */
     public function upsertProduct(array $data, string $seenAt): array
@@ -41,13 +43,13 @@ final class ProductRepository
         $id = $this->findIdBySku($data['sku']);
         if ($id === null) {
             $stmt = $this->pdo->prepare(
-                'INSERT INTO products (sku, name, brand, size_mapper, image_url, is_active, total_quantity,
-                    min_price, created_at, updated_at, last_seen_at)
-                 VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
+                'INSERT INTO products (sku, name, brand, size_mapper, size_category, image_url, is_active,
+                    total_quantity, min_price, created_at, updated_at, last_seen_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
-                $data['sku'], $data['name'], $data['brand'], $data['size_mapper'], $data['image_url'],
-                $data['total_quantity'], $data['min_price'],
+                $data['sku'], $data['name'], $data['brand'], $data['size_mapper'], $data['size_category'],
+                $data['image_url'], $data['total_quantity'], $data['min_price'],
                 $seenAt, $seenAt, $seenAt,
             ]);
 
@@ -58,12 +60,13 @@ final class ProductRepository
         // immagine (glitch del fornitore) non deve cancellare le immagini
         // già note — meglio un'immagine vecchia che nessuna immagine
         $stmt = $this->pdo->prepare(
-            'UPDATE products SET name = ?, brand = ?, size_mapper = ?, image_url = COALESCE(?, image_url), is_active = 1,
+            'UPDATE products SET name = ?, brand = ?, size_mapper = ?, size_category = ?,
+                image_url = COALESCE(?, image_url), is_active = 1,
                 total_quantity = ?, min_price = ?, updated_at = ?, last_seen_at = ?
              WHERE id = ?'
         );
         $stmt->execute([
-            $data['name'], $data['brand'], $data['size_mapper'], $data['image_url'],
+            $data['name'], $data['brand'], $data['size_mapper'], $data['size_category'], $data['image_url'],
             $data['total_quantity'], $data['min_price'],
             $seenAt, $seenAt, $id,
         ]);
@@ -125,15 +128,19 @@ final class ProductRepository
     }
 
     /**
-     * Tutte le taglie con offer_price + brand/nome/SKU del prodotto, per il
-     * ricalcolo prezzi (--reprice) con le regole margine. SOLO USO INTERNO.
+     * Tutte le taglie con offer_price + i dati del prodotto che servono a
+     * risolvere il margine (brand/nome/SKU/categoria) e a ricalcolare la
+     * categoria di taglia (size_mapper + taglia EU). Usata dal reprice
+     * (--reprice). SOLO USO INTERNO.
      *
-     * @return list<array{id: int, product_id: int, offer_price: string, brand: string, name: string, sku: string}>
+     * @return list<array{id: int, product_id: int, offer_price: string, brand: string, name: string,
+     *   sku: string, size_mapper: string, size_category: string, size_eu: string}>
      */
     public function allSizesWithCost(): array
     {
         $stmt = $this->pdo->query(
-            'SELECT s.id, s.product_id, s.offer_price, p.brand, p.name, p.sku
+            'SELECT s.id, s.product_id, s.offer_price, s.size_eu, p.brand, p.name, p.sku,
+                    p.size_mapper, p.size_category
              FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
              ORDER BY s.product_id, s.id'
         );
@@ -146,6 +153,9 @@ final class ProductRepository
                 'brand' => (string) $row['brand'],
                 'name' => (string) $row['name'],
                 'sku' => (string) $row['sku'],
+                'size_mapper' => (string) ($row['size_mapper'] ?? ''),
+                'size_category' => (string) ($row['size_category'] ?? ''),
+                'size_eu' => (string) $row['size_eu'],
             ];
         }
 
@@ -156,6 +166,13 @@ final class ProductRepository
     {
         $stmt = $this->pdo->prepare('UPDATE product_sizes SET price = ? WHERE id = ?');
         $stmt->execute([$price, $sizeId]);
+    }
+
+    /** Riallinea la categoria di taglia dedotta (sync/reprice). */
+    public function updateSizeCategory(int $productId, string $category): void
+    {
+        $stmt = $this->pdo->prepare('UPDATE products SET size_category = ? WHERE id = ?');
+        $stmt->execute([$category, $productId]);
     }
 
     /** Ricalcola il minimo denormalizzato sui prodotti (dopo un reprice). */
@@ -232,7 +249,7 @@ final class ProductRepository
     /**
      * @param array{q: string, brand: string, availability: string, recommended: bool,
      *   price_min: float|null, price_max: float|null, sort: string,
-     *   sizes?: list<string>, in_stock?: bool} $filters
+     *   sizes?: list<string>, in_stock?: bool, size_categories?: list<string>} $filters
      * @return array{items: list<array<string, mixed>>, total: int}
      */
     public function search(array $filters, int $page, int $perPage, int $highMin, int $lowMax): array
@@ -289,6 +306,18 @@ final class ProductRepository
         if ($filters['in_stock'] ?? false) {
             $where[] = 'p.total_quantity > 0';
         }
+        // categoria di taglia: normali / GS / PS (OR fra quelle scelte)
+        $categories = array_values(array_filter(
+            $filters['size_categories'] ?? [],
+            static fn (string $c): bool => in_array($c, SizeCategory::ALL, true),
+        ));
+        if ($categories !== [] && count($categories) < count(SizeCategory::ALL)) {
+            $placeholders = implode(',', array_fill(0, count($categories), '?'));
+            $where[] = "p.size_category IN ({$placeholders})";
+            foreach ($categories as $category) {
+                $params[] = $category;
+            }
+        }
 
         $whereSql = implode(' AND ', $where);
         $orderSql = match ($filters['sort']) {
@@ -305,7 +334,7 @@ final class ProductRepository
 
         $offset = max(0, ($page - 1) * $perPage);
         $stmt = $this->pdo->prepare(
-            "SELECT p.id, p.sku, p.name, p.brand, p.size_mapper, p.image_url, p.is_recommended,
+            "SELECT p.id, p.sku, p.name, p.brand, p.size_mapper, p.size_category, p.image_url, p.is_recommended,
                     p.total_quantity, p.min_price AS price_from
              FROM products p WHERE {$whereSql} ORDER BY {$orderSql} LIMIT {$perPage} OFFSET {$offset}"
         );
@@ -406,11 +435,33 @@ final class ProductRepository
         return $sizes;
     }
 
+    /**
+     * Prodotti attivi per categoria di taglia (normali/GS/PS): alimenta il
+     * filtro categoria del catalogo. Le categorie senza prodotti restano a 0,
+     * così il filtro è stabile anche quando il feed cambia assortimento.
+     *
+     * @return array<string, int> categoria => numero di prodotti
+     */
+    public function activeSizeCategoryCounts(): array
+    {
+        $counts = array_fill_keys(SizeCategory::ALL, 0);
+        $stmt = $this->pdo->query(
+            'SELECT size_category, COUNT(*) AS products FROM products
+             WHERE is_active = 1 GROUP BY size_category'
+        );
+        foreach ($stmt === false ? [] : $stmt->fetchAll() as $row) {
+            $category = SizeCategory::normalize((string) $row['size_category']);
+            $counts[$category] += (int) $row['products'];
+        }
+
+        return $counts;
+    }
+
     /** @return array<string, mixed>|null */
     public function findActiveBySku(string $sku): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT id, sku, name, brand, size_mapper, image_url, is_recommended, total_quantity
+            'SELECT id, sku, name, brand, size_mapper, size_category, image_url, is_recommended, total_quantity
              FROM products WHERE sku = ? AND is_active = 1'
         );
         $stmt->execute([$sku]);

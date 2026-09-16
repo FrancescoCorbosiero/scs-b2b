@@ -39,6 +39,28 @@ final class PricingServiceTest extends TestCase
     }
 
     /**
+     * Prezzo fisso deciso dall'admin ("questo SKU lo vendo a 129 €"):
+     * l'offer_price del feed non entra nel calcolo e la cifra NON viene
+     * arrotondata, nemmeno con PRICE_ROUNDING=whole.
+     */
+    public function testFixedPriceIgnoresOfferPriceAndRounding(): void
+    {
+        foreach (PricingService::ROUNDING_MODES as $mode) {
+            $service = new PricingService($mode);
+            self::assertSame('129.00', $service->netPrice('47', 'fixed_price', 129.0), $mode);
+            self::assertSame('99.90', $service->netPrice('250.55', 'fixed_price', 99.9), $mode);
+            // offer_price diversi per taglia → stesso prezzo imposto
+            self::assertSame('99.90', $service->netPrice('12', 'fixed_price', 99.9), $mode);
+        }
+    }
+
+    /** Un prezzo non può essere negativo nemmeno se l'input lo è. */
+    public function testFixedPriceNeverGoesBelowZero(): void
+    {
+        self::assertSame('0.00', (new PricingService('none'))->netPrice('47', 'fixed_price', -10.0));
+    }
+
+    /**
      * Edge case floating point: 47 × 1,225 = 57,575 esatto, ma in float
      * binario è 57,574999… — la matematica intera deve dare 57,58.
      */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Service\SizeCategory;
 use PDO;
 
 /**
@@ -25,6 +26,7 @@ final class TestDb
             name TEXT NOT NULL,
             brand TEXT NOT NULL DEFAULT "",
             size_mapper TEXT NULL,
+            size_category TEXT NOT NULL DEFAULT "adult",
             image_url TEXT NULL,
             is_recommended INTEGER NOT NULL DEFAULT 0,
             is_active INTEGER NOT NULL DEFAULT 1,
@@ -240,13 +242,21 @@ final class TestDb
     }
 
     /**
-     * Inserisce un prodotto con taglie (prezzo netto già calcolato).
+     * Inserisce un prodotto con taglie (prezzo netto già calcolato). La
+     * categoria di taglia, se non forzata, è quella che dedurrebbe il sync.
      *
      * @param list<array{size_eu: string, size_us?: string, quantity: int,
      *   offer_price?: string, price?: string}> $sizes
      */
-    public static function seedProduct(PDO $pdo, string $sku, string $name, string $brand, array $sizes, bool $recommended = false): int
-    {
+    public static function seedProduct(
+        PDO $pdo,
+        string $sku,
+        string $name,
+        string $brand,
+        array $sizes,
+        bool $recommended = false,
+        ?string $sizeCategory = null,
+    ): int {
         $now = date('Y-m-d H:i:s');
         $total = 0;
         $minPrice = null;
@@ -255,12 +265,13 @@ final class TestDb
             $price = (float) ($size['price'] ?? '100.00');
             $minPrice = $minPrice === null ? $price : min($minPrice, $price);
         }
+        $category = $sizeCategory ?? SizeCategory::classify($name, null, array_column($sizes, 'size_eu'));
         $stmt = $pdo->prepare(
-            'INSERT INTO products (sku, name, brand, is_recommended, is_active, total_quantity,
+            'INSERT INTO products (sku, name, brand, size_category, is_recommended, is_active, total_quantity,
                 min_price, created_at, updated_at, last_seen_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$sku, $name, $brand, $recommended ? 1 : 0, $total, $minPrice, $now, $now, $now]);
+        $stmt->execute([$sku, $name, $brand, $category, $recommended ? 1 : 0, $total, $minPrice, $now, $now, $now]);
         $productId = (int) $pdo->lastInsertId();
 
         $sizeStmt = $pdo->prepare(

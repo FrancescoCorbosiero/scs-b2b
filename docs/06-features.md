@@ -116,6 +116,10 @@ desktop è un rail sticky e su mobile un drawer a scorrimento. I campi sono
 legati al form GET `#catalog-filters` con l'attributo `form=`, così lo stato
 resta interamente nella query string (URL condivisibili) senza annidare form:
 - **Brand** con conteggi, stato attivo e ricerca client-side
+- **Categoria taglia**: Normali (adulti) / GS (ragazzi) / PS (bambini), con
+  conteggio prodotti; selezione multipla (OR). La categoria è dedotta a sync
+  dal feed (vedi docs/03 § Categoria di taglia) e finisce anche come badge
+  sulla card e come colonna dell'export
 - **Taglie** (faccette con conteggio prodotti, solo taglie con stock): il
   prodotto passa se ha stock in almeno una delle taglie scelte
 - **Prezzo** min–max (sul prezzo netto di listino)
