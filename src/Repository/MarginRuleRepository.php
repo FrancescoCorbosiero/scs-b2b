@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Service\SizeCategory;
 use PDO;
 
 /**
@@ -13,7 +14,7 @@ use PDO;
  */
 final class MarginRuleRepository
 {
-    public const MATCH_TYPES = ['brand', 'name', 'sku'];
+    public const MATCH_TYPES = ['brand', 'name', 'sku', 'size_category'];
 
     /** SKU first, poi priority: stesso ordine di valutazione del MarginResolver. */
     private const EVAL_ORDER = "ORDER BY CASE WHEN match_type = 'sku' THEN 0 ELSE 1 END, priority ASC, id ASC";
@@ -85,6 +86,9 @@ final class MarginRuleRepository
                 "SELECT COUNT(*) FROM products WHERE is_active = 1 AND LOWER(sku) IN ({$placeholders})"
             );
             $stmt->execute($skus);
+        } elseif ($matchType === 'size_category') {
+            $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM products WHERE is_active = 1 AND size_category = ?');
+            $stmt->execute([SizeCategory::normalize(mb_strtolower(trim($matchValue)))]);
         } elseif ($matchType === 'brand') {
             $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM products WHERE is_active = 1 AND LOWER(brand) = LOWER(?)');
             $stmt->execute([$matchValue]);

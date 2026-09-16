@@ -111,6 +111,38 @@ final class MarginResolverTest extends TestCase
         self::assertSame(30.0, $this->resolver()->resolve('Adidas', 'adidas Gazelle')['margin_value']);
     }
 
+    /** "Tutti i GS al 10%": regola per categoria di taglia. */
+    public function testSizeCategoryRuleMatchesOnlyThatCategory(): void
+    {
+        $this->rules->insert(10, 'size_category', 'gs', 'percent', 10.0);
+        $resolver = $this->resolver();
+
+        $gs = $resolver->resolve('Nike', "Nike Dunk Low 'Panda' (GS)", 'NK9001', 'gs');
+        self::assertSame(['percent', 10.0], [$gs['margin_type'], $gs['margin_value']]);
+
+        // altra categoria e chiamata senza categoria → margine di default (seed: 30%)
+        self::assertSame(30.0, $resolver->resolve('Nike', 'Nike Dunk Low', 'NK1001', 'adult')['margin_value']);
+        self::assertSame(30.0, $resolver->resolve('Nike', 'Nike Dunk Low', 'NK1001')['margin_value']);
+    }
+
+    /** Prezzo fisso su uno SKU: il tipo arriva intatto al PricingService. */
+    public function testFixedPriceRuleOnSku(): void
+    {
+        $this->rules->insert(100, 'brand', 'Nike', 'fixed', 3.0);
+        $this->rules->insert(100, 'sku', 'DD1391-100', 'fixed_price', 129.0);
+
+        $margin = $this->resolver()->resolve('Nike', 'Nike Dunk Low Retro', 'DD1391-100');
+        self::assertSame(['fixed_price', 129.0], [$margin['margin_type'], $margin['margin_value']]);
+    }
+
+    /** Un prezzo fisso finito nelle settings non può valere per tutto il catalogo. */
+    public function testDefaultMarginNeverBecomesAFixedPrice(): void
+    {
+        $this->settings->set('default_margin_type', 'fixed_price');
+
+        self::assertSame('percent', $this->resolver()->defaultMargin()['margin_type']);
+    }
+
     public function testInactiveRulesAreIgnored(): void
     {
         $id = $this->rules->insert(10, 'brand', 'Nike', 'percent', 9.0);

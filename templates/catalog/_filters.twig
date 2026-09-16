@@ -59,6 +59,31 @@
         </nav>
     </section>
 
+    {# ── Categoria di taglia: normali / GS / PS ──────────────── #}
+    <section class="rounded-2xl border border-neutral-200 bg-white p-4">
+        <h2 class="mb-2 flex items-center justify-between text-xs font-bold uppercase tracking-wide text-neutral-400">
+            {{ t('catalog.filter_size_category') }}
+            {% if filters.size_categories is not empty %}
+                <span class="rounded-full bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-white">{{ filters.size_categories|length }}</span>
+            {% endif %}
+        </h2>
+        <div class="space-y-1.5">
+            {% for category, products in size_category_facets %}
+                <label class="cursor-pointer">
+                    <input type="checkbox" name="categoria[]" value="{{ category }}" form="catalog-filters" data-autosubmit
+                           {{ category in filters.size_categories ? 'checked' }} class="peer sr-only">
+                    <span class="flex items-center justify-between gap-2 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs font-semibold text-neutral-700
+                                 transition-all hover:border-neutral-400 peer-checked:border-neutral-900 peer-checked:bg-neutral-900 peer-checked:text-white
+                                 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-500">
+                        {{ t('catalog.size_category_' ~ category) }}
+                        <span class="text-[11px] font-normal opacity-60">{{ products }}</span>
+                    </span>
+                </label>
+            {% endfor %}
+        </div>
+        <p class="mt-2 text-[11px] text-neutral-400">{{ t('catalog.filter_size_category_hint') }}</p>
+    </section>
+
     {# ── Taglie (solo quelle con stock) ──────────────────────── #}
     {% if size_facets is not empty %}
         <section class="rounded-2xl border border-neutral-200 bg-white p-4">

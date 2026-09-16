@@ -86,6 +86,12 @@ cliente — prerequisito consigliato prima di `DROPSHIP_MODE=live`.
 6. Serve un testo legale/privacy sul form ordine (i dati restano a uso interno)?
 7. **P.IVA / reverse charge**: oggi la validazione è solo sul formato (niente
    VIES). Serve la verifica VIES automatica in futuro?
+8. **Categoria di taglia (normali/GS/PS)**: il feed non la dichiara, quindi è
+   dedotta con un'euristica (docs/03 § Categoria di taglia). Da confermare sul
+   catalogo reale: (a) le TD/toddler sono accorpate a PS — va bene o servono
+   quattro categorie? (b) i prodotti senza sigle nel nome e con taglie 35,5–40
+   restano "normali": se il fornitore usasse un `size_mapper` univoco per i GS
+   si potrebbe togliere l'euristica.
 
 ## Valori già decisi (non richiedere di nuovo)
 

@@ -27,10 +27,24 @@
                                 <td class="px-4 py-2.5 font-mono text-xs">{{ rule.priority }}</td>
                                 <td class="px-4 py-2.5">
                                     <span class="inline-flex items-center rounded-full bg-neutral-100 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase mr-1.5">{{ t('margins.match_' ~ rule.match_type) }}</span>
-                                    {{ rule.match_value }}
+                                    {% if rule.match_type == 'size_category' %}
+                                        {{ t('margins.category_' ~ rule.match_value) }}
+                                    {% else %}
+                                        {{ rule.match_value }}
+                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">
-                                    {% if rule.margin_type == 'percent' %}+{{ rule.margin_value }}%{% else %}{{ rule.margin_value >= 0 ? '+' }}{{ rule.margin_value|eur }}{% endif %}
+                                    {% if rule.margin_type == 'percent' %}
+                                        +{{ rule.margin_value }}%
+                                    {% elseif rule.margin_type == 'fixed_price' %}
+                                        {# prezzo imposto: non è un margine, si distingue a colpo d'occhio #}
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-800">
+                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                                            {{ rule.margin_value|eur }}
+                                        </span>
+                                    {% else %}
+                                        {{ rule.margin_value >= 0 ? '+' }}{{ rule.margin_value|eur }}
+                                    {% endif %}
                                 </td>
                                 <td class="px-4 py-2.5 text-right">{{ rule.matching_products }}</td>
                                 <td class="px-4 py-2.5">
@@ -58,39 +72,57 @@
             </div>
 
             {# ── Nuova regola ── #}
-            <form method="post" action="/admin/margini/regole" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
+            <form method="post" action="/admin/margini/regole" class="bg-white rounded-xl border border-neutral-200 p-5 space-y-4"
+                  x-data="{ matchType: 'brand', marginType: 'percent' }">
                 <h2 class="font-bold">{{ t('margins.new_rule') }}</h2>
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                     <div>
                         <label for="r-match-type" class="block font-medium mb-1">{{ t('margins.field_match_type') }}</label>
-                        <select id="r-match-type" name="match_type" class="w-full rounded-lg border-neutral-300">
+                        <select id="r-match-type" name="match_type" x-model="matchType" class="w-full rounded-lg border-neutral-300">
                             <option value="brand">{{ t('margins.match_brand') }}</option>
                             <option value="name">{{ t('margins.match_name') }}</option>
                             <option value="sku">{{ t('margins.match_sku') }}</option>
+                            <option value="size_category">{{ t('margins.match_size_category') }}</option>
                         </select>
                     </div>
                     <div>
                         <label for="r-match-value" class="block font-medium mb-1">{{ t('margins.field_match_value') }}</label>
+                        {# categoria di taglia: valore a scelta fissa, gli altri tipi restano a testo libero
+                           (l'input inattivo va disabilitato, altrimenti invia un match_value vuoto) #}
                         <input type="text" id="r-match-value" name="match_value" required maxlength="255" list="brands-list"
                                placeholder="{{ t('margins.field_match_value_placeholder') }}"
+                               x-show="matchType !== 'size_category'" :disabled="matchType === 'size_category'"
                                class="w-full rounded-lg border-neutral-300">
                         <datalist id="brands-list">
                             {% for brand in brands %}<option value="{{ brand }}"></option>{% endfor %}
                         </datalist>
+                        <select name="match_value" x-show="matchType === 'size_category'" x-cloak
+                                :disabled="matchType !== 'size_category'" class="w-full rounded-lg border-neutral-300">
+                            {% for category in size_categories %}
+                                <option value="{{ category }}">{{ t('margins.category_' ~ category) }}</option>
+                            {% endfor %}
+                        </select>
                         <p class="mt-1 text-xs text-neutral-400">{{ t('margins.field_match_value_hint') }}</p>
                     </div>
                     <div>
                         <label for="r-margin-type" class="block font-medium mb-1">{{ t('margins.field_margin_type') }}</label>
-                        <select id="r-margin-type" name="margin_type" class="w-full rounded-lg border-neutral-300">
+                        <select id="r-margin-type" name="margin_type" x-model="marginType" class="w-full rounded-lg border-neutral-300">
                             <option value="percent">{{ t('margins.type_percent') }}</option>
                             <option value="fixed">{{ t('margins.type_fixed') }}</option>
+                            <option value="fixed_price">{{ t('margins.type_fixed_price') }}</option>
                         </select>
                     </div>
                     <div>
-                        <label for="r-margin-value" class="block font-medium mb-1">{{ t('margins.field_margin_value') }}</label>
-                        <input type="number" id="r-margin-value" name="margin_value" required step="0.01" min="-100" max="10000"
+                        <label for="r-margin-value" class="block font-medium mb-1">
+                            <span x-show="marginType !== 'fixed_price'">{{ t('margins.field_margin_value') }}</span>
+                            <span x-show="marginType === 'fixed_price'" x-cloak>{{ t('margins.field_price_value') }}</span>
+                        </label>
+                        {# prezzo fisso: mai negativo (è un prezzo di vendita, non un margine) #}
+                        <input type="number" id="r-margin-value" name="margin_value" required step="0.01" max="10000"
+                               :min="marginType === 'fixed_price' ? 0 : -100"
                                class="w-full rounded-lg border-neutral-300">
+                        <p class="mt-1 text-xs text-neutral-400" x-show="marginType === 'fixed_price'" x-cloak>{{ t('margins.field_price_value_hint') }}</p>
                     </div>
                     <div>
                         <label for="r-priority" class="block font-medium mb-1">{{ t('margins.field_priority') }}</label>

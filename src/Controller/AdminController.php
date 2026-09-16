@@ -19,6 +19,7 @@ use App\Service\OrderService;
 use App\Service\PricingService;
 use App\Service\ReceiptService;
 use App\Service\ShippingService;
+use App\Service\SizeCategory;
 use App\Support\ClientIp;
 use App\Support\Http;
 use App\Support\Lang;
@@ -292,6 +293,7 @@ final class AdminController
 
         return $this->view->render($response, 'admin/margins.twig', [
             'rules' => $rules,
+            'size_categories' => SizeCategory::ALL,
             'default_margin_type' => $this->settings->get('default_margin_type', 'percent'),
             'default_margin_value' => $this->settings->get('default_margin_value', '30'),
             'vat_rates' => $this->vatRates->all(),
@@ -308,15 +310,22 @@ final class AdminController
         $marginValue = $body['margin_value'] ?? null;
         $priority = is_numeric($body['priority'] ?? null) ? (int) $body['priority'] : 100;
 
+        // il prezzo fisso è un prezzo di vendita: mai negativo (il margine sì)
+        $minValue = $marginType === 'fixed_price' ? 0 : -100;
+
         if (!in_array($matchType, MarginRuleRepository::MATCH_TYPES, true)
             || $matchValue === ''
             || ($matchType === 'sku' && MarginRuleRepository::skuTokens($matchValue) === [])
+            || ($matchType === 'size_category' && !in_array(mb_strtolower($matchValue), SizeCategory::ALL, true))
             || !in_array($marginType, PricingService::MARGIN_TYPES, true)
             || !is_numeric($marginValue)
-            || (float) $marginValue < -100 || (float) $marginValue > 10000) {
+            || (float) $marginValue < $minValue || (float) $marginValue > 10000) {
             $this->session->flash('error', $this->lang->t('margins.error_invalid'));
 
             return Http::redirect($response, '/admin/margini');
+        }
+        if ($matchType === 'size_category') {
+            $matchValue = mb_strtolower($matchValue);
         }
 
         $this->marginRules->insert($priority, $matchType, $matchValue, $marginType, (float) $marginValue);
@@ -359,7 +368,8 @@ final class AdminController
         $type = is_string($body['margin_type'] ?? null) ? $body['margin_type'] : '';
         $value = $body['margin_value'] ?? null;
 
-        if (!in_array($type, PricingService::MARGIN_TYPES, true)
+        // niente prezzo fisso come default: si applicherebbe a tutto il catalogo
+        if (!in_array($type, PricingService::DEFAULT_MARGIN_TYPES, true)
             || !is_numeric($value)
             || (float) $value < -100 || (float) $value > 10000) {
             $this->session->flash('error', $this->lang->t('margins.error_invalid'));

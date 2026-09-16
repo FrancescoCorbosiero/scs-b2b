@@ -313,6 +313,97 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame('57.00', number_format((float) ($stmt === false ? 0 : $stmt->fetchColumn()), 2, '.', ''));
     }
 
+    // ── Categoria di taglia e prezzo fisso ───────────────────────────
+
+    public function testSyncDeducesSizeCategory(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+
+        // "adidas Gazelle Indoor J": la J finale è la sigla junior di adidas
+        self::assertSame('gs', $this->categoryOf('JS3801'));
+        // "Nike Dunk Low 'Panda'" su taglie adulte
+        self::assertSame('adult', $this->categoryOf('NK1001'));
+    }
+
+    public function testRepriceRealignsStaleSizeCategories(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+        $this->pdo->exec("UPDATE products SET size_category = 'adult' WHERE sku = 'JS3801'");
+
+        $result = $this->serviceFor($this->realFixture())->run(repriceOnly: true);
+
+        self::assertSame('ok', $result['status']);
+        self::assertSame('gs', $this->categoryOf('JS3801'), 'Il reprice riallinea la categoria senza riscaricare il feed');
+    }
+
+    /** "I GS al 50%": regola per categoria di taglia, applicata al reprice. */
+    public function testRepriceAppliesSizeCategoryRule(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+        (new MarginRuleRepository($this->pdo))->insert(10, 'size_category', 'gs', 'percent', 50.0);
+
+        $result = $this->serviceFor($this->realFixture(), 'none')->run(repriceOnly: true);
+
+        self::assertSame('ok', $result['status']);
+        // JS3801 è GS: offer 47 × 1,50 = 70,50
+        self::assertSame('70.50', $this->firstPriceOf('JS3801'));
+        // NK1001 è "normale": resta al default (30%)
+        $adult = $this->pdo->query(
+            "SELECT s.price, s.offer_price FROM product_sizes s JOIN products p ON p.id = s.product_id
+             WHERE p.sku = 'NK1001' LIMIT 1"
+        )?->fetch();
+        self::assertNotFalse($adult);
+        self::assertSame(
+            (new PricingService('none'))->netPrice((string) $adult['offer_price'], 'percent', 30.0),
+            number_format((float) $adult['price'], 2, '.', ''),
+        );
+    }
+
+    /**
+     * Prezzo fisso su uno SKU: tutte le sue taglie escono a quella cifra
+     * esatta (offer_price e arrotondamento ignorati), gli altri prodotti no.
+     */
+    public function testRepriceAppliesFixedPriceRule(): void
+    {
+        $this->serviceFor($this->realFixture())->run();
+        (new MarginRuleRepository($this->pdo))->insert(100, 'sku', 'JS3801', 'fixed_price', 129.9);
+
+        $result = $this->serviceFor($this->realFixture())->run(repriceOnly: true);
+
+        self::assertSame('ok', $result['status']);
+        $prices = $this->pdo->query(
+            "SELECT s.price FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = 'JS3801'"
+        )?->fetchAll() ?: [];
+        self::assertNotEmpty($prices);
+        foreach ($prices as $row) {
+            self::assertSame('129.90', number_format((float) $row['price'], 2, '.', ''));
+        }
+        // min_price denormalizzato aggiornato di conseguenza
+        $min = $this->pdo->query("SELECT min_price FROM products WHERE sku = 'JS3801'")?->fetchColumn();
+        self::assertSame('129.90', number_format((float) $min, 2, '.', ''));
+
+        // gli altri prodotti restano al margine di default
+        self::assertNotSame('129.90', $this->firstPriceOf('NK1001'));
+    }
+
+    private function categoryOf(string $sku): string
+    {
+        $stmt = $this->pdo->prepare('SELECT size_category FROM products WHERE sku = ?');
+        $stmt->execute([$sku]);
+
+        return (string) $stmt->fetchColumn();
+    }
+
+    private function firstPriceOf(string $sku): string
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT s.price FROM product_sizes s JOIN products p ON p.id = s.product_id WHERE p.sku = ? LIMIT 1'
+        );
+        $stmt->execute([$sku]);
+
+        return number_format((float) $stmt->fetchColumn(), 2, '.', '');
+    }
+
     /** @return list<array<string, mixed>> */
     private function dumpCatalog(): array
     {

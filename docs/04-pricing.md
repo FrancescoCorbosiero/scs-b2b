@@ -22,16 +22,20 @@ dove il margine viene dalle **regole admin** (`/admin/margini`, tabella
    case-insensitive con uno dei codici in `match_value` (uno o più SKU
    separati da virgola, es. "JS3801, DD1391-100") — così l'admin decide
    esattamente quali SKU influenzare col margine.
-2. La prima regola brand/nome **attiva** che corrisponde al prodotto, in
-   ordine di `priority` crescente (a parità, la più vecchia). Corrispondenza:
+2. La prima regola brand/nome/categoria **attiva** che corrisponde al prodotto,
+   in ordine di `priority` crescente (a parità, la più vecchia). Corrispondenza:
    - `brand`: uguaglianza case-insensitive col brand del feed;
    - `name`: il nome prodotto **contiene** il valore (case-insensitive) —
-     es. "air force 1".
+     es. "air force 1";
+   - `size_category`: la categoria di taglia del prodotto (`adult` = normali,
+     `gs` = ragazzi, `ps` = bambini), dedotta a sync dal feed (docs/03) — es.
+     "tutti i GS al 10%".
 3. Nessuna regola → **margine di default** (tabella `settings`:
    `default_margin_type` + `default_margin_value`).
 
-Ogni regola (e il default) è `percent` (`offer × (1 + m/100)`) oppure `fixed`
-(`offer + m` in EUR).
+Ogni regola è `percent` (`offer × (1 + m/100)`), `fixed` (`offer + m` in EUR)
+oppure `fixed_price` (vedi sotto). Il **default**, che vale su tutto il
+catalogo, ammette solo `percent` e `fixed`.
 
 **Valori di partenza indicati dal titolare (19/07/2026, migrazione 0006)**:
 default **5%** per i brand nuovi/non elencati; Adidas 5%; Jordan, Nike,
@@ -44,6 +48,22 @@ New Balance, In, Saucony **+2€**. Tutto modificabile da /admin/margini.
   restano inutilizzati, vedi docs/03).
 - Matematica in interi (centesimi/punti base), niente float: vedi
   `PricingService` e i suoi test.
+
+### Prezzo fisso manuale (`fixed_price`)
+
+Quando il titolare vuole decidere lui la cifra ("lo SKU JS3801 lo vendo a
+129,90 € e basta"), la regola è di tipo **Prezzo fisso**: `margin_value` non è
+un margine ma il **prezzo netto di listino** (VAT esclusa) applicato a tutte le
+taglie del prodotto.
+
+- `offer_price` del feed **non entra** nel calcolo: il prezzo resta quello
+  anche se il fornitore cambia il costo (fino a che la regola è attiva).
+- Nessun arrotondamento: 129,90 resta 129,90 anche con `PRICE_ROUNDING=whole`
+  (è una cifra scelta a mano, non il risultato di una formula).
+- Mai negativo: un valore < 0 viene rifiutato in `/admin/margini`.
+- Vale con qualsiasi tipo di corrispondenza, ma il caso tipico è `sku` — che
+  è anche la regola valutata per prima, quindi un prezzo fisso batte sempre
+  le regole di brand/nome/categoria.
 
 ## Niente IVA nel listino
 
@@ -80,7 +100,8 @@ legge la colonna: zero calcoli lato client.
 Ogni salvataggio in `/admin/margini` (regola creata/attivata/eliminata,
 default modificato) esegue subito un **reprice** (`FeedSyncService::run(
 repriceOnly: true)`) che ricalcola tutti i prezzi da `offer_price` senza
-riscaricare il feed. Equivalente CLI: `php bin/sync-feed.php --reprice`.
+riscaricare il feed — e ne approfitta per riallineare `products.size_category`.
+Equivalente CLI: `php bin/sync-feed.php --reprice`.
 Le aliquote VAT invece non richiedono reprice (toccano solo il calcolo a
 fine ordine).
 

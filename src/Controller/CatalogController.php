@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Repository\ProductRepository;
+use App\Service\SizeCategory;
 use App\Support\Config;
 use App\Support\Lang;
 use App\Support\View;
@@ -55,6 +56,7 @@ final class CatalogController
             'filters' => $filters,
             'brands' => $this->products->activeBrandsWithCounts(),
             'size_facets' => $this->products->activeSizesWithCounts(),
+            'size_category_facets' => $this->products->activeSizeCategoryCounts(),
             'sorts' => self::SORTS,
             'availability_high_min' => $highMin,
             'availability_low_max' => $lowMax,
@@ -112,6 +114,13 @@ final class CatalogController
                 'remove_url' => $urlWithout('taglia', $size),
             ];
         }
+        foreach ($filters['size_categories'] as $category) {
+            $chips[] = [
+                'label' => $this->lang->t('catalog.filter_size_category'),
+                'value' => $this->lang->t('catalog.size_category_' . $category),
+                'remove_url' => $urlWithout('categoria', $category),
+            ];
+        }
         if ($filters['availability'] !== '') {
             $chips[] = [
                 'label' => $this->lang->t('catalog.filter_availability'),
@@ -167,8 +176,8 @@ final class CatalogController
 
     /**
      * Export Excel del risultato filtrato, una riga per taglia.
-     * Colonne: SKU, nome, brand, taglia EU/US, barcode, qty, prezzo netto
-     * di listino (VAT esclusa). MAI offer_price.
+     * Colonne: SKU, nome, brand, categoria taglia, taglia EU/US, barcode,
+     * qty, prezzo netto di listino (VAT esclusa). MAI offer_price.
      */
     public function export(Request $request, Response $response): Response
     {
@@ -194,6 +203,7 @@ final class CatalogController
             'SKU',
             $this->lang->t('export.product'),
             $this->lang->t('export.brand'),
+            $this->lang->t('export.size_category'),
             $this->lang->t('export.size_eu'),
             $this->lang->t('export.size_us'),
             $this->lang->t('export.barcode'),
@@ -208,6 +218,7 @@ final class CatalogController
                     (string) $product['sku'],
                     (string) $product['name'],
                     (string) $product['brand'],
+                    $this->lang->t('catalog.size_category_' . SizeCategory::normalize((string) $product['size_category'])),
                     $size['size_eu'],
                     $size['size_us'],
                     $size['barcode'],
@@ -233,7 +244,7 @@ final class CatalogController
      * @param array<string, mixed> $query
      * @return array{q: string, brand: string, availability: string, recommended: bool,
      *   price_min: float|null, price_max: float|null, sort: string,
-     *   sizes: list<string>, in_stock: bool}
+     *   sizes: list<string>, in_stock: bool, size_categories: list<string>}
      */
     private function parseFilters(array $query): array
     {
@@ -251,6 +262,15 @@ final class CatalogController
             }
         }
 
+        // categoria di taglia: ?categoria[]=gs&categoria[]=ps (normali/GS/PS)
+        $categories = [];
+        foreach ((array) ($query['categoria'] ?? []) as $category) {
+            $category = is_string($category) ? mb_strtolower(trim($category)) : '';
+            if (in_array($category, SizeCategory::ALL, true) && !in_array($category, $categories, true)) {
+                $categories[] = $category;
+            }
+        }
+
         return [
             'q' => mb_substr($str('q'), 0, 100),
             'brand' => mb_substr($str('brand'), 0, 128),
@@ -261,6 +281,7 @@ final class CatalogController
             'sort' => in_array($sort, self::SORTS, true) ? $sort : 'rilevanza',
             'sizes' => array_slice($sizes, 0, 40),
             'in_stock' => ($query['disponibili'] ?? '') === '1',
+            'size_categories' => $categories,
         ];
     }
 }

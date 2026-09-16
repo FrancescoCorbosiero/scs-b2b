@@ -10,7 +10,8 @@ use App\Support\Config;
  * Prezzo di listino NETTO (VAT esclusa): offer_price + margine.
  *
  * Il margine arriva dalle regole admin (vedi MarginResolver): percentuale
- * (price = offer × (1 + m/100)) oppure importo fisso (price = offer + m).
+ * (price = offer × (1 + m/100)), importo fisso (price = offer + m) oppure
+ * prezzo fisso (price = m, il prezzo del feed viene ignorato del tutto).
  * Il VAT non entra MAI nel prezzo di listino: viene calcolato a parte in
  * base al paese del cliente (VatService) solo nel riepilogo ordine/ricevuta.
  *
@@ -22,7 +23,12 @@ use App\Support\Config;
 final class PricingService
 {
     public const ROUNDING_MODES = ['whole', 'half', 'none'];
-    public const MARGIN_TYPES = ['percent', 'fixed'];
+
+    /** percent: offer × (1+m/100) · fixed: offer + m · fixed_price: m (prezzo imposto dall'admin). */
+    public const MARGIN_TYPES = ['percent', 'fixed', 'fixed_price'];
+
+    /** Il margine di DEFAULT vale su tutto il catalogo: un prezzo fisso lì non ha senso. */
+    public const DEFAULT_MARGIN_TYPES = ['percent', 'fixed'];
 
     private readonly string $rounding;
 
@@ -42,6 +48,14 @@ final class PricingService
      */
     public function netPrice(string|float $offerPrice, string $marginType, float $marginValue): string
     {
+        // prezzo fisso: è l'admin a decidere la cifra esatta, quindi niente
+        // offer_price e niente arrotondamento (99,90 deve restare 99,90)
+        if ($marginType === 'fixed_price') {
+            $cents = max(0, (int) round($marginValue * 100));
+
+            return sprintf('%d.%02d', intdiv($cents, 100), $cents % 100);
+        }
+
         $offerCents = (int) round((float) $offerPrice * 100);
 
         if ($marginType === 'fixed') {

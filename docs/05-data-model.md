@@ -6,6 +6,9 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `id` PK
 - `sku` VARCHAR unique — chiave naturale dal feed
 - `name`, `brand`, `size_mapper` VARCHAR
+- `size_category` ENUM('adult','gs','ps') default 'adult' — categoria di taglia
+  dedotta a sync da nome/size_mapper/taglie (`App\Service\SizeCategory`): filtro
+  catalogo e regole margine per categoria
 - `image_url` VARCHAR NULL
 - `is_recommended` TINYINT default 0 (il feed flat non lo fornisce: gestibile
   da /admin come flag manuale, oppure lasciare sempre 0 in v1)

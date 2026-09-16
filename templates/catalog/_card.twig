@@ -39,6 +39,12 @@
             <span class="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {{ level_classes[level] }}">
                 {{ t('catalog.availability_' ~ level) }} · {{ item.total_quantity }}
             </span>
+            {# categoria di taglia: badge solo per GS/PS, i "normali" sono la regola #}
+            {% if item.size_category is defined and item.size_category in ['gs', 'ps'] %}
+                <span class="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">
+                    {{ t('catalog.size_category_' ~ item.size_category) }}
+                </span>
+            {% endif %}
         </span>
 
         {# invito all'azione che compare in hover (desktop) #}
