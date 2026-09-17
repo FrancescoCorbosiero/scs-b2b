@@ -109,6 +109,44 @@ final class CatalogFilterTest extends TestCase
         self::assertSame(['NK1001'], $this->skus(['sizes' => ['42'], 'brand' => 'Nike']));
     }
 
+    // ── Esauriti: restano a catalogo, ma in fondo ────────────────────
+
+    /**
+     * Il fornitore tiene a feed anche i prodotti a quantità 0: il catalogo li
+     * mostra (marcati "Esaurito" nella card) ma sempre DOPO quelli ordinabili,
+     * qualunque sia l'ordinamento scelto.
+     */
+    public function testSoldOutProductsAreSortedLast(): void
+    {
+        TestDb::seedProduct($this->pdo, 'ZZ0001', 'AAA Primo in ordine alfabetico', 'Zeta', [
+            ['size_eu' => '42', 'quantity' => 0, 'price' => '10.00'],
+        ]);
+
+        // ZZ0001 per nome sarebbe primo ("AAA…") e per prezzo pure (10 €):
+        // esaurito, quindi scivola dopo tutti i disponibili. Esaurito è anche
+        // PM5001 (unica taglia a 0): i due chiudono la lista in ogni ordinamento.
+        foreach (['nome', 'prezzo_asc', 'prezzo_desc', 'rilevanza'] as $sort) {
+            $skus = $this->skus(['sort' => $sort]);
+            self::assertCount(4, $skus, $sort);
+            $head = array_slice($skus, 0, 2);
+            $tail = array_slice($skus, 2);
+            sort($head);
+            sort($tail);
+            self::assertSame(['AD2001', 'NK1001'], $head, $sort . ': prima i disponibili');
+            self::assertSame(['PM5001', 'ZZ0001'], $tail, $sort . ': gli esauriti in coda');
+        }
+    }
+
+    public function testSoldOutProductsStillDisappearWithTheInStockFilter(): void
+    {
+        TestDb::seedProduct($this->pdo, 'ZZ0001', 'Esaurito', 'Zeta', [
+            ['size_eu' => '42', 'quantity' => 0, 'price' => '10.00'],
+        ]);
+
+        self::assertNotContains('ZZ0001', $this->skus(['in_stock' => true]));
+        self::assertContains('ZZ0001', $this->skus([]));
+    }
+
     // ── Categoria di taglia (normali / GS / PS) ──────────────────────
 
     private function seedKidsProducts(): void

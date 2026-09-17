@@ -178,10 +178,15 @@ final class CatalogController
      * Export Excel del risultato filtrato, una riga per taglia.
      * Colonne: SKU, nome, brand, categoria taglia, taglia EU/US, barcode,
      * qty, prezzo netto di listino (VAT esclusa). MAI offer_price.
+     *
+     * L'export è un listino di ciò che si può ordinare: i prodotti esauriti e
+     * le singole taglie a quantità 0 restano fuori, anche quando il catalogo
+     * a schermo li mostra marcati "Esaurito".
      */
     public function export(Request $request, Response $response): Response
     {
         $filters = $this->parseFilters($request->getQueryParams());
+        $filters['in_stock'] = true;
 
         $result = $this->products->search(
             $filters,
@@ -214,6 +219,9 @@ final class CatalogController
         foreach ($ids as $id) {
             $product = $productsById[$id];
             foreach ($sizesByProduct[$id] ?? [] as $size) {
+                if ($size['quantity'] <= 0) {
+                    continue;
+                }
                 $rows[] = [
                     (string) $product['sku'],
                     (string) $product['name'],

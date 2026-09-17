@@ -111,6 +111,15 @@ carrello" scrive le quantità nel carrello di sessione via `/carrello/aggiorna`
 lasciare il catalogo. `Esc` o clic fuori chiudono. Dati esposti: SOLO stock e
 prezzi netti (mai offer_price).
 
+**Prodotti esauriti**: il fornitore tiene a feed anche ciò che ha finito
+(docs/03), quindi il catalogo può contenere prodotti a stock 0. Non vengono
+nascosti ma **marcati**: badge `ESAURITO`, immagine sbiadita, niente prezzo
+"a partire da" e niente bottone d'ordine (nemmeno la scheda rapida si apre),
+sempre **in fondo alla griglia** qualunque sia l'ordinamento, ed **esclusi
+dall'export Excel** — che è il listino di ciò che si può ordinare, quindi
+salta anche le singole taglie a quantità 0. L'interruttore "Solo disponibili"
+li toglie del tutto dalla vista.
+
 **IVA mai addebitata** (`VAT_ON_ORDER=0`, docs/04): il totale della richiesta
 è `merce + spedizione` e coincide con l'importo da bonificare. Il messaggio è
 ripetuto lungo tutto il percorso — banner catalogo, footer, riepilogo

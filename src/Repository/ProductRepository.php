@@ -327,6 +327,10 @@ final class ProductRepository
             'disponibilita' => 'p.total_quantity DESC, p.name ASC',
             default => 'p.is_recommended DESC, p.name ASC',
         };
+        // Gli esauriti restano a catalogo (il fornitore li tiene nel feed a
+        // quantità 0) ma vanno SEMPRE in fondo, qualunque sia l'ordinamento:
+        // il rivenditore vede prima ciò che può ordinare davvero.
+        $orderSql = 'CASE WHEN p.total_quantity > 0 THEN 0 ELSE 1 END ASC, ' . $orderSql;
 
         $count = $this->pdo->prepare("SELECT COUNT(*) FROM products p WHERE {$whereSql}");
         $count->execute($params);
