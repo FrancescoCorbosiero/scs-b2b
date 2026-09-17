@@ -87,6 +87,8 @@ return [
     'catalog.no_results' => 'No products found with the selected filters.',
     'catalog.no_results_hint' => 'Try removing a filter: size, price or availability.',
     'catalog.no_sizes' => 'No size available',
+    'catalog.sold_out' => 'Sold out',
+    'catalog.sold_out_hint' => 'Not orderable right now',
     'ui.reset_clear' => 'Clear',
     'ui.reset_default' => 'Restore',
     'catalog.filters_title' => 'Filters',

@@ -87,6 +87,8 @@ return [
     'catalog.no_results' => 'Nessun prodotto trovato con i filtri selezionati.',
     'catalog.no_results_hint' => 'Prova a togliere qualche filtro: taglia, prezzo o disponibilità.',
     'catalog.no_sizes' => 'Nessuna taglia disponibile',
+    'catalog.sold_out' => 'Esaurito',
+    'catalog.sold_out_hint' => 'Non ordinabile al momento',
     'ui.reset_clear' => 'Azzera',
     'ui.reset_default' => 'Ripristina',
     'catalog.filters_title' => 'Filtri',

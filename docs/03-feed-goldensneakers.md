@@ -60,6 +60,23 @@ Il token non va mai committato né loggato.
    o lenti.
 
 
+## Prodotti esauriti (stock 0 a feed)
+
+Il feed **continua a elencare** i prodotti esauriti, con
+`available_quantity = 0` su tutte le taglie: non spariscono dal payload. Sono
+due situazioni diverse, gestite diversamente:
+
+| Situazione | Nel feed | Effetto |
+|---|---|---|
+| Prodotto ritirato dal fornitore | assente | `is_active = 0` (`deactivateExcept`): sparisce da catalogo, ricerca ed export |
+| Prodotto esaurito | presente con quantità 0 | resta attivo con `total_quantity = 0`: il catalogo lo mostra marcato **Esaurito**, in fondo alla griglia e fuori dall'export (docs/06) |
+
+Quindi un prodotto che non compare più sulla piattaforma del fornitore può
+comunque restare visibile da noi: è esaurito, non ritirato. Se invece un
+prodotto ritirato resta visibile, il sospetto è un **sync fermo o fallito** —
+si controlla da `/admin/sync` (l'ultimo run in stato `error` lascia il
+catalogo com'era, per progetto) e dai `sync_logs`.
+
 ## Categoria di taglia (normali / GS / PS)
 
 Il feed **non** dichiara se un modello è da adulto, da ragazzo (GS, grade
