@@ -231,6 +231,7 @@
                 <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_company') }}</h2>
                 <p class="text-sm leading-relaxed text-neutral-400">
                     <strong class="text-neutral-200">{{ contact.company ?: company_name }}</strong><br>
+                    {% if contact.owner %}{{ t('legal.owner_line', {owner: contact.owner}) }}<br>{% endif %}
                     {% if contact.address %}{{ contact.address }}<br>{% endif %}
                     {% if contact.vat %}{{ contact.vat }}{% endif %}
                 </p>

@@ -420,6 +420,7 @@ return [
     'footer.col_explore' => 'Explore',
     'footer.col_contacts' => 'Contacts',
     'footer.col_company' => 'Company',
+    'legal.owner_line' => 'Sole proprietorship of :owner',
 
     // Meta (SEO for public pages)
     'meta.home_description' => 'B2B sneaker catalog for resellers: stock updated daily, net prices VAT excluded, delivery in 4-5 working days across Europe.',

@@ -34,6 +34,7 @@
 
     <div class="mt-6 max-w-4xl bg-white rounded-xl border border-neutral-200 p-5 text-sm text-neutral-600 space-y-1">
         <p class="font-semibold text-neutral-900">{{ contact.company }}</p>
+        {% if contact.owner %}<p>{{ t('legal.owner_line', {owner: contact.owner}) }}</p>{% endif %}
         <p>{{ t('contact.address') }}: {{ contact.address }}</p>
         <p>{{ contact.vat }}</p>
         <a href="{{ contact.main_site }}" rel="noopener" class="inline-block underline hover:text-neutral-900 mt-2">{{ t('contact.main_site') }}</a>

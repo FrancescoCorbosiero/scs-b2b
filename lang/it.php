@@ -699,6 +699,7 @@ return [
     'footer.col_explore' => 'Naviga',
     'footer.col_contacts' => 'Contatti',
     'footer.col_company' => 'Azienda',
+    'legal.owner_line' => 'Ditta individuale di :owner',
 
     // Meta (SEO delle pagine pubbliche)
     'meta.home_description' => 'Catalogo sneakers B2B per rivenditori: stock aggiornato quotidianamente, prezzi netti IVA esclusa, spedizione in 4-5 giorni lavorativi in tutta Europa.',
