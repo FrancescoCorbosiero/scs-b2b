@@ -89,6 +89,7 @@ final class OrderMailer
                 'is_update' => $isUpdate,
                 'bank' => $this->bankDetails(),
                 'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                'company_owner' => $this->config->str('CONTACT_OWNER_NAME'),
                 'contact_email' => $this->config->str('CONTACT_EMAIL'),
                 'contact_phone' => $this->config->str('CONTACT_PHONE'),
                 'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
@@ -123,6 +124,7 @@ final class OrderMailer
             $html = $this->twig->render('emails/customer_confirmed.twig', [
                 'order' => $order,
                 'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                'company_owner' => $this->config->str('CONTACT_OWNER_NAME'),
                 'contact_email' => $this->config->str('CONTACT_EMAIL'),
                 'contact_phone' => $this->config->str('CONTACT_PHONE'),
                 'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),

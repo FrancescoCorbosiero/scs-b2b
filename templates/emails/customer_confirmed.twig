@@ -41,7 +41,7 @@
     <p>{{ t('email.confirmed_next') }}</p>
 
     <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
-    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong></p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong>{% if company_owner %}<br><span style="color: #525252; font-size: 13px;">{{ t('legal.owner_line', {owner: company_owner}) }}</span>{% endif %}</p>
 
     <p style="color: #525252; font-size: 13px; margin-top: 18px;">
         {{ t('email.customer_contacts') }}: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}

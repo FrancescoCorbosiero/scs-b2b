@@ -109,6 +109,7 @@ final class ReceiptService
                 'order' => $order,
                 'company' => [
                     'name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                    'owner' => $this->config->str('CONTACT_OWNER_NAME'),
                     'address' => $this->config->str('CONTACT_ADDRESS'),
                     'vat' => $this->config->str('CONTACT_VAT'),
                     'email' => $this->config->str('CONTACT_EMAIL'),

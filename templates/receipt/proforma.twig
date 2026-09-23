@@ -28,6 +28,7 @@
         <tr>
             <td style="width: 55%;">
                 <h1>{{ company.name }}</h1>
+                {% if company.owner %}<div>{{ t('legal.owner_line', {owner: company.owner}) }}</div>{% endif %}
                 <div class="muted">
                     {{ company.address }}<br>
                     {{ company.vat }}<br>

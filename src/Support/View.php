@@ -61,6 +61,7 @@ final class View
             'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
             'contact' => [
                 'company' => $this->config->str('CONTACT_COMPANY_NAME'),
+                'owner' => $this->config->str('CONTACT_OWNER_NAME'),
                 'email' => $this->config->str('CONTACT_EMAIL'),
                 'phone' => $this->config->str('CONTACT_PHONE'),
                 'whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
