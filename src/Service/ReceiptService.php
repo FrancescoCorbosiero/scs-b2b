@@ -16,7 +16,9 @@ use Twig\Environment;
  * e generazione del PDF dal template Twig (dompdf).
  *
  * Documento NON fiscale: riepiloga imponibile, VAT applicato in base al
- * paese (VatService) e totale. La numerazione può presentare salti se una
+ * paese (VatService) e totale. Se l'IVA non è addebitata, la "Nota IVA"
+ * indica quanto varrebbe la richiesta con l'IVA di legge
+ * (VatService::indicativeVat). La numerazione può presentare salti se una
  * richiesta fallisce dopo l'assegnazione del numero: accettabile per un
  * documento pro-forma.
  */
@@ -27,6 +29,7 @@ final class ReceiptService
         private readonly Environment $twig,
         private readonly Lang $lang,
         private readonly Config $config,
+        private readonly VatService $vat,
     ) {
     }
 
@@ -99,14 +102,25 @@ final class ReceiptService
         return $prefix . '-' . $number . '.pdf';
     }
 
-    /** @param array<string, mixed> $order */
-    private function renderHtml(array $order, string $locale): string
+    /**
+     * HTML della ricevuta (sorgente del PDF), pubblico anche per i test.
+     *
+     * @param array<string, mixed> $order
+     */
+    public function renderHtml(array $order, string $locale): string
     {
+        $vatNote = $this->vat->indicativeVat($order);
+        if ($vatNote !== null) {
+            // 22.0 → "22", 25.5 → "25,5": stesso formato italiano degli importi
+            $vatNote['rate_label'] = rtrim(rtrim(number_format($vatNote['rate'], 2, ',', ''), '0'), ',');
+        }
+
         $previous = $this->lang->locale();
         $this->lang->setLocale($locale);
         try {
             return $this->twig->render('receipt/proforma.twig', [
                 'order' => $order,
+                'vat_note' => $vatNote,
                 'company' => [
                     'name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
                     'owner' => $this->config->str('CONTACT_OWNER_NAME'),

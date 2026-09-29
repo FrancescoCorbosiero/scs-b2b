@@ -8,16 +8,23 @@ use App\Support\Config;
 use Psr\Log\LoggerInterface;
 
 /**
- * Client per il dominio "orders-dropship" dell'API GoldenSneakers
- * (POST create-order/, GET order-details/{order_id}/,
- * GET package-details/{package_id}/, POST upload-shipping-label/{order_id}/
- * — path confermati su Swagger).
+ * Client per gli ordini dropshipping dell'API GoldenSneakers (tag
+ * "dropshipping-orders" della documentazione ufficiale,
+ * https://www.goldensneakers.net/api/docs/): POST create-order/,
+ * GET order-details/{order_id}/, GET package-details/{package_id}/,
+ * POST upload-shipping-label/{order_id}/.
+ *
+ * I path sono costanti di classe (*_PATH), NON configurazione: fanno parte
+ * del contratto dell'API come il payload. Le vecchie variabili
+ * DROPSHIP_*_ENDPOINT non vengono più lette, così un .env copiato da una
+ * versione precedente (es. DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/,
+ * path inesistente) non può più mandare gli ordini nel vuoto.
  *
  * Due modalità (DROPSHIP_MODE):
  *  - simulation (default): NESSUNA chiamata HTTP, risposte fittizie marcate
  *    `simulated: true`. Qualsiasi valore diverso da "live" degrada qui.
- *  - live: chiamate reali con il bearer token del feed (FEED_BEARER_TOKEN)
- *    sugli endpoint DROPSHIP_*_ENDPOINT. Creare un ordine è IRREVERSIBILE
+ *  - live: chiamate reali su FEED_BASE_URL con il bearer token del feed
+ *    (FEED_BEARER_TOKEN). Creare un ordine è IRREVERSIBILE
  *    (il fornitore lo conferma e scala il suo stock reale), quindi:
  *      • la POST di creazione NON viene MAI ritentata automaticamente:
  *        un retry dopo un timeout può produrre un ordine doppio;
@@ -30,10 +37,6 @@ use Psr\Log\LoggerInterface;
  *        ripetere.
  *    La lettura dello stato (GET) è idempotente: un retry con backoff.
  *
- * ⚠ Gli endpoint di default vanno verificati sullo Swagger del fornitore
- * (docs/09) prima di attivare il live: un path sbagliato in produzione
- * significa ordini che falliscono o, peggio, comportamenti inattesi.
- *
  * Stati ordine documentati: UNCONFIRMED, TO_SHIP, ENDED, CANCELED,
  * WAITING_FOR_INVOICE.
  */
@@ -43,6 +46,12 @@ final class GoldenSneakersDropshipClient
     public const MODE_LIVE = 'live';
 
     public const STATUSES = ['UNCONFIRMED', 'TO_SHIP', 'ENDED', 'CANCELED', 'WAITING_FOR_INVOICE'];
+
+    /** Path API (base FEED_BASE_URL): i parametri {id} si accodano con lo slash finale. */
+    public const CREATE_ORDER_PATH = '/api/orders-dropship/create-order/';
+    public const ORDER_DETAILS_PATH = '/api/orders-dropship/order-details/';
+    public const PACKAGE_DETAILS_PATH = '/api/orders-dropship/package-details/';
+    public const UPLOAD_LABEL_PATH = '/api/orders-dropship/upload-shipping-label/';
 
     /**
      * Errori cURL che avvengono PRIMA che la richiesta parta (DNS, connect,
@@ -114,7 +123,7 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl('DROPSHIP_CREATE_ENDPOINT', '/api/orders-dropship/create-order/');
+        $url = $this->liveUrl(self::CREATE_ORDER_PATH);
         $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
         if ($body === false) {
             throw new DropshipException('Payload non serializzabile in JSON: nessun ordine inviato.');
@@ -181,10 +190,11 @@ final class GoldenSneakersDropshipClient
         }
 
         if ($status >= 300 && $status < 400) {
-            // redirect su una POST = endpoint configurato male: la richiesta
-            // non viene processata dal fornitore
+            // redirect su una POST = URL sbagliato (FEED_BASE_URL senza https
+            // o senza www, oppure path cambiato dal fornitore): la richiesta
+            // non viene processata
             throw new DropshipException(
-                "Endpoint di creazione mal configurato (HTTP {$status}, redirect): verificare DROPSHIP_CREATE_ENDPOINT sullo Swagger. Nessun ordine creato."
+                "Il fornitore ha risposto con un redirect (HTTP {$status}): verificare FEED_BASE_URL e il path di creazione sulla documentazione API (docs/09). Nessun ordine creato."
             );
         }
 
@@ -235,8 +245,7 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl('DROPSHIP_DETAILS_ENDPOINT', '/api/orders-dropship/order-details/')
-            . $vendorOrderId . '/';
+        $url = $this->liveUrl(self::ORDER_DETAILS_PATH) . $vendorOrderId . '/';
         $decoded = $this->getJson($url, 'dettagli ordine');
 
         $status = is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
@@ -304,8 +313,7 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl('DROPSHIP_PACKAGE_ENDPOINT', '/api/orders-dropship/package-details/')
-            . $packageId . '/';
+        $url = $this->liveUrl(self::PACKAGE_DETAILS_PATH) . $packageId . '/';
         $decoded = $this->getJson($url, 'dettagli pacchetto');
 
         $status = is_string($decoded['status'] ?? null) ? $decoded['status'] : null;
@@ -371,8 +379,7 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl('DROPSHIP_LABEL_ENDPOINT', '/api/orders-dropship/upload-shipping-label/')
-            . $vendorOrderId . '/';
+        $url = $this->liveUrl(self::UPLOAD_LABEL_PATH) . $vendorOrderId . '/';
         $res = $this->request('POST', $url, [
             'shipping_label' => new \CURLFile($filePath, $mimeType, $fileName),
             'tracking_numbers' => (string) json_encode($trackingNumbers, JSON_UNESCAPED_UNICODE),
@@ -467,19 +474,14 @@ final class GoldenSneakersDropshipClient
         return $list;
     }
 
-    /** Base URL + endpoint configurato, con token verificato PRIMA di ogni invio. */
-    private function liveUrl(string $endpointKey, string $endpointDefault): string
+    /** Base URL + path API (costante), con token verificato PRIMA di ogni invio. */
+    private function liveUrl(string $path): string
     {
         if ($this->config->str('FEED_BEARER_TOKEN') === '') {
             throw new DropshipException('FEED_BEARER_TOKEN mancante: impossibile usare DROPSHIP_MODE=live. Nessun ordine inviato.');
         }
-        $endpoint = trim($this->config->str($endpointKey, $endpointDefault));
-        if ($endpoint === '' || !str_starts_with($endpoint, '/')) {
-            throw new DropshipException("{$endpointKey} mancante o non valido (deve iniziare con '/'). Nessun ordine inviato.");
-        }
 
-        return rtrim($this->config->str('FEED_BASE_URL', 'https://www.goldensneakers.net'), '/')
-            . '/' . trim($endpoint, '/') . '/';
+        return rtrim($this->config->str('FEED_BASE_URL', 'https://www.goldensneakers.net'), '/') . $path;
     }
 
     /**

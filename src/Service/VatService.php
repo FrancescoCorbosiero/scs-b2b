@@ -102,6 +102,52 @@ final class VatService
         return ['country_code' => $code, 'scheme' => self::SCHEME_EU, 'rate' => $country['vat_rate'], 'vat_number' => null];
     }
 
+    /**
+     * Nota IVA della ricevuta pro-forma: quanto varrebbe la richiesta CON
+     * l'IVA di legge quando l'imposta non è stata addebitata (VAT_ON_ORDER=0).
+     * Solo informativa: il totale da bonificare resta il netto.
+     *
+     * Vale per gli schemi con aliquota di legge > 0 (domestic, eu): con
+     * reverse charge ed export l'IVA sarebbe comunque 0% e la ricevuta ha già
+     * la sua nota. Aliquota di vat_rates per il paese; se lì è 0 (es. azzerata
+     * da /admin/margini) si usa quella standard. null anche quando l'imposta
+     * è già nel totale (vat_amount > 0).
+     *
+     * @param array<string, mixed> $order riga di order_requests
+     * @return array{rate: float, taxable: string, vat_amount: string, total_gross: string}|null
+     */
+    public function indicativeVat(array $order): ?array
+    {
+        if ((float) ($order['vat_amount'] ?? 0) > 0) {
+            return null;
+        }
+        $scheme = $order['vat_scheme'] ?? null;
+        if ($scheme !== self::SCHEME_DOMESTIC && $scheme !== self::SCHEME_EU) {
+            return null;
+        }
+        $country = strtoupper((string) ($order['country_code'] ?? ''));
+        $rate = $this->rates->find($country)['vat_rate'] ?? 0.0;
+        if ($rate <= 0) {
+            $rate = VatRateRepository::standardRate($country) ?? 0.0;
+        }
+        if ($rate <= 0) {
+            return null;
+        }
+
+        // imponibile = merce + spedizione, come alla richiesta (OrderService)
+        $taxableCents = (int) round((float) ($order['total_amount'] ?? 0) * 100)
+            + (int) round((float) ($order['shipping_amount'] ?? 0) * 100);
+        $taxable = sprintf('%d.%02d', intdiv($taxableCents, 100), $taxableCents % 100);
+        $vatAmount = self::vatAmount($taxable, $rate);
+
+        return [
+            'rate' => $rate,
+            'taxable' => $taxable,
+            'vat_amount' => $vatAmount,
+            'total_gross' => self::grossTotal($taxable, $vatAmount),
+        ];
+    }
+
     public function isValidCountry(string $countryCode): bool
     {
         return $this->rates->find($countryCode) !== null;

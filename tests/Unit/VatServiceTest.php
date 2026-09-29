@@ -129,4 +129,84 @@ final class VatServiceTest extends TestCase
         self::assertSame('0.06', VatService::vatAmount('0.25', 22.0));
         self::assertSame('0.00', VatService::vatAmount('100.00', 0.0));
     }
+
+    // ── Nota IVA della ricevuta: prezzo con l'IVA, solo informativo ───
+
+    /** @return array<string, mixed> richiesta IVA non addebitata, come a DB */
+    private static function netOrder(array $overrides = []): array
+    {
+        return $overrides + [
+            'country_code' => 'IT',
+            'vat_scheme' => VatService::SCHEME_DOMESTIC,
+            'vat_rate' => '0.00',
+            'vat_amount' => '0.00',
+            'total_amount' => '460.00',
+            'shipping_amount' => '0.00',
+            'total_gross' => '460.00',
+        ];
+    }
+
+    /** Il caso reale della richiesta #4: 460,00 € netti, IVA 22% non addebitata. */
+    public function testIndicativeVatShowsWhatAnItalianRequestWouldCostWithVat(): void
+    {
+        self::assertSame(
+            ['rate' => 22.0, 'taxable' => '460.00', 'vat_amount' => '101.20', 'total_gross' => '561.20'],
+            $this->netOnly->indicativeVat(self::netOrder()),
+        );
+    }
+
+    public function testIndicativeVatIncludesShippingInTheTaxableBase(): void
+    {
+        $note = $this->netOnly->indicativeVat(self::netOrder([
+            'total_amount' => '90.00', 'shipping_amount' => '10.00', 'total_gross' => '100.00',
+        ]));
+
+        self::assertNotNull($note);
+        self::assertSame('100.00', $note['taxable']);
+        self::assertSame('22.00', $note['vat_amount']);
+        self::assertSame('122.00', $note['total_gross']);
+    }
+
+    public function testIndicativeVatUsesTheCountryRateForLegacyEuScheme(): void
+    {
+        $note = $this->netOnly->indicativeVat(self::netOrder([
+            'country_code' => 'DE', 'vat_scheme' => VatService::SCHEME_EU, 'total_amount' => '100.00',
+        ]));
+
+        self::assertNotNull($note);
+        self::assertSame(19.0, $note['rate']);
+        self::assertSame('119.00', $note['total_gross']);
+    }
+
+    /** Reverse charge ed export sono a 0% per legge: la ricevuta ha già la sua nota. */
+    public function testNoIndicativeVatWhenTheLegalRateIsZero(): void
+    {
+        self::assertNull($this->netOnly->indicativeVat(self::netOrder([
+            'country_code' => 'DE', 'vat_scheme' => VatService::SCHEME_REVERSE_CHARGE,
+        ])));
+        self::assertNull($this->netOnly->indicativeVat(self::netOrder([
+            'country_code' => 'GB', 'vat_scheme' => VatService::SCHEME_EXPORT,
+        ])));
+    }
+
+    /** VAT_ON_ORDER=1: l'imposta è già nel totale, la nota non serve. */
+    public function testNoIndicativeVatWhenVatWasCharged(): void
+    {
+        self::assertNull($this->vat->indicativeVat(self::netOrder([
+            'vat_rate' => '22.00', 'vat_amount' => '101.20', 'total_gross' => '561.20',
+        ])));
+    }
+
+    /** Aliquote azzerate da /admin/margini ("Azzera"): vale quella standard di legge. */
+    public function testIndicativeVatFallsBackToStandardRateWhenZeroed(): void
+    {
+        $rates = new VatRateRepository(TestDb::create());
+        $rates->zeroAllRates();
+
+        $note = (new VatService($rates))->indicativeVat(self::netOrder());
+
+        self::assertNotNull($note);
+        self::assertSame(22.0, $note['rate']);
+        self::assertSame('561.20', $note['total_gross']);
+    }
 }

@@ -20,6 +20,7 @@
         table.totals td { padding: 3px 8px; }
         .totals .grand td { border-top: 1px solid #171717; font-weight: bold; font-size: 13px; }
         .note { margin-top: 14px; font-size: 9.5px; color: #525252; }
+        .vatnote { margin-top: 14px; border: 1px solid #d4d4d4; background: #f5f5f5; padding: 8px 10px; font-size: 10.5px; }
         .docmeta { font-size: 12px; }
     </style>
 </head>
@@ -112,7 +113,19 @@
         </tr>
     </table>
 
-    {% if order.vat_scheme == 'reverse_charge' %}
+    {# IVA non addebitata (VAT_ON_ORDER=0) su uno schema con aliquota di legge:
+       quanto varrebbe la richiesta con l'IVA, solo a titolo informativo #}
+    {% if vat_note %}
+        <div class="vatnote">
+            <strong>{{ t('receipt.vat_note_title') }}</strong>
+            {{ t('receipt.vat_note', {
+                rate: vat_note.rate_label,
+                total: vat_note.total_gross|eur,
+                taxable: vat_note.taxable|eur,
+                vat: vat_note.vat_amount|eur,
+            }) }}
+        </div>
+    {% elseif order.vat_scheme == 'reverse_charge' %}
         <p class="note">{{ t('vat.note_reverse') }}</p>
     {% elseif order.vat_scheme == 'export' %}
         <p class="note">{{ t('vat.note_export') }}</p>
