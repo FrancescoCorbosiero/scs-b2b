@@ -357,6 +357,8 @@ return [
     'receipt.customer' => 'Customer',
     'receipt.country' => 'Country',
     'receipt.vat_number' => 'VAT number',
+    'receipt.vat_note_title' => 'VAT note:',
+    'receipt.vat_note' => 'with VAT at :rate% the total of this request would be :total (taxable amount :taxable + VAT :vat). Indicative amount only: no tax has been charged on this request and VAT treatment is defined on the invoice.',
     'receipt.disclaimer' => 'Pro-forma document, not valid for tax purposes. This is not an invoice: amounts are indicative and subject to confirmation by our staff.',
 
     // Contacts

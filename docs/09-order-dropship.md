@@ -13,7 +13,8 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 > Creare un ordine dropship reale è **irreversibile** (il fornitore lo
 > conferma e scala il suo stock): PRIMA di mettere `live` in produzione va
 > completata la checklist di attivazione in fondo a questo documento.
-> I path sono stati **confermati su Swagger** (2026-08-03).
+> I path sono stati **confermati su Swagger** (2026-08-03) e dal 2026-09-29
+> sono **fissi nel codice** (costanti `*_PATH` del client), non più in `.env`.
 
 ## Comportamento della modalità live (soldi veri: leggere prima di attivare)
 
@@ -35,16 +36,28 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 - La **GET dettagli in live** aggiorna stato e tracking; stati fuori dalla
   lista documentata non sovrascrivono quello salvato.
 
-## Endpoint (base: https://www.goldensneakers.net — confermati su Swagger)
+## Endpoint (base `FEED_BASE_URL` = https://www.goldensneakers.net, prefisso `/api`)
 
-- Documentazione Swagger: `/api/docs/v1/swagger/schema/` (richiede bearer token).
-- Dominio `orders-dropship`, quattro endpoint documentati:
+- Documentazione: https://www.goldensneakers.net/api/docs/ — sezione
+  "Order types: wholesale vs dropshipping" e tag `dropshipping-orders` /
+  `wholesale-orders` (in precedenza lo Swagger `/api/docs/v1/swagger/schema/`,
+  che richiede il bearer token). Gli esempi curl della doc usano l'URL
+  completo, es. `https://www.goldensneakers.net/api/orders-dropship/create-order/`.
+- Tag `dropshipping-orders`, quattro endpoint documentati. I path sono
+  **costanti** di `GoldenSneakersDropshipClient` (`CREATE_ORDER_PATH`,
+  `ORDER_DETAILS_PATH`, `PACKAGE_DETAILS_PATH`, `UPLOAD_LABEL_PATH`): fanno
+  parte del contratto dell'API, non della configurazione. Le vecchie
+  variabili `DROPSHIP_*_ENDPOINT` sono ignorate — un `.env` precedente
+  all'allineamento portava `DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/`
+  (path inesistente) e mandava ogni creazione a vuoto.
   | Method | Path | Uso |
   |---|---|---|
-  | POST | `/orders-dropship/create-order/` | creazione ordine (implementato) |
-  | GET | `/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
-  | GET | `/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
-  | POST | `/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (implementato) |
+  | POST | `/api/orders-dropship/create-order/` | creazione ordine (implementato) |
+  | GET | `/api/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
+  | GET | `/api/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
+  | POST | `/api/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (implementato) |
+- Tag `wholesale-orders` (POST `/api/orders/create/`): **non usato** — vedi
+  § Ordini wholesale.
 
   `upload-shipping-label` è multipart/form-data (file PDF/JPG/PNG +
   `tracking_numbers` come array JSON) e vale solo per ordini creati con
@@ -53,7 +66,7 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   ritentare dopo un errore di rete è sicuro). Risposta:
   `{ "message", "order_id", "file_id", "tracking_numbers" }`.
 
-- **Creazione ordine** (POST `DROPSHIP_CREATE_ENDPOINT`): payload
+- **Creazione ordine** (POST `/api/orders-dropship/create-order/`): payload
 
   ```json
   {
@@ -75,15 +88,17 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   ```
 
   Risposta: `{ "message", "order_id", "total_price", "dropship_package_id" }`.
+  Ricontrollato il 29/09/2026 sull'esempio della nuova documentazione:
+  payload e risposta invariati.
 
-- **Dettagli/stato ordine** (`DROPSHIP_DETAILS_ENDPOINT` + `{order_id}/`).
+- **Dettagli/stato ordine** (GET `/api/orders-dropship/order-details/{order_id}/`).
   Solo il proprietario dell'ordine può leggerlo. Risposta: `order_id`,
   `status`, `total_amount`, `currency`, `created_at`, `dropship_package_id`,
   `tracking_numbers[]` e `items[]` (`size_id`, `sku`, `size_us`,
   `product_name`, `quantity`, `unit_price`, `total_price` — costi fornitore,
   SOLO area admin).
 
-- **Dettagli pacchetto** (`DROPSHIP_PACKAGE_ENDPOINT` + `{package_id}/`).
+- **Dettagli pacchetto** (GET `/api/orders-dropship/package-details/{package_id}/`).
   Risposta: `package_id`, `status` (es. `READY_FOR_PROFORMA`),
   `creation_date`, `last_update_date`, `total_order_count`,
   `total_order_price` e `orders[]` riassuntivi.
@@ -96,6 +111,22 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   della creazione.
 
 Auth prevista: lo stesso bearer token del feed (`FEED_BEARER_TOKEN`).
+
+## Ordini wholesale: non usati (decisione del 29/09/2026)
+
+La documentazione distingue due tipi d'ordine: **dropshipping** (quello della
+piattaforma, sopra) e **wholesale** (tag `wholesale-orders`,
+POST `/api/orders/create/`). Decisione del titolare: ogni richiesta d'ordine
+crea SEMPRE un ordine dropship, come finora; il wholesale non è integrato.
+
+Per riferimento, se servisse in futuro (dall'esempio della documentazione):
+- payload: `currency` (`"EUR"`), `shipping_address` { `recipient_name`,
+  `address_l1`, `address_l2`, `city`, `zip_code`, `country`, `phone`,
+  `email` } e `items` con la stessa identificazione taglia del dropship
+  (`size_id` oppure `sku` + `size_us`, più `quantity`);
+- risposta: `order_id`, `status` (es. `UNCONFIRMED`), `currency`,
+  `total_amount`, `created_at`, `shipping_cost`, `free_shipping`,
+  `payment_status` (es. `unpaid`).
 
 ## Stati ordine
 
@@ -149,14 +180,14 @@ simulazione: risposta fittizia, nessuna chiamata).
 | `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` invia davvero |
 | `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate live (default 30, min 5) |
 | `DROPSHIP_MAX_ORDER_EUR` | tetto sul costo fornitore stimato di un ordine; oltre ⇒ invio rifiutato prima della chiamata (0 = nessun tetto) |
-| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` (default del flusso standard) permette all'auto-dropship di inviare in live; con 0 in live l'auto rifiuta e resta solo il flusso manuale |
-| `DROPSHIP_CREATE_ENDPOINT` | path POST creazione (confermato su Swagger) |
-| `DROPSHIP_DETAILS_ENDPOINT` | path GET dettagli ordine (confermato su Swagger) |
-| `DROPSHIP_PACKAGE_ENDPOINT` | path GET dettagli pacchetto (confermato su Swagger) |
-| `DROPSHIP_LABEL_ENDPOINT` | path POST upload etichetta (confermato su Swagger) |
+| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` (valore del flusso standard in `.env.example`) permette all'auto-dropship di inviare in live; con 0 **o riga assente** in live l'auto rifiuta e resta solo il flusso manuale |
 
 Auth live: bearer `FEED_BEARER_TOKEN` (lo stesso del feed); senza token il
-client rifiuta prima di inviare qualsiasi cosa.
+client rifiuta prima di inviare qualsiasi cosa. Base URL: `FEED_BASE_URL`.
+I path non sono configurabili (vedi § Endpoint): le righe
+`DROPSHIP_CREATE_ENDPOINT`, `DROPSHIP_DETAILS_ENDPOINT`,
+`DROPSHIP_PACKAGE_ENDPOINT` e `DROPSHIP_LABEL_ENDPOINT` di un `.env` vecchio
+sono ignorate e vanno tolte.
 
 ## Dropshipping per il rivenditore (consegna al SUO cliente finale)
 
@@ -206,6 +237,16 @@ clampate allo stock, saltando il flusso a 3 conferme (che resta per l'uso
 manuale da /admin). Motivazione: bloccare lo stock del fornitore PRIMA che
 arrivi il bonifico (il "delta" del pagamento).
 
+⚠ **`.env` creati prima del 06/08/2026** (caso reale, richiesta #4 del
+28/09/2026): non hanno la riga `AUTO_DROPSHIP_ALLOW_LIVE`, che se assente
+vale 0 — in live l'email admin riporta "Ordine dropship automatico NON
+creato: Auto-dropship in modalità live disattivato (AUTO_DROPSHIP_ALLOW_LIVE=0)"
+anche con `AUTO_DROPSHIP_ON_REQUEST=1`. Portavano inoltre
+`DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/` (path sbagliato, ora
+ignorato: i path sono fissi nel codice). Per attivare l'invio automatico
+reale va aggiunta a mano `AUTO_DROPSHIP_ALLOW_LIVE=1`: è una scelta
+esplicita del titolare, il codice non la presume.
+
 ⚠ **Rischio accettato dal titolare** (decisione del 18/07/2026): chiunque
 abbia accesso al catalogo può innescare la chiamata autenticata al fornitore.
 Paracadute in atto:
@@ -223,9 +264,10 @@ o approvazione admin entro una finestra temporale.
 
 ## Per attivare la modalità live (checklist)
 
-1. ~~Verificare su Swagger path e method~~ — fatto (2026-08-03): i default di
-   `DROPSHIP_*_ENDPOINT` corrispondono allo Swagger. Restano da osservare sul
-   campo i codici d'errore reali della creazione (la doc non li elenca).
+1. ~~Verificare su Swagger path e method~~ — fatto (2026-08-03); dal
+   2026-09-29 i path sono costanti del client (niente più
+   `DROPSHIP_*_ENDPOINT` in `.env`). Restano da osservare sul campo i codici
+   d'errore reali della creazione (la doc non li elenca).
 2. Configurare `FEED_BEARER_TOKEN` (se non già attivo per il feed) e valutare
    un tetto `DROPSHIP_MAX_ORDER_EUR` prudente per i primi ordini.
 3. Test end-to-end con un ordine concordato col fornitore (importo minimo),

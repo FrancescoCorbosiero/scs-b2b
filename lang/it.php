@@ -357,6 +357,8 @@ return [
     'receipt.customer' => 'Cliente',
     'receipt.country' => 'Paese',
     'receipt.vat_number' => 'Partita IVA',
+    'receipt.vat_note_title' => 'Nota IVA:',
+    'receipt.vat_note' => 'con l\'IVA al :rate% il totale di questa richiesta sarebbe di :total (imponibile :taxable + IVA :vat). Importo solo indicativo: su questa richiesta non è stata addebitata alcuna imposta e il trattamento IVA è definito nella fattura.',
     'receipt.disclaimer' => 'Documento pro-forma non valido ai fini fiscali. Non costituisce fattura: gli importi sono indicativi e soggetti a conferma da parte del nostro staff.',
 
     // Contatti

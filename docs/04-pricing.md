@@ -102,6 +102,16 @@ pagina, riepilogo del carrello, anteprima del form ordine ("Totale da
 bonificare"), email di richiesta accanto all'importo, ricevuta pro-forma e
 pagine pubbliche (home § prezzi netti, `/come-ordinare` passi 2 e 3).
 
+**Nota IVA sulla ricevuta pro-forma** (`VatService::indicativeVat`): quando
+l'imposta non è addebitata, sotto i totali la ricevuta indica quanto varrebbe
+la richiesta con l'IVA di legge — es. "con l'IVA al 22% il totale di questa
+richiesta sarebbe di 561,20 € (imponibile 460,00 € + IVA 101,20 €)" —
+precisando che è un importo solo indicativo. Imponibile = merce +
+spedizione, aliquota di `vat_rates` per il paese (se azzerata da /admin,
+quella standard di legge). Compare per gli schemi con aliquota di legge > 0
+(`domestic`, `eu`); non compare con reverse charge ed export (0% per legge,
+hanno già la loro nota) né con `VAT_ON_ORDER=1` (l'IVA è già nel totale).
+
 - Aliquote standard per paese in tabella `vat_rates` (UE-27 + GB + CH),
   modificabili da `/admin/margini`, dove i bottoni **Azzera** (tutte a 0) e
   **Ripristina** (valori di legge, `VatRateRepository::STANDARD_RATES`)

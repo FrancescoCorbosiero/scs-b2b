@@ -160,8 +160,10 @@ final class GoldenSneakersDropshipClientTest extends TestCase
         } catch (DropshipUncertainException) {
             self::fail('un redirect non processa la POST: fallimento certo');
         } catch (DropshipException $e) {
-            self::assertStringContainsString('DROPSHIP_CREATE_ENDPOINT', $e->getMessage());
+            self::assertStringContainsString('FEED_BASE_URL', $e->getMessage());
+            self::assertStringContainsString('Nessun ordine creato', $e->getMessage());
         }
+        self::assertCount(1, $this->calls, 'mai seguire né ripetere una POST rediretta');
     }
 
     public function testMissingTokenRefusesBeforeAnyCall(): void
@@ -177,16 +179,45 @@ final class GoldenSneakersDropshipClientTest extends TestCase
         self::assertCount(0, $this->calls, 'senza token non deve partire nulla');
     }
 
-    public function testInvalidEndpointRefusesBeforeAnyCall(): void
+    /**
+     * Regressione dalla produzione: un .env copiato da una versione vecchia
+     * portava DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/ (path
+     * inesistente). I path ora sono costanti del client: le vecchie variabili
+     * vanno ignorate, qualunque valore contengano.
+     */
+    public function testLegacyEndpointVariablesAreIgnored(): void
     {
-        $client = $this->client([], ['DROPSHIP_CREATE_ENDPOINT' => 'senza-slash-iniziale']);
+        $client = $this->client([
+            ['status' => 201, 'body' => (string) json_encode(['message' => 'ok', 'order_id' => 4242, 'total_price' => null, 'dropship_package_id' => 7])],
+            ['status' => 200, 'body' => (string) json_encode(['order_id' => 4242, 'status' => 'UNCONFIRMED', 'tracking_numbers' => []])],
+            ['status' => 200, 'body' => (string) json_encode(['package_id' => 7, 'status' => 'READY_FOR_PROFORMA', 'orders' => []])],
+        ], [
+            'DROPSHIP_CREATE_ENDPOINT' => '/api/orders-dropship/create/',
+            'DROPSHIP_DETAILS_ENDPOINT' => '/api/orders-dropship/order-details-vecchio/',
+            'DROPSHIP_PACKAGE_ENDPOINT' => 'senza-slash-iniziale',
+            'DROPSHIP_LABEL_ENDPOINT' => '',
+        ]);
 
-        $this->expectException(DropshipException::class);
-        try {
-            $client->createOrder($this->payload());
-        } finally {
-            self::assertCount(0, $this->calls);
-        }
+        $client->createOrder($this->payload());
+        $client->orderDetails(4242);
+        $client->packageDetails(7);
+
+        self::assertSame([
+            'https://www.goldensneakers.net/api/orders-dropship/create-order/',
+            'https://www.goldensneakers.net/api/orders-dropship/order-details/4242/',
+            'https://www.goldensneakers.net/api/orders-dropship/package-details/7/',
+        ], array_column($this->calls, 'url'));
+    }
+
+    public function testBaseUrlTrailingSlashIsNormalised(): void
+    {
+        $client = $this->client([
+            ['status' => 201, 'body' => (string) json_encode(['message' => 'ok', 'order_id' => 1, 'total_price' => null, 'dropship_package_id' => null])],
+        ], ['FEED_BASE_URL' => 'https://www.goldensneakers.net/']);
+
+        $client->createOrder($this->payload());
+
+        self::assertSame('https://www.goldensneakers.net/api/orders-dropship/create-order/', $this->calls[0]['url']);
     }
 
     public function testOrderDetailsParsesFullDocumentedResponse(): void

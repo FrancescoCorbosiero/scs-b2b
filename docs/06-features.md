@@ -238,7 +238,9 @@ All'invio (stato `pending`), in quest'ordine:
 **Conferma admin** (`POST /admin/richieste/{id}/conferma`, dopo verifica
 dell'accredito): stato `confirmed`, assegnazione del numero ricevuta
 (PF-<anno>-<NNNN>) e **email di conferma al cliente con la ricevuta pro-forma
-PDF in allegato** (dompdf; scaricabile anche da /admin). **Annulla**
+PDF in allegato** (dompdf; scaricabile anche da /admin). Con l'IVA non
+addebitata la ricevuta porta la **Nota IVA** col totale che la richiesta
+avrebbe con l'IVA di legge, solo indicativo (docs/04). **Annulla**
 (`/annulla`): stato `cancelled`, nessuna email.
 
 **Riallineamento admin** (`/admin/richieste/{id}/modifica`, solo `pending`):

@@ -63,7 +63,7 @@ final class OrderLifecycleTest extends TestCase
         $session = new Session($config);
         $this->orders = new OrderRequestRepository($this->pdo);
         $this->dropshipOrders = new DropshipOrderRepository($this->pdo);
-        $receipts = new ReceiptService($this->pdo, $twig, $lang, $config);
+        $receipts = new ReceiptService($this->pdo, $twig, $lang, $config, new VatService(new VatRateRepository($this->pdo)));
         $this->dropship = new DropshipOrderService(
             $products,
             $this->dropshipOrders,
