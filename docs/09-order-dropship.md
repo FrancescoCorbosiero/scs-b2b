@@ -41,7 +41,8 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
 - Documentazione: https://www.goldensneakers.net/api/docs/ — sezione
   "Order types: wholesale vs dropshipping" e tag `dropshipping-orders` /
   `wholesale-orders` (in precedenza lo Swagger `/api/docs/v1/swagger/schema/`,
-  che richiede il bearer token). La doc elenca i path senza il prefisso `/api`.
+  che richiede il bearer token). Gli esempi curl della doc usano l'URL
+  completo, es. `https://www.goldensneakers.net/api/orders-dropship/create-order/`.
 - Tag `dropshipping-orders`, quattro endpoint documentati. I path sono
   **costanti** di `GoldenSneakersDropshipClient` (`CREATE_ORDER_PATH`,
   `ORDER_DETAILS_PATH`, `PACKAGE_DETAILS_PATH`, `UPLOAD_LABEL_PATH`): fanno
@@ -55,8 +56,8 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   | GET | `/api/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
   | GET | `/api/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
   | POST | `/api/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (implementato) |
-- Tag `wholesale-orders` (POST `/orders/create/`): **non integrato** — vedi
-  Domande aperte.
+- Tag `wholesale-orders` (POST `/api/orders/create/`): **non usato** — vedi
+  § Ordini wholesale.
 
   `upload-shipping-label` è multipart/form-data (file PDF/JPG/PNG +
   `tracking_numbers` come array JSON) e vale solo per ordini creati con
@@ -87,6 +88,8 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   ```
 
   Risposta: `{ "message", "order_id", "total_price", "dropship_package_id" }`.
+  Ricontrollato il 29/09/2026 sull'esempio della nuova documentazione:
+  payload e risposta invariati.
 
 - **Dettagli/stato ordine** (GET `/api/orders-dropship/order-details/{order_id}/`).
   Solo il proprietario dell'ordine può leggerlo. Risposta: `order_id`,
@@ -108,6 +111,22 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   della creazione.
 
 Auth prevista: lo stesso bearer token del feed (`FEED_BEARER_TOKEN`).
+
+## Ordini wholesale: non usati (decisione del 29/09/2026)
+
+La documentazione distingue due tipi d'ordine: **dropshipping** (quello della
+piattaforma, sopra) e **wholesale** (tag `wholesale-orders`,
+POST `/api/orders/create/`). Decisione del titolare: ogni richiesta d'ordine
+crea SEMPRE un ordine dropship, come finora; il wholesale non è integrato.
+
+Per riferimento, se servisse in futuro (dall'esempio della documentazione):
+- payload: `currency` (`"EUR"`), `shipping_address` { `recipient_name`,
+  `address_l1`, `address_l2`, `city`, `zip_code`, `country`, `phone`,
+  `email` } e `items` con la stessa identificazione taglia del dropship
+  (`size_id` oppure `sku` + `size_us`, più `quantity`);
+- risposta: `order_id`, `status` (es. `UNCONFIRMED`), `currency`,
+  `total_amount`, `created_at`, `shipping_cost`, `free_shipping`,
+  `payment_status` (es. `unpaid`).
 
 ## Stati ordine
 
@@ -259,14 +278,6 @@ o approvazione admin entro una finestra temporale.
 
 ## Domande aperte
 
-- **Ordini wholesale vs dropshipping** (nuova documentazione
-  https://www.goldensneakers.net/api/docs/, sezione "Order types: wholesale
-  vs dropshipping" e tag `wholesale-orders`, POST `/orders/create/`): non
-  ancora recepiti in questo documento né nel codice, che crea SOLO ordini
-  dropshipping. Servono il testo della sezione e lo schema di
-  `/orders/create/` (payload, risposte, errori) e la decisione del titolare
-  su quale tipo d'ordine usare per l'invio automatico. Da ricontrollare
-  anche lo schema di `create-order/` rispetto al payload qui sopra.
 - Codici e messaggi d'errore reali della creazione (lo Swagger non li
   elenca): da osservare nei primi ordini live.
 - Indirizzo di ritiro/mittente del magazzino GoldenSneakers e modalità di
