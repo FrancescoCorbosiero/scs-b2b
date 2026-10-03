@@ -71,11 +71,11 @@
         <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-3">
             <h3 class="font-semibold">{{ t('supplier.documents_title') }}</h3>
             {% for doc in [{label: t('supplier.proforma'), d: vo.proforma}, {label: t('supplier.invoice'), d: vo.invoice}] %}
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
                     <div class="min-w-0">
                         <p class="font-medium">
                             {{ doc.label }}
-                            {% if doc.d and doc.d.symbol %}<span class="font-mono text-xs text-neutral-500">{{ doc.d.symbol }}</span>{% endif %}
+                            {% if doc.d and doc.d.symbol %}<span class="whitespace-nowrap font-mono text-xs text-neutral-500">{{ doc.d.symbol }}</span>{% endif %}
                         </p>
                         {% if not doc.d %}
                             <p class="text-xs text-neutral-400">{{ t('supplier.document_missing') }}</p>

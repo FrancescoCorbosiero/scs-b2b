@@ -1,6 +1,6 @@
 {# Solo le card: usato dalla griglia e come frammento per "Carica altri"
    (GET /?...&fragment=1&page=N → il client accoda queste card alla griglia). #}
-{% set brand_prefix = brand_base_qs ? '/catalogo?' ~ brand_base_qs ~ '&' : '/catalogo?' %}
+{% set brand_prefix = brand_base_qs ? catalog_path ~ '?' ~ brand_base_qs ~ '&' : catalog_path ~ '?' %}
 {% for item in items %}
     {% include 'catalog/_card.twig' %}
 {% endfor %}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Controller\AccountController;
 use App\Controller\AdminAccountRequestController;
 use App\Controller\AdminController;
+use App\Controller\AdminCustomProductController;
 use App\Controller\AdminUserController;
 use App\Controller\CartController;
 use App\Controller\CatalogController;
@@ -22,6 +23,8 @@ use Slim\Routing\RouteCollectorProxy;
 return static function (App $app): void {
     // ── Sito pubblico (senza login, indicizzabile — docs/06) ────────
     $app->get('/', [PageController::class, 'home']);
+    // vetrina: lo stesso catalogo SENZA prezzi, pubblica ma noindex (docs/06)
+    $app->get('/vetrina', [CatalogController::class, 'showcase']);
     $app->get('/spedizioni', [PageController::class, 'shipping']);
     $app->get('/come-ordinare', [PageController::class, 'howToOrder']);
     $app->get('/richiedi-accesso', [PageController::class, 'signupForm']);
@@ -32,8 +35,11 @@ return static function (App $app): void {
     $app->post('/login', [LoginController::class, 'submit']);
     $app->post('/logout', [LoginController::class, 'logout']);
 
-    // la lingua si cambia anche dalle pagine pubbliche
+    // la lingua si cambia anche dalle pagine pubbliche; taglie EU/US e
+    // densità griglia servono anche alla vetrina (solo preferenze di sessione)
     $app->post('/lingua', [PreferenceController::class, 'setLocale']);
+    $app->post('/taglie', [PreferenceController::class, 'setSizeSystem']);
+    $app->post('/griglia', [PreferenceController::class, 'setGridSize']);
 
     $app->get('/admin/login', [AdminController::class, 'loginForm']);
     $app->post('/admin/login', [AdminController::class, 'loginSubmit']);
@@ -50,8 +56,6 @@ return static function (App $app): void {
         $group->get('/catalogo', [CatalogController::class, 'index']);
         $group->get('/export.xlsx', [CatalogController::class, 'export']);
         $group->post('/paese', [PreferenceController::class, 'setCountry']);
-        $group->post('/taglie', [PreferenceController::class, 'setSizeSystem']);
-        $group->post('/griglia', [PreferenceController::class, 'setGridSize']);
 
         $group->get('/carrello', [CartController::class, 'index']);
         $group->post('/carrello/aggiungi', [CartController::class, 'add']);
@@ -104,6 +108,14 @@ return static function (App $app): void {
         $group->post('/sync/run', [AdminController::class, 'syncRun']);
         $group->get('/recommended', [AdminController::class, 'recommended']);
         $group->post('/recommended', [AdminController::class, 'recommendedToggle']);
+
+        // prodotti propri: import JSON/CSV nel formato del feed, separati dal feed
+        $group->get('/prodotti-propri', [AdminCustomProductController::class, 'index']);
+        $group->post('/prodotti-propri/importa', [AdminCustomProductController::class, 'import']);
+        $group->post('/prodotti-propri/{id:[0-9]+}/attiva', [AdminCustomProductController::class, 'toggle']);
+        $group->post('/prodotti-propri/{id:[0-9]+}/elimina', [AdminCustomProductController::class, 'delete']);
+        $group->get('/prodotti-propri/modello.csv', [AdminCustomProductController::class, 'templateCsv']);
+        $group->get('/prodotti-propri/modello.json', [AdminCustomProductController::class, 'templateJson']);
 
         // richieste di profilo dal sito pubblico: approva (crea account +
         // invito) o rifiuta

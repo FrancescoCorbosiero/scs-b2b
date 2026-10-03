@@ -2,17 +2,22 @@
 
 {% block title %}{{ t('catalog.title') }} — {{ t('app.title') }}{% endblock %}
 
+{# Lo stesso template serve il catalogo riservato (/catalogo) e la vetrina
+   pubblica senza prezzi (/vetrina, showcase=true): in vetrina i dati non
+   contengono prezzi e non ci sono carrello né export (CatalogController). #}
 {% block content %}
-    {% set brand_prefix = brand_base_qs ? '/catalogo?' ~ brand_base_qs ~ '&' : '/catalogo?' %}
+    {% set brand_prefix = brand_base_qs ? catalog_path ~ '?' ~ brand_base_qs ~ '&' : catalog_path ~ '?' %}
     {% set brands_total = 0 %}
     {% for b in brands %}{% set brands_total = brands_total + b.products %}{% endfor %}
 
     {# Form GET dei filtri: vuoto e fuori dal flusso. I campi lo referenziano
        con form="catalog-filters", così il pannello può stare ovunque nel
        layout senza annidare form (le card contengono form POST). #}
-    <form id="catalog-filters" method="get" action="/catalogo" class="hidden">
+    <form id="catalog-filters" method="get" action="{{ catalog_path }}" class="hidden">
         {# il brand si sceglie dalla navigazione dedicata (link): va conservato #}
         {% if filters.brand %}<input type="hidden" name="brand" value="{{ filters.brand }}">{% endif %}
+        {# sezione prodotti propri: i filtri restano dentro la sezione #}
+        {% if section == 'custom' %}<input type="hidden" name="sezione" value="sede">{% endif %}
     </form>
 
     <div x-data="{ filtersOpen: false }" @keydown.escape.window="filtersOpen = false">
@@ -34,12 +39,51 @@
                 <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
                     <h1 class="text-2xl font-bold tracking-tight">{{ t('catalog.title') }}</h1>
                     <span data-result-count class="rounded-full bg-neutral-900 px-2.5 py-1 text-xs font-bold text-white">{{ t('catalog.results', {n: total}) }}</span>
-                    <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
-                       class="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium transition-all hover:border-neutral-400 hover:shadow-sm">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-                        <span class="hidden sm:inline">{{ t('catalog.export') }}</span>
-                    </a>
+                    {% if not showcase %}
+                        <a href="/export.xlsx{{ query_string ? '?' ~ query_string }}"
+                           class="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm font-medium transition-all hover:border-neutral-400 hover:shadow-sm">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                            <span class="hidden sm:inline">{{ t('catalog.export') }}</span>
+                        </a>
+                    {% endif %}
                 </div>
+
+                {# ── Vetrina: i prezzi sono riservati, l'invito è ad accedere ── #}
+                {% if showcase %}
+                    <section class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl bg-neutral-900 px-4 py-4 text-white sm:px-5">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-neutral-900">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="font-bold leading-snug">{{ t('showcase.banner_title') }}</h2>
+                            <p class="text-sm text-neutral-300">{{ t('showcase.banner_text') }}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="/richiedi-accesso" class="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-neutral-900 transition-colors hover:bg-amber-300">{{ t('nav.request_access') }}</a>
+                            <a href="/login" class="rounded-xl border border-neutral-600 px-4 py-2 text-sm font-semibold transition-colors hover:border-neutral-400">{{ t('showcase.login_for_prices') }}</a>
+                        </div>
+                    </section>
+                {% endif %}
+
+                {# ── Sezioni: catalogo del fornitore / prodotti propri (mai mescolati) ── #}
+                {% if (section_counts.custom ?? 0) > 0 %}
+                    <nav aria-label="{{ t('catalog.sections_label') }}" class="mb-4 flex flex-wrap items-center gap-2">
+                        {% for tab in [
+                            {key: 'feed', href: catalog_path, label: t('catalog.section_feed'), n: section_counts.feed ?? 0},
+                            {key: 'custom', href: catalog_path ~ '?sezione=sede', label: t('catalog.section_custom'), n: section_counts.custom ?? 0}
+                        ] %}
+                            <a href="{{ tab.href }}" {{ section == tab.key ? 'aria-current="page"' }}
+                               class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors
+                                      {{ section == tab.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-900' }}">
+                                {{ tab.label }}
+                                <span class="rounded-full px-1.5 py-0.5 text-[11px] {{ section == tab.key ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ tab.n }}</span>
+                            </a>
+                        {% endfor %}
+                        {% if section == 'custom' %}
+                            <span class="text-xs text-neutral-500">{{ t('catalog.section_custom_hint') }}</span>
+                        {% endif %}
+                    </nav>
+                {% endif %}
 
                 {# ── Come ordinare: gli stessi 5 passi delle pagine pubbliche,
                       in versione compatta e richiudibile (stato in localStorage) ── #}
@@ -153,13 +197,15 @@
                                     </span>
                                 </a>
                             {% endfor %}
-                            <a href="/catalogo" class="ml-1 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">{{ t('catalog.reset_filters') }}</a>
+                            <a href="{{ reset_url }}" class="ml-1 text-xs font-semibold text-neutral-500 underline underline-offset-2 hover:text-neutral-900">{{ t('catalog.reset_filters') }}</a>
                         </div>
                     {% endif %}
                 </div>
 
-                {# prezzi netti: promemoria compatto #}
-                <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ t('catalog.vat_notice') }}</p>
+                {# prezzi netti: promemoria compatto (la vetrina non ha prezzi) #}
+                {% if not showcase %}
+                    <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ t('catalog.vat_notice') }}</p>
+                {% endif %}
 
                 {% if items is empty %}
                     <div class="rounded-2xl border border-neutral-200 bg-white p-12 text-center">
@@ -168,7 +214,7 @@
                         </div>
                         <p class="font-semibold">{{ t('catalog.no_results') }}</p>
                         <p class="mt-1 text-sm text-neutral-500">{{ t('catalog.no_results_hint') }}</p>
-                        <a href="/catalogo" class="mt-5 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('catalog.reset_filters') }}</a>
+                        <a href="{{ reset_url }}" class="mt-5 inline-block rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('catalog.reset_filters') }}</a>
                     </div>
                 {% else %}
                     {# classi per densità scritte per esteso: il JIT di Tailwind le deve vedere #}
@@ -182,7 +228,7 @@
                     </div>
 
                     {% if total_pages > 1 %}
-                        {% set base = '/catalogo?' ~ (query_string ? query_string ~ '&' : '') %}
+                        {% set base = catalog_path ~ '?' ~ (query_string ? query_string ~ '&' : '') %}
                         {# con JS: un solo bottone che accoda la pagina successiva #}
                         <div data-loadmore-wrap class="mt-8 hidden justify-center">
                             <button type="button" data-loadmore data-next-url="{{ base }}page={{ page + 1 }}&fragment=1"
