@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Adapter\GoldenSneakersDropshipClient;
+use App\Adapter\GoldenSneakersOrdersClient;
 use App\Repository\DropshipOrderRepository;
 use App\Repository\ProductRepository;
 use App\Service\DropshipOrderService;
@@ -38,6 +39,7 @@ final class DropshipOrderServiceTest extends TestCase
             new ProductRepository($this->pdo),
             $this->dropshipOrders,
             new GoldenSneakersDropshipClient($config, new NullLogger()),
+            new GoldenSneakersOrdersClient($config, new NullLogger()),
             new Session($config),
             $config,
             new Lang(dirname(__DIR__, 2)),
@@ -78,18 +80,18 @@ final class DropshipOrderServiceTest extends TestCase
         ];
     }
 
-    /** @return array<string, mixed> input valido per lo step 1 */
+    /** @return array<string, mixed> input valido per lo step 1 (campi shipping_address dell'API ordini) */
     private function validInput(): array
     {
         return [
-            'name' => 'Mario Rossi',
-            'street' => 'Via Montenapoleone 12',
+            'recipient_name' => 'Mario Rossi',
+            'address_l1' => 'Via Montenapoleone 12',
+            'address_l2' => '',
             'city' => 'Milano',
             'zip_code' => '20121',
-            'country_code' => 'it',
+            'country' => 'it',
             'phone' => '+393401234567',
             'email' => 'mario.rossi@example.it',
-            'client_provides_shipping_label' => '',
             'qty' => ['0' => 3, '1' => 2],
         ];
     }
@@ -110,8 +112,9 @@ final class DropshipOrderServiceTest extends TestCase
         $order = $this->seedOrderRequest();
         $prepared = $this->service->prepare($order);
 
-        self::assertSame('Mario Rossi', $prepared['address']['name']);
-        self::assertSame('IT', $prepared['address']['country_code']);
+        self::assertSame('Mario Rossi', $prepared['address']['recipient_name']);
+        self::assertSame('Via Montenapoleone 12', $prepared['address']['address_l1']);
+        self::assertSame('IT', $prepared['address']['country']);
         self::assertCount(2, $prepared['lines']);
         self::assertSame(11769, $prepared['lines'][0]['supplier_size_id']);
         self::assertNull($prepared['lines'][1]['supplier_size_id']);
@@ -127,8 +130,19 @@ final class DropshipOrderServiceTest extends TestCase
             ['size_id' => 11769, 'quantity' => 3],
             ['sku' => 'JS3801', 'size_us' => '9', 'quantity' => 2],
         ], $draft['payload']['items']);
-        self::assertSame('IT', $draft['payload']['delivery_address']['country_code']);
-        self::assertFalse($draft['payload']['client_provides_shipping_label']);
+        // payload di POST /api/orders/create/: valuta + shipping_address + items
+        self::assertSame(['currency', 'shipping_address', 'items'], array_keys($draft['payload']));
+        self::assertSame('EUR', $draft['payload']['currency']);
+        self::assertSame([
+            'recipient_name' => 'Mario Rossi',
+            'address_l1' => 'Via Montenapoleone 12',
+            'address_l2' => '',
+            'city' => 'Milano',
+            'zip_code' => '20121',
+            'country' => 'IT',
+            'phone' => '+393401234567',
+            'email' => 'mario.rossi@example.it',
+        ], $draft['payload']['shipping_address']);
         // 5 pezzi × offer_price di default 50.00 (TestDb)
         self::assertSame('250.00', $draft['wholesale_total']);
     }
@@ -148,8 +162,8 @@ final class DropshipOrderServiceTest extends TestCase
     {
         $order = $this->seedOrderRequest();
         $input = $this->validInput();
-        $input['street'] = '';
-        $input['country_code'] = 'ITA';
+        $input['address_l1'] = '';
+        $input['country'] = 'ITA';
         $input['email'] = 'non-una-email';
 
         $result = $this->service->createDraft($order, $input);
@@ -194,6 +208,7 @@ final class DropshipOrderServiceTest extends TestCase
         $stored = $this->dropshipOrders->find($result['dropship_id']);
         self::assertNotNull($stored);
         self::assertSame('simulation', $stored['mode']);
+        self::assertSame('orders', $stored['api'], 'i nuovi ordini nascono con l\'API ordini');
         self::assertSame('UNCONFIRMED', $stored['status']);
         self::assertNotNull($stored['vendor_order_id']);
         $response = json_decode((string) $stored['response_payload'], true);
@@ -238,6 +253,7 @@ final class DropshipOrderServiceTest extends TestCase
             new ProductRepository($this->pdo),
             $this->dropshipOrders,
             new GoldenSneakersDropshipClient($config, new NullLogger(), $transport),
+            new GoldenSneakersOrdersClient($config, new NullLogger(), $transport),
             new Session($config),
             $config,
             new Lang(dirname(__DIR__, 2)),
@@ -259,12 +275,19 @@ final class DropshipOrderServiceTest extends TestCase
         return $token;
     }
 
+    /** Risposta d'esempio di POST /api/orders/create/ (docs/09). */
+    private static function createdResponse(int $orderId = 3125): string
+    {
+        return (string) json_encode([
+            'order_id' => $orderId, 'status' => 'UNCONFIRMED', 'currency' => 'EUR', 'total_amount' => 585,
+            'created_at' => '2025-05-04T09:00:00Z', 'shipping_cost' => 15, 'free_shipping' => false,
+            'payment_status' => 'unpaid',
+        ]);
+    }
+
     public function testLiveSendStoresVendorOrderAndApiTotal(): void
     {
-        $service = $this->liveService([[
-            'status' => 201,
-            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 4242, 'total_price' => 512.30, 'dropship_package_id' => 777]),
-        ]], [], $calls);
+        $service = $this->liveService([['status' => 201, 'body' => self::createdResponse()]], [], $calls);
         $order = $this->seedOrderRequest();
         $token = $this->draftReadyToSend($service, $order);
 
@@ -272,12 +295,17 @@ final class DropshipOrderServiceTest extends TestCase
 
         self::assertTrue($result['ok'], implode(' / ', $result['errors']));
         self::assertSame(1, $calls);
+        self::assertSame('POST', $this->liveRequests[0]['method']);
+        self::assertSame('https://www.goldensneakers.net/api/orders/create/', $this->liveRequests[0]['url']);
         $stored = $this->dropshipOrders->find((int) $result['dropship_id']);
         self::assertNotNull($stored);
         self::assertSame('live', $stored['mode']);
+        self::assertSame('orders', $stored['api']);
         self::assertSame('UNCONFIRMED', $stored['status']);
-        self::assertSame(4242, (int) $stored['vendor_order_id']);
-        self::assertSame(512.30, (float) $stored['total_price'], 'in live vale il totale calcolato dall\'API');
+        self::assertSame(3125, (int) $stored['vendor_order_id']);
+        self::assertSame(585.0, (float) $stored['total_price'], 'in live vale il totale calcolato dall\'API');
+        self::assertSame(15.0, (float) $stored['shipping_cost']);
+        self::assertSame('unpaid', $stored['payment_status']);
         $response = json_decode((string) $stored['response_payload'], true);
         self::assertIsArray($response);
         self::assertFalse($response['simulated']);
@@ -299,6 +327,7 @@ final class DropshipOrderServiceTest extends TestCase
         $rows = $this->dropshipOrders->findByOrderRequest(7);
         self::assertCount(1, $rows, 'l\'esito incerto va registrato per l\'audit');
         self::assertSame('UNKNOWN', $rows[0]['status']);
+        self::assertSame('orders', $rows[0]['api']);
         self::assertNull($rows[0]['vendor_order_id']);
         self::assertNull($service->draftFor(7), 'la bozza va scartata: ritentare richiede di rifare le 3 conferme');
     }
@@ -331,20 +360,23 @@ final class DropshipOrderServiceTest extends TestCase
 
     public function testAutoDropshipLiveSendsWithDedicatedFlag(): void
     {
-        $service = $this->liveService([[
-            'status' => 201,
-            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 9001, 'total_price' => null, 'dropship_package_id' => 5]),
-        ]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+        $service = $this->liveService([['status' => 201, 'body' => self::createdResponse(9001)]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
 
         $result = $service->autoCreateFromRequest($this->autoOrder());
 
         self::assertTrue($result['ok'], (string) $result['message']);
+        self::assertFalse($result['skipped']);
         self::assertSame(1, $calls);
         self::assertFalse($result['simulated']);
+        self::assertSame(9001, $result['vendor_order_id']);
+        self::assertSame(585.0, $result['total_amount'], 'l\'email admin riporta il totale del fornitore');
+        self::assertSame(15.0, $result['shipping_cost']);
         $stored = $this->dropshipOrders->find((int) $result['dropship_id']);
         self::assertNotNull($stored);
         self::assertSame('live', $stored['mode']);
+        self::assertSame('orders', $stored['api']);
         self::assertSame(9001, (int) $stored['vendor_order_id']);
+        self::assertSame('https://www.goldensneakers.net/api/orders/create/', $this->liveRequests[0]['url']);
     }
 
     /** @return array<string, mixed> richiesta d'ordine completa di indirizzo per l'auto-dropship */
@@ -429,10 +461,7 @@ final class DropshipOrderServiceTest extends TestCase
 
     public function testAutoDropshipUsesEndCustomerRecipient(): void
     {
-        $service = $this->liveService([[
-            'status' => 201,
-            'body' => (string) json_encode(['message' => 'ok', 'order_id' => 9002, 'total_price' => null, 'dropship_package_id' => 6]),
-        ]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+        $service = $this->liveService([['status' => 201, 'body' => self::createdResponse(9002)]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
 
         $order = $this->autoOrder() + [];
         $order['ship_to'] = 'customer';
@@ -449,13 +478,15 @@ final class DropshipOrderServiceTest extends TestCase
         self::assertTrue($result['ok'], (string) $result['message']);
         $payload = json_decode((string) $this->liveRequests[0]['body'], true);
         self::assertIsArray($payload);
-        self::assertSame('Luca Bianchi', $payload['delivery_address']['name'], 'l\'ordine parte con il destinatario finale');
-        self::assertSame('FR', $payload['delivery_address']['country_code']);
-        self::assertSame('mario.rossi@example.it', $payload['delivery_address']['email'], 'l\'email resta quella del rivenditore');
-        self::assertTrue($payload['client_provides_shipping_label'], 'la scelta etichetta del rivenditore arriva al fornitore');
+        self::assertSame('Luca Bianchi', $payload['shipping_address']['recipient_name'], 'l\'ordine parte con il destinatario finale');
+        self::assertSame('Rue de Rivoli 10', $payload['shipping_address']['address_l1']);
+        self::assertSame('FR', $payload['shipping_address']['country']);
+        self::assertSame('+33123456789', $payload['shipping_address']['phone']);
+        self::assertSame('mario.rossi@example.it', $payload['shipping_address']['email'], 'l\'email resta quella del rivenditore');
+        self::assertArrayNotHasKey('client_provides_shipping_label', $payload, 'l\'API ordini non prevede l\'etichetta del cliente');
     }
 
-    public function testPrepareUsesRecipientAndLabelFlag(): void
+    public function testPrepareUsesEndCustomerRecipient(): void
     {
         $order = $this->seedOrderRequest();
         $order['ship_to'] = 'customer';
@@ -469,9 +500,9 @@ final class DropshipOrderServiceTest extends TestCase
 
         $draft = $this->service->prepare($order);
 
-        self::assertSame('Luca Bianchi', $draft['address']['name']);
-        self::assertSame('FR', $draft['address']['country_code']);
-        self::assertTrue($draft['client_provides_shipping_label']);
+        self::assertSame('Luca Bianchi', $draft['address']['recipient_name']);
+        self::assertSame('FR', $draft['address']['country']);
+        self::assertSame('mario.rossi@example.it', $draft['address']['email']);
     }
 
     /** @return array{tmp_path: string, name: string, size: int} un PDF minimale reale */
@@ -543,5 +574,181 @@ final class DropshipOrderServiceTest extends TestCase
         // tracking mancante o malformato
         self::assertFalse($this->service->uploadLabel($pending, $this->fakeLabelFile(), '')['ok']);
         self::assertFalse($this->service->uploadLabel($pending, $this->fakeLabelFile(), 'tracking con spazi interni!!')['ok']);
+    }
+
+    // ── API ordini: rilettura, elenco, prodotti propri ───────────────
+
+    /** @return array<string, mixed> riga registrata con l'API ordini */
+    private function seedOrdersApiRow(string $mode, int $vendorOrderId = 3120, ?int $orderRequestId = null): array
+    {
+        $id = $this->dropshipOrders->insert([
+            'order_request_id' => $orderRequestId, 'mode' => $mode, 'api' => 'orders', 'status' => 'UNCONFIRMED',
+            'vendor_order_id' => $vendorOrderId, 'dropship_package_id' => null, 'total_price' => '250.00',
+            'currency' => 'EUR', 'payment_status' => 'unpaid',
+            'request_payload' => '{}', 'lines_snapshot' => '[]', 'response_payload' => '{}',
+        ]);
+        $row = $this->dropshipOrders->find($id);
+        self::assertNotNull($row);
+
+        return $row;
+    }
+
+    public function testRefreshFromOrdersApiStoresStatusPaymentAndProforma(): void
+    {
+        $service = $this->liveService([['status' => 200, 'body' => (string) json_encode([
+            'order_id' => 3120, 'status' => 'TO_SHIP', 'currency' => 'EUR', 'total_amount' => 1240,
+            'created_at' => '2025-05-02T14:20:00Z',
+            'items' => [['size_id' => 2917, 'sku' => 'B75806', 'product_name' => 'adidas Samba OG Cloud White',
+                'size_us' => '4', 'quantity' => 6, 'unit_price' => 55, 'total_price' => 330]],
+            'proforma' => ['url' => 'https://www.goldensneakers.net/orders/protected-proforma/3120/',
+                'symbol' => 'FS 1/2025', 'uploaded_at' => '2025-05-02T15:00:00Z'],
+            'invoice' => null,
+            'payment' => ['status' => 'paid', 'is_paid' => true, 'paid_amount' => 1240, 'total_amount' => 1240,
+                'currency' => 'EUR', 'due_date' => null],
+        ])]], [], $calls);
+        $row = $this->seedOrdersApiRow('live');
+
+        $result = $service->refreshStatus($row);
+
+        self::assertTrue($result['ok'], $result['message']);
+        self::assertSame(1, $calls, 'una sola GET al dettaglio, niente package-details');
+        self::assertSame('https://www.goldensneakers.net/api/orders/3120/', $this->liveRequests[0]['url']);
+        $updated = $this->dropshipOrders->find((int) $row['id']);
+        self::assertNotNull($updated);
+        self::assertSame('TO_SHIP', $updated['status']);
+        self::assertSame('paid', $updated['payment_status']);
+        self::assertTrue($updated['is_paid']);
+        self::assertSame(1240.0, (float) $updated['total_price']);
+        $details = json_decode((string) $updated['details_payload'], true);
+        self::assertIsArray($details);
+        self::assertSame('FS 1/2025', $details['parsed']['proforma']['symbol']);
+        self::assertSame('https://www.goldensneakers.net/orders/protected-proforma/3120/', $details['parsed']['proforma']['url']);
+        self::assertSame(3120, $details['order']['order_id'], 'la risposta integrale resta nello snapshot');
+    }
+
+    public function testSimulatedOrdersApiRowIsNeverLookedUp(): void
+    {
+        $service = $this->liveService([], [], $calls);
+        $row = $this->seedOrdersApiRow('simulation', 987654);
+
+        $result = $service->refreshStatus($row);
+
+        self::assertTrue($result['ok']);
+        self::assertSame(0, $calls, 'ID fittizio: nessuna chiamata, nemmeno con DROPSHIP_MODE=live');
+    }
+
+    public function testVendorOrdersLinkOnlyLiveLocalRows(): void
+    {
+        $service = $this->liveService([['status' => 200, 'body' => (string) json_encode([
+            ['order_id' => 3120, 'status' => 'TO_SHIP', 'currency' => 'EUR', 'total_amount' => 1240,
+                'created_at' => '2025-05-02T14:20:00Z', 'payment_status' => 'unpaid', 'is_paid' => false,
+                'has_proforma' => true, 'has_invoice' => false],
+            ['order_id' => 3121, 'status' => 'UNCONFIRMED'],
+        ])]], [], $calls);
+        $live = $this->seedOrdersApiRow('live', 3120, 7);
+        // stesso ID ma simulato: non deve mai essere collegato a un ordine reale
+        $this->seedOrdersApiRow('simulation', 3121, 8);
+
+        $result = $service->vendorOrders();
+
+        self::assertTrue($result['ok'], (string) $result['error']);
+        self::assertSame('https://www.goldensneakers.net/api/orders/', $this->liveRequests[0]['url']);
+        self::assertSame(['id' => (int) $live['id'], 'order_request_id' => 7], $result['orders'][0]['local']);
+        self::assertNull($result['orders'][1]['local']);
+        self::assertTrue($result['orders'][0]['has_proforma']);
+    }
+
+    public function testVendorOrdersWithoutTokenNeverCalls(): void
+    {
+        $service = $this->liveService([], ['FEED_BEARER_TOKEN' => ''], $calls);
+
+        $result = $service->vendorOrders();
+
+        self::assertFalse($result['ok']);
+        self::assertSame(0, $calls);
+        self::assertStringContainsString('FEED_BEARER_TOKEN', (string) $result['error']);
+    }
+
+    /**
+     * Snapshot con una riga del feed e una di un prodotto proprio: solo la
+     * prima va al fornitore.
+     *
+     * @return array<string, mixed>
+     */
+    private function mixedOrderRequest(bool $onlyCustom = false): array
+    {
+        $feedId = TestDb::seedProduct($this->pdo, 'JS3801', 'adidas Gazelle', 'Adidas', [
+            ['size_eu' => '42', 'size_us' => '8.5', 'quantity' => 5],
+        ]);
+        $this->pdo->exec("UPDATE product_sizes SET supplier_size_id = 11769 WHERE product_id = {$feedId}");
+        TestDb::seedProduct($this->pdo, 'LOCAL-01', 'Sneaker in sede', 'Nike', [
+            ['size_eu' => '43', 'size_us' => '9.5', 'quantity' => 4],
+        ], source: 'custom');
+
+        $lines = [
+            ['sku' => 'LOCAL-01', 'name' => 'Sneaker in sede', 'size_eu' => '43', 'size_us' => '9.5', 'qty' => 2, 'source' => 'custom'],
+        ];
+        if (!$onlyCustom) {
+            $lines[] = ['sku' => 'JS3801', 'name' => 'adidas Gazelle', 'size_eu' => '42', 'size_us' => '8.5', 'qty' => 3, 'source' => 'feed'];
+        }
+
+        return [
+            'id' => 7,
+            'customer_name' => 'Mario Rossi',
+            'email' => 'mario.rossi@example.it',
+            'phone' => '+393401234567',
+            'address_street' => 'Via Montenapoleone 12',
+            'address_city' => 'Milano',
+            'address_zip' => '20121',
+            'country_code' => 'IT',
+            'cart_snapshot' => (string) json_encode(['lines' => $lines]),
+        ];
+    }
+
+    public function testCustomProductsAreNeverOrderedFromTheSupplier(): void
+    {
+        $service = $this->liveService([['status' => 201, 'body' => self::createdResponse()]], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+        $order = $this->mixedOrderRequest();
+
+        $prepared = $service->prepare($order);
+        self::assertFalse($prepared['lines'][0]['orderable'], 'il prodotto proprio non è ordinabile al fornitore');
+        self::assertTrue($prepared['lines'][0]['custom']);
+        self::assertNotNull($prepared['lines'][0]['issue']);
+
+        $result = $service->autoCreateFromRequest($order);
+
+        self::assertTrue($result['ok'], (string) $result['message']);
+        $payload = json_decode((string) $this->liveRequests[0]['body'], true);
+        self::assertIsArray($payload);
+        self::assertSame([['size_id' => 11769, 'quantity' => 3]], $payload['items'], 'solo la riga del feed');
+    }
+
+    public function testCustomProductFlagFromTheCatalogWinsOverOldSnapshots(): void
+    {
+        // richiesta salvata senza `source` nelle righe (formato precedente)
+        $order = $this->mixedOrderRequest();
+        $snapshot = json_decode((string) $order['cart_snapshot'], true);
+        self::assertIsArray($snapshot);
+        foreach ($snapshot['lines'] as $i => $line) {
+            unset($snapshot['lines'][$i]['source']);
+        }
+        $order['cart_snapshot'] = (string) json_encode($snapshot);
+
+        $lines = $this->service->prepare($order)['lines'];
+
+        self::assertFalse($lines[0]['orderable'], 'l\'origine si verifica anche sul catalogo corrente');
+        self::assertTrue($lines[1]['orderable']);
+    }
+
+    public function testAutoOrderIsSkippedWhenTheRequestHasOnlyCustomProducts(): void
+    {
+        $service = $this->liveService([], ['AUTO_DROPSHIP_ALLOW_LIVE' => '1'], $calls);
+
+        $result = $service->autoCreateFromRequest($this->mixedOrderRequest(onlyCustom: true));
+
+        self::assertFalse($result['ok']);
+        self::assertTrue($result['skipped'], 'nulla da ordinare: esito neutro, non un errore');
+        self::assertSame(0, $calls);
+        self::assertSame([], $this->dropshipOrders->findByOrderRequest(7));
     }
 }

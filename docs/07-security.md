@@ -2,9 +2,14 @@
 
 > **Perimetro pubblico**: le sole pagine senza login sono `/`, `/spedizioni`,
 > `/come-ordinare` e `/richiedi-accesso` — indicizzabili, senza prezzi né
-> prodotti del feed. Tutto il resto (catalogo, carrello, area personale,
-> admin) resta dietro sessione e `noindex`; `public/robots.txt` elenca le
-> sezioni escluse. Il modulo di richiesta profilo ha CSRF, honeypot e rate
+> prodotti del feed — più la **vetrina** `/vetrina`: il catalogo SENZA prezzi,
+> `noindex` e in `Disallow`. Nella vetrina i prezzi vengono tolti lato server
+> dai dati passati ai template (card, JSON della scheda rapida, frammenti
+> "Carica altri"), non nascosti col CSS; filtri e ordinamenti per prezzo sono
+> ignorati lato server (niente bisezione sui prezzi via query string); niente
+> carrello né export. Tutto il resto (catalogo con i prezzi, carrello, area
+> personale, admin) resta dietro sessione e `noindex`; `public/robots.txt`
+> elenca le sezioni escluse. Il modulo di richiesta profilo ha CSRF, honeypot e rate
 > limit 3/ora per IP: l'account nasce **solo** dopo l'approvazione admin e la
 > password la imposta il cliente col token monouso di invito.
 
@@ -35,7 +40,8 @@
 
 ## Non indicizzabilità
 
-- `robots.txt`: `Disallow: /` per tutti gli user agent.
+- `robots.txt`: `Allow` solo per le pagine pubbliche di presentazione,
+  `Disallow` per tutto il resto (vetrina compresa).
 - Header `X-Robots-Tag: noindex, nofollow` su ogni risposta (nginx).
 - Meta robots noindex nel layout come cintura+bretelle.
 
@@ -64,11 +70,20 @@ form ordine) diventa un lockout globale**. Obbligatorio:
   o input utente.
 - PDO con prepared statements; nessuna concatenazione SQL.
 - Validare/sanificare i dati del feed a sync (tipi, lunghezze, URL immagine con
-  whitelist di host `goldensneakers.net`).
+  whitelist di host `goldensneakers.net`). L'import dei prodotti propri usa
+  le stesse regole; per le immagini ammette anche `shoesclothingstore.com`
+  (`CustomProductService::IMAGE_DOMAINS`, da tenere allineato alla CSP).
 - Header nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
-  `Referrer-Policy: same-origin`, CSP ragionevole (self + host immagini fornitore).
+  `Referrer-Policy: same-origin`, CSP ragionevole (self + host immagini del
+  fornitore e del sito principale).
 - Honeypot + rate limit sul form ordine (3/ora per IP) per lo spam.
-- Upload: non ce ne sono; nessun input file.
+- Upload solo in area admin (dietro login admin + CSRF):
+  - etichetta di spedizione per gli ordini dropship storici (PDF/immagine,
+    max 10 MB), inoltrata al fornitore;
+  - file di import dei prodotti propri (JSON/CSV, max 5 MB / 10.000 righe):
+    letto in memoria, validato per intero prima di scrivere, **mai salvato**
+    su disco né servito; gli errori riportano riga, SKU e campo (escaped da
+    Twig), non il contenuto grezzo del file.
 
 ## Segreti e dati riservati
 

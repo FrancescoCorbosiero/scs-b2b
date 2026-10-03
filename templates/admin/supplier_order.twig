@@ -1,0 +1,29 @@
+{% extends 'layout.twig' %}
+{% import 'admin/_supplier_macros.twig' as sup %}
+
+{% block title %}{{ t('supplier.detail_title') }} #{{ vo.order_id }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="/admin/ordini-fornitore" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('supplier.back') }}</a>
+    <div class="flex flex-wrap items-center gap-3 mt-2 mb-4">
+        <h1 class="text-2xl font-bold">{{ t('supplier.detail_title') }} #{{ vo.order_id }}</h1>
+        {{ sup.status(vo.status) }}
+        {{ sup.payment(vo.payment.status, vo.payment.is_paid) }}
+        {% if vo.created_at %}
+            <span class="text-sm text-neutral-500">{{ t('supplier.created_at') }} {{ vo.created_at|when }}</span>
+        {% endif %}
+    </div>
+
+    <div class="mb-5 rounded-lg px-4 py-3 text-sm border {{ local ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-neutral-50 border-neutral-200 text-neutral-600' }}">
+        {% if local %}
+            <a href="/admin/dropship/{{ local.id }}" class="font-semibold underline">{{ t('supplier.linked_local', {id: local.id}) }}</a>
+            {% if local.order_request_id %}
+                · <a href="/admin/richieste/{{ local.order_request_id }}" class="underline">{{ t('supplier.linked_request', {id: local.order_request_id}) }}</a>
+            {% endif %}
+        {% else %}
+            {{ t('supplier.not_linked') }}
+        {% endif %}
+    </div>
+
+    {% include 'admin/_supplier_vendor.twig' with {vo: vo, cols: 'sm:grid-cols-2 xl:grid-cols-4'} %}
+{% endblock %}

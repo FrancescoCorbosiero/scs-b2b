@@ -15,9 +15,13 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * Flusso ordine dropship GoldenSneakers, solo area /admin (docs/09).
- * Tre step di conferma prima dell'invio; in DROPSHIP_MODE=simulation
- * nessuna chiamata parte verso il fornitore.
+ * Ordini presso GoldenSneakers, solo area /admin (docs/09):
+ *  - flusso manuale a tre step di conferma dalla richiesta d'ordine
+ *    (in DROPSHIP_MODE=simulation nessun ordine parte verso il fornitore);
+ *  - dettaglio degli ordini registrati dalla piattaforma, con rilettura
+ *    dello stato dal fornitore;
+ *  - elenco e dettaglio in tempo reale degli ordini sull'account
+ *    GoldenSneakers (GET /api/orders/ e /api/orders/{id}/, sola lettura).
  */
 final class DropshipController
 {
@@ -165,14 +169,67 @@ final class DropshipController
 
         return $this->view->render($response, 'admin/dropship_detail.twig', [
             'ds' => $dropshipOrder,
+            'is_orders_api' => ($dropshipOrder['api'] ?? DropshipOrderRepository::API_DROPSHIP) === DropshipOrderRepository::API_ORDERS,
             'label_pending' => $this->dropship->labelPending($dropshipOrder),
             'lines' => is_array($lines) ? $lines : [],
             'tracking' => is_array($tracking) ? $tracking : [],
             'vendor_order' => $vendorOrder,
+            // API ordini: il dettaglio già validato dal client (pro-forma, pagamento, indirizzi)
+            'vendor_parsed' => is_array($details) && is_array($details['parsed'] ?? null) ? $details['parsed'] : null,
             'vendor_package' => $vendorPackage,
             'details_fetched_at' => is_array($details) && is_string($details['fetched_at'] ?? null) ? $details['fetched_at'] : null,
             'request_json' => (string) ($dropshipOrder['request_payload'] ?? ''),
             'response_json' => (string) ($dropshipOrder['response_payload'] ?? ''),
+        ]);
+    }
+
+    // ── Ordini sull'account GoldenSneakers (API ordini, sola lettura) ─
+
+    /**
+     * Elenco in tempo reale degli ordini dell'account (GET /api/orders/),
+     * più il registro degli ordini creati dalla piattaforma (con gli esiti
+     * UNKNOWN da verificare in evidenza).
+     */
+    public function supplierOrders(Request $request, Response $response): Response
+    {
+        if (!$this->dropship->isEnabled()) {
+            $this->session->flash('error', $this->lang->t('dropship.disabled'));
+
+            return Http::redirect($response, '/admin');
+        }
+
+        return $this->view->render($response, 'admin/supplier_orders.twig', [
+            'remote' => $this->dropship->vendorOrders(),
+            'local_orders' => $this->dropshipOrders->recent(30),
+            'is_simulation' => $this->dropship->isSimulation(),
+        ]);
+    }
+
+    /**
+     * Dettaglio in tempo reale di un ordine GoldenSneakers (GET
+     * /api/orders/{id}/): righe, indirizzi, pro-forma, fattura e pagamento.
+     *
+     * @param array<string, string> $args
+     */
+    public function supplierOrder(Request $request, Response $response, array $args): Response
+    {
+        if (!$this->dropship->isEnabled()) {
+            $this->session->flash('error', $this->lang->t('dropship.disabled'));
+
+            return Http::redirect($response, '/admin');
+        }
+        $vendorOrderId = (int) ($args['id'] ?? 0);
+        $result = $this->dropship->vendorOrder($vendorOrderId);
+        if (!$result['ok']) {
+            $this->session->flash('error', (string) $result['error']);
+
+            return Http::redirect($response, '/admin/ordini-fornitore');
+        }
+
+        return $this->view->render($response, 'admin/supplier_order.twig', [
+            'vendor_order_id' => $vendorOrderId,
+            'vo' => $result['order'],
+            'local' => $result['local'],
         ]);
     }
 

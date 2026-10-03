@@ -37,7 +37,10 @@ non la grafica.
 
 - Pagamenti, checkout, gestione ordini oltre alla ricezione della richiesta.
 - Account utente individuali, wishlist persistenti cross-device.
-- CRUD prodotti: il catalogo arriva SOLO dal feed GoldenSneakers.
+- CRUD prodotti: il catalogo arriva dal feed GoldenSneakers. Unica aggiunta
+  (ottobre 2026): i prodotti propri importati dall'admin da file JSON/CSV
+  nello stesso formato del feed, in una sezione separata (docs/06
+  § /admin/prodotti-propri); nessuna modifica a mano dei singoli prodotti.
 - Qualsiasi modifica al sito WordPress principale.
 
 (La UI è multi-lingua IT/EN dalla milestone M7 — vedi docs/08.)

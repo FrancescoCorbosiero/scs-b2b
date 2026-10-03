@@ -4,7 +4,13 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 
 ## `products`
 - `id` PK
-- `sku` VARCHAR unique — chiave naturale dal feed
+- `sku` VARCHAR unique — chiave naturale dal feed (unica su tutto il catalogo,
+  prodotti propri compresi)
+- `source` ENUM('feed','custom') default 'feed' — origine: il feed
+  GoldenSneakers o un **prodotto proprio** importato da /admin/prodotti-propri
+  (docs/06). Il sync tocca solo i 'feed', l'import solo i 'custom'; il catalogo
+  li mostra in sezioni separate e i 'custom' non vanno mai negli ordini al
+  fornitore (docs/09). Indice (`source`, `is_active`)
 - `name`, `brand`, `size_mapper` VARCHAR
 - `size_category` ENUM('adult','gs','ps') default 'adult' — categoria di taglia
   dedotta a sync da nome/size_mapper/taglie (`App\Service\SizeCategory`): filtro
@@ -12,7 +18,8 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `image_url` VARCHAR NULL
 - `is_recommended` TINYINT default 0 (il feed flat non lo fornisce: gestibile
   da /admin come flag manuale, oppure lasciare sempre 0 in v1)
-- `is_active` TINYINT default 1 (0 = sparito dal feed)
+- `is_active` TINYINT default 1 (0 = sparito dal feed; per i prodotti propri:
+  nascosto dall'admin o assente da un import "Sostituisci l'elenco")
 - `total_quantity` INT — denormalizzato a sync (somma taglie) per filtri/ordinamenti
 - `min_price` DECIMAL(10,2) — prezzo netto minimo denormalizzato per filtro range prezzo e card
 - `created_at`, `updated_at`, `last_seen_at` (ultimo sync in cui era presente)
@@ -26,7 +33,8 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `offer_price` DECIMAL(10,2) — **riservato**
 - `price` DECIMAL(10,2) — prezzo netto di listino (VAT esclusa), precalcolato a sync
   con le regole margine (docs/04)
-- `supplier_size_id` INT NULL — `id` riga del feed: `size_id` per l'API dropship (docs/09)
+- `supplier_size_id` INT NULL — `id` riga del feed: `size_id` per l'API ordini
+  (docs/09). Sempre NULL per i prodotti propri
 - Unique: (`product_id`, `size_eu`)
 
 ## `users` (account clienti — M9, docs/07)
@@ -84,14 +92,22 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - `id`, `ip_address`, `scope` ENUM('catalog','admin'), `attempted_at`, `success` TINYINT
 - Query di lockout: >5 tentativi falliti / 15 min per (ip, scope)
 
-## `dropship_orders` (anteprima — docs/09)
+## `dropship_orders` (registro ordini al fornitore — docs/09)
 - `id` PK, `order_request_id` FK NULL (ON DELETE SET NULL), `created_at`, `updated_at`
-- `mode` VARCHAR ('simulation'|'live') — in anteprima sempre 'simulation'
+- `mode` VARCHAR ('simulation'|'live') — 'simulation' finché `DROPSHIP_MODE`
+  non è `live`
+- `api` VARCHAR(16) default 'dropship' — con quale API è nato l'ordine:
+  'orders' (API ordini `/api/orders/`, tutti i nuovi) o 'dropship' (storici
+  `orders-dropship/`, che si rileggono ancora con quella API)
 - `status` VARCHAR — stati fornitore: UNCONFIRMED, TO_SHIP, ENDED, CANCELED,
-  WAITING_FOR_INVOICE
+  WAITING_FOR_INVOICE (UNKNOWN = esito incerto, da verificare)
 - `vendor_order_id`, `dropship_package_id` INT NULL — id restituiti dall'API
-- `total_price` DECIMAL(10,2) NULL — stima a costo fornitore (il totale reale
-  lo calcola l'API), `currency` VARCHAR default 'EUR'
+  (il package solo per gli storici). Indice (`api`, `vendor_order_id`)
+- `total_price` DECIMAL(10,2) NULL — stima a costo fornitore, sostituita dal
+  `total_amount` dell'API ordini quando arriva; `shipping_cost` DECIMAL(10,2)
+  NULL — spedizione addebitata dal fornitore; `currency` VARCHAR default 'EUR'
+- `payment_status` VARCHAR(32) NULL, `is_paid` TINYINT NULL — stato del NOSTRO
+  pagamento al fornitore (pro-forma da saldare), dall'API ordini
 - `request_payload` TEXT — payload JSON esatto per l'API
 - `lines_snapshot` TEXT — righe per la vista admin (sku, taglia, qty, costo)
 - `response_payload` TEXT NULL, `tracking_numbers` TEXT NULL (JSON)

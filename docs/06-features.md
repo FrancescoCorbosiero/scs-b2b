@@ -1,9 +1,11 @@
 # 06 — Pagine e funzionalità
 
 Il **sito pubblico** (`/`, `/spedizioni`, `/come-ordinare`, `/richiedi-accesso`)
-è accessibile senza login ed è l'unica parte indicizzabile; tutto il resto
-(catalogo, carrello, area personale, admin) richiede la sessione catalogo
-attiva ed è `noindex` (vedi `public/robots.txt` e docs/07).
+è accessibile senza login ed è l'unica parte indicizzabile. Senza login si
+apre anche la **vetrina** `/vetrina`: lo stesso catalogo SENZA prezzi,
+`noindex` (vedi § /vetrina). Tutto il resto (catalogo con i prezzi, carrello,
+area personale, admin) richiede la sessione catalogo attiva ed è `noindex`
+(vedi `public/robots.txt` e docs/07).
 UI multi-lingua **IT/EN** (default italiano): stringhe in `lang/it.php` +
 `lang/en.php`, switcher in header, preferenza in sessione. Mobile-first: i
 clienti usano molto lo smartphone. Nav con: Catalogo, Carrello (con badge
@@ -26,11 +28,18 @@ centrale aprono in una nuova scheda come su un link normale.
 Pagine di presentazione servite da `PageController` con header/footer dedicati
 (layout `public_page`), meta description + Open Graph e `robots: index, follow`.
 **Non mostrano mai prezzi o prodotti del feed**: solo informazioni commerciali
-(i brand a catalogo sono solo nomi).
+(i brand sono nomi, che aprono la vetrina già filtrata). I prodotti si
+vedono nella vetrina, mai su queste pagine indicizzabili.
 
-- **`/` — home**: hero con claim e CTA, numeri chiave (modelli, brand, giorni
-  di consegna, paesi), elenco brand, sei motivi per usare il catalogo, teaser
-  dei 5 passi, blocco spedizioni, CTA finale.
+- **`/` — home**: hero con claim e CTA (**"Sfoglia il catalogo"** → vetrina
+  come azione principale, poi "Richiedi accesso" e "Come funziona"), numeri
+  chiave (modelli, brand, giorni di consegna, paesi), elenco brand cliccabili
+  (ognuno apre `/vetrina?brand=…`, più "Tutto il catalogo"), fascia in
+  evidenza "Catalogo aperto" con il bottone per la vetrina, sei motivi per
+  usare il catalogo, teaser dei 5 passi, blocco spedizioni, CTA finale. La
+  vetrina è anche la prima voce del menu pubblico ("Catalogo", su desktop e
+  mobile) e del footer; per chi ha già l'accesso gli stessi link portano a
+  `/catalogo`.
 - **`/come-ordinare`**: i 5 passi in timeline (registrazione → richiesta
   d'ordine → bonifico → conferma → ricezione), ognuno con testo, due punti
   chiave e icona; comparsa animata allo scroll. In fondo nota sui tempi e FAQ
@@ -54,6 +63,34 @@ timestamp del file e nessuna modifica ai template (istruzioni in
 `public/img/custom/README.md`). Gli sfondi sono `<img>` posizionati, non
 `background-image`: la CSP vieta gli style inline. Mai usare foto dei prodotti
 del feed su queste pagine: sono indicizzabili.
+
+## /vetrina — catalogo pubblico senza prezzi
+
+Lo **stesso catalogo** di `/catalogo` (stessi template, stessi filtri, stessa
+scheda rapida, stesse sezioni), aperto a chiunque senza login, ma **senza
+alcun prezzo**. Header e footer sono quelli del sito pubblico. Serve a far
+vedere ai potenziali rivenditori modelli, taglie e disponibilità reali prima
+di chiedere l'accesso.
+
+- **Nessun prezzo arriva al client**: `CatalogController` toglie i prezzi dai
+  DATI prima del rendering (`price_from` delle card, `price` e `barcode`
+  delle taglie nel JSON della scheda rapida e nei frammenti "Carica altri"),
+  non solo dal markup. Niente export Excel, niente carrello.
+- **Filtri e ordinamenti per prezzo ignorati lato server** (`prezzo_min`,
+  `prezzo_max`, `ordina=prezzo_*`): una query string costruita a mano non
+  permette di risalire ai prezzi per bisezione. Il pannello filtri non ha la
+  sezione prezzo e il menu ordinamento non ha le voci per prezzo.
+- Al posto del prezzo la card mostra "Riservato ai rivenditori" e il bottone
+  "Vedi taglie" apre la scheda rapida con taglie e disponibilità; un banner
+  e la scheda invitano a "Richiedi accesso" o "Accedi per i prezzi". Senza
+  JS il bottone porta a `/richiedi-accesso`.
+- Chi ha già la sessione catalogo viene rediretto a `/catalogo` con gli
+  stessi filtri.
+- `noindex` (meta robots) e `Disallow: /vetrina` in `robots.txt`: mostra i
+  prodotti del feed, quindi resta fuori dai motori di ricerca come il resto
+  del catalogo.
+- Le preferenze taglie EU/US e densità griglia (`POST /taglie`, `/griglia`)
+  sono pubbliche: solo sessione, con CSRF.
 
 ## /richiedi-accesso — profilazione self-service
 
@@ -92,6 +129,16 @@ password su `/account/imposta-password`).
   email; mai offer_price).
 
 ## /catalogo
+
+**Sezioni**: i prodotti del feed e i **prodotti propri** (importati da
+`/admin/prodotti-propri`) non si mescolano. Quando esiste almeno un prodotto
+proprio attivo, sopra la griglia compaiono due schede: **"Catalogo"** (il
+feed) e **"Disponibili in sede"** (`?sezione=sede`). Filtri, conteggi dei
+brand/taglie/categorie, ricerca, paginazione ed export lavorano dentro la
+sezione scelta; senza prodotti propri la scheda non esiste e il catalogo è
+quello di sempre. Carrello e richiesta d'ordine accettano entrambi: le righe
+dei prodotti propri restano fuori dall'ordine a GoldenSneakers (docs/09) e
+sono marcate "In sede" lato admin.
 
 Grid di card prodotto (`catalog/_card.twig`, riusata dal frammento
 `_cards.twig`). Ogni card:
@@ -214,21 +261,25 @@ bancarie da `BANK_*` in `.env`).
 **Stati**: `pending` (in attesa di pagamento) → `confirmed` / `cancelled`.
 
 **Finestra di ripensamento**: al submit un countdown di 15 secondi con
-bottone "Annulla" trattiene l'invio REALE (niente email né auto-dropship
-finché non scade); senza JavaScript l'invio è diretto.
+bottone "Annulla" trattiene l'invio REALE (niente email né ordine automatico
+al fornitore finché non scade); senza JavaScript l'invio è diretto.
 
 All'invio (stato `pending`), in quest'ordine:
 1. Rivalidare carrello vs stock corrente; risolvere il VAT per paese/P.IVA;
    salvare `order_requests` (snapshot completo + imponibile/VAT/totale +
    indirizzo). NIENTE numero ricevuta a questo stadio.
-2. **Auto-dropship** (se `AUTO_DROPSHIP_ON_REQUEST=1`): crea subito l'ordine
-   presso GoldenSneakers con l'indirizzo del cliente per bloccare lo stock
-   prima che arrivi il bonifico (vedi docs/09 § Auto-dropship; in
-   `DROPSHIP_MODE=simulation` nessuna chiamata parte). L'esito è riportato
-   nell'email admin; un fallimento non blocca mai la richiesta.
-3. Email admin a `ADMIN_EMAIL`, sempre in italiano: tabella completa, paese,
-   P.IVA, indirizzo, esito auto-dropship, promemoria "conferma alla ricezione
-   del pagamento"; se `ADMIN_EMAIL_SHOW_COST=1` anche costo e margine.
+2. **Ordine automatico GoldenSneakers** (se `AUTO_DROPSHIP_ON_REQUEST=1`):
+   crea subito l'ordine presso il fornitore con l'API ordini
+   (`POST /api/orders/create/`) e l'indirizzo del cliente, per bloccare lo
+   stock prima che arrivi il bonifico (vedi docs/09 § Ordine automatico; in
+   `DROPSHIP_MODE=simulation` nessun ordine parte). Le righe di prodotti
+   propri restano fuori. L'esito è riportato nell'email admin; un fallimento
+   non blocca mai la richiesta.
+3. Email admin a `ADMIN_EMAIL`, sempre in italiano: tabella completa (righe
+   "IN SEDE" evidenziate), paese, P.IVA, indirizzo, esito dell'ordine
+   GoldenSneakers (numero; totale e spedizione del fornitore solo con
+   `ADMIN_EMAIL_SHOW_COST=1`), promemoria "conferma alla ricezione del
+   pagamento"; se `ADMIN_EMAIL_SHOW_COST=1` anche costo e margine.
 4. Email al cliente nella sua lingua (IT/EN): riepilogo + **istruzioni di
    pagamento** (coordinate, importo, causale "Richiesta ordine #id") con
    l'avviso esplicito che l'ordine si conferma alla ricezione del pagamento.
@@ -249,8 +300,9 @@ quantità riga per riga (0 = rimuovi; stock corrente mostrato a fianco, righe
 oltre stock evidenziate); prezzi unitari quotati invariati, totali, spedizione
 (la soglia gratis vale sui nuovi pezzi) e VAT ricalcolati; con la spunta
 "rinotifica" il cliente riceve le istruzioni di
-pagamento AGGIORNATE. Poi conferma/annulla come sempre. Con l'auto-dropship
-attivo il caso è raro (lo stock è bloccato subito): è la rete di sicurezza.
+pagamento AGGIORNATE. Poi conferma/annulla come sempre. Con l'ordine
+automatico attivo il caso è raro (lo stock è bloccato subito): è la rete di
+sicurezza.
 
 Un fallimento SMTP NON deve perdere la richiesta né la conferma (già a DB,
 flag `email_*_sent=0` / flash admin, log dell'errore).
@@ -279,6 +331,42 @@ Minimale, server-rendered (sempre in italiano):
   nome-contiene (percentuale o importo fisso, priorità, attiva/disattiva,
   conteggio prodotti corrispondenti), margine di default, aliquote VAT per
   paese. Ogni modifica alle regole ricalcola subito i prezzi (reprice).
+- **/admin/ordini-fornitore — Ordini GoldenSneakers** (docs/09): elenco in
+  tempo reale degli ordini dell'account dall'API ordini (stato, totale,
+  pagamento al fornitore, pro-forma/fattura disponibili), collegato alle
+  richieste della piattaforma; dettaglio live per ordine con righe,
+  indirizzi, link a pro-forma e fattura e pagamento; registro degli ordini
+  creati dalla piattaforma con gli esiti incerti (`UNKNOWN`) in evidenza.
+- **/admin/prodotti-propri — Prodotti propri**: import da file **JSON o CSV
+  nello stesso formato del feed** (una riga per SKU+taglia, colonne `sku`,
+  `product_name`, `brand_name`, `size_mapper_name`, `size_eu`, `size_us`,
+  `barcode`, `offer_price`, `available_quantity`, `image_full_url`/`image`,
+  `image_name`; obbligatorie `sku`, `product_name`, `size_eu`, `offer_price`,
+  `available_quantity`; le colonne in più vengono ignorate). Modello CSV
+  (separatore ";", virgola decimale, BOM: si apre in colonne con Excel) ed
+  esempio JSON scaricabili dalla pagina.
+  - Validazione **tutto o niente** con le regole del feed
+    (`GoldenSneakersAdapter::normalizeRow`) più: SKU già usati dal feed
+    rifiutati (un prodotto proprio non si fonde mai con uno del fornitore),
+    taglia ripetuta per lo stesso SKU rifiutata; gli errori arrivano in un
+    unico elenco con il numero di riga del foglio. File max 5 MB / 10.000
+    righe, letto in memoria e mai salvato. Excel: tollerati BOM, ";",
+    virgola decimale (89,90 e 42,5) e file Windows-1252.
+  - Prezzo **come per il feed**: `offer_price` (il costo) + regole di
+    `/admin/margini` (per un prezzo esatto: regola "Prezzo fisso" sullo SKU);
+    categoria di taglia dedotta allo stesso modo. Il reprice li include.
+  - Immagini: URL `https` su `goldensneakers.net` o `shoesclothingstore.com`
+    (e sottodomini; deve coincidere con la CSP); con `image_name` vuoto si
+    usa il file di `image_full_url`. Fuori dominio ⇒ segnaposto.
+  - "Sostituisci l'elenco" (facoltativo): i prodotti propri assenti dal
+    file vengono nascosti, come fa il feed coi suoi; senza, il file aggiunge
+    o aggiorna e basta. Per ogni prodotto: Nascondi/Mostra ed Elimina (le
+    richieste passate non cambiano: hanno lo snapshot).
+  - Separazione dal feed: `products.source = 'custom'`; il sync del feed non
+    li aggiorna né li disattiva e salta, segnalandolo nel log del sync, uno
+    SKU del feed che appartenga a un prodotto proprio; l'import non tocca
+    mai i prodotti del feed; nessun `size_id` del fornitore (l'`id` del file
+    è ignorato), quindi mai ordinati a GoldenSneakers.
 - Ultimi sync (`sync_logs`) + pulsante "Sincronizza ora" (esegue il sync in
   foreground con feedback, o accoda al container cron).
 - Toggle "Recommended" per SKU (ricerca per SKU → flag on/off).

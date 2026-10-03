@@ -47,7 +47,7 @@
             </div>
         {% endif %}
         <nav class="scs-thin-scroll max-h-72 overflow-y-auto pb-2">
-            <a href="{{ brand_base_qs ? '/catalogo?' ~ brand_base_qs : '/catalogo' }}" x-show="bq === ''"
+            <a href="{{ brand_base_qs ? catalog_path ~ '?' ~ brand_base_qs : catalog_path }}" x-show="bq === ''"
                class="flex items-center justify-between gap-2 px-4 py-2 text-sm transition-colors {{ filters.brand == '' ? 'bg-neutral-900 font-semibold text-white' : 'text-neutral-700 hover:bg-neutral-50' }}">
                 <span>{{ t('catalog.brands_all') }}</span>
                 <span class="rounded-full px-1.5 py-0.5 text-xs {{ filters.brand == '' ? 'bg-neutral-700 text-neutral-200' : 'bg-neutral-100 text-neutral-500' }}">{{ brands_total }}</span>
@@ -122,24 +122,26 @@
         </section>
     {% endif %}
 
-    {# ── Prezzo (netto, VAT esclusa) ─────────────────────────── #}
-    <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
-        <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
-            {{ t('catalog.filter_price') }}
-            {% if filters.price_min is not null or filters.price_max is not null %}{{ reset.buttons({}) }}{% endif %}
-        </h2>
-        <div class="flex items-center gap-2">
-            <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" inputmode="numeric"
-                   form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_min_short') }}"
-                   aria-label="{{ t('catalog.filter_price_min') }}"
-                   class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
-            <span class="shrink-0 text-neutral-400">–</span>
-            <input type="number" name="prezzo_max" value="{{ filters.price_max }}" min="0" step="1" inputmode="numeric"
-                   form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_max_short') }}"
-                   aria-label="{{ t('catalog.filter_price_max') }}"
-                   class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
-        </div>
-    </section>
+    {# ── Prezzo (netto, VAT esclusa): mai nella vetrina pubblica ── #}
+    {% if not showcase %}
+        <section class="rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
+            <h2 class="mb-2 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-neutral-400">
+                {{ t('catalog.filter_price') }}
+                {% if filters.price_min is not null or filters.price_max is not null %}{{ reset.buttons({}) }}{% endif %}
+            </h2>
+            <div class="flex items-center gap-2">
+                <input type="number" name="prezzo_min" value="{{ filters.price_min }}" min="0" step="1" inputmode="numeric"
+                       form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_min_short') }}"
+                       aria-label="{{ t('catalog.filter_price_min') }}"
+                       class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+                <span class="shrink-0 text-neutral-400">–</span>
+                <input type="number" name="prezzo_max" value="{{ filters.price_max }}" min="0" step="1" inputmode="numeric"
+                       form="catalog-filters" data-debounce-submit="700" placeholder="{{ t('catalog.price_max_short') }}"
+                       aria-label="{{ t('catalog.filter_price_max') }}"
+                       class="w-full min-w-0 rounded-lg border-neutral-300 px-2 py-1.5 text-sm transition-colors focus:border-amber-500 focus:ring-amber-500">
+            </div>
+        </section>
+    {% endif %}
 
     {# ── Interruttori rapidi ─────────────────────────────────── #}
     <section class="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4" data-reset-group data-reset-submit>
@@ -167,6 +169,6 @@
                 class="flex-1 rounded-xl bg-neutral-900 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-neutral-700">
             {{ t('catalog.filters_show_results', {n: total}) }}
         </button>
-        <a href="/catalogo" class="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-600">{{ t('catalog.reset_filters') }}</a>
+        <a href="{{ reset_url }}" class="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-600">{{ t('catalog.reset_filters') }}</a>
     </div>
 </div>

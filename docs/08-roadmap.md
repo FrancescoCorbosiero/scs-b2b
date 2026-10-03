@@ -28,7 +28,7 @@ e resilienza a SMTP giù verificata.
 /admin (richieste, sync log, sync now, flag recommended), pagina contatti,
 error pages, README di deploy, hardening finale, revisione mobile.
 
-**M6 — Ordini dropship GoldenSneakers (anteprima in corso, vedi docs/09)**
+**M6 — Ordini dropship GoldenSneakers (anteprima, vedi docs/09; API sostituita in M10)**
 Flusso /admin con tripla conferma per creare l'ordine direttamente presso il
 fornitore. Oggi SOLO simulazione (`DROPSHIP_MODE=simulation`, nessuna chiamata
 HTTP); la modalità live richiede la checklist in docs/09.
@@ -70,6 +70,30 @@ il checkout, cambio password, ordini con ricevute); ordini agganciati a
 Nota: con gli account attivi, l'auto-dropship live diventa tracciabile per
 cliente — prerequisito consigliato prima di `DROPSHIP_MODE=live`.
 
+**M10 — API ordini, vetrina pubblica, prodotti propri (ottobre 2026) ✔**
+- **API ordini GoldenSneakers** (decisione del titolare del 02/10/2026,
+  docs/09): i nuovi ordini al fornitore si creano con
+  `POST /api/orders/create/` (ordine automatico alla richiesta e flusso
+  manuale a tre conferme), al posto di `orders-dropship/` che resta solo per
+  rileggere gli ordini storici. Stesse protezioni (simulazione di default,
+  nessun retry sulla creazione, esiti incerti `UNKNOWN`, tetto importo,
+  `AUTO_DROPSHIP_ALLOW_LIVE`). `/admin/ordini-fornitore`: elenco e dettaglio
+  live (`GET /api/orders/`, `GET /api/orders/{id}/`) con pagamento al
+  fornitore e pro-forma/fattura; "Aggiorna stato dal fornitore" sulla
+  richiesta. Migrazione: 0014_supplier_orders_api.sql.
+- **Vetrina pubblica** `/vetrina` (docs/06): lo stesso catalogo senza login e
+  senza prezzi (tolti lato server, filtri/ordinamenti per prezzo ignorati),
+  `noindex`, linkata in evidenza da home, menu e footer (i brand in home
+  aprono la vetrina filtrata).
+- **Prodotti propri** (`/admin/prodotti-propri`, docs/06): import JSON/CSV nel
+  formato del feed, validazione tutto-o-niente, prezzi con le regole margine,
+  sezione separata "Disponibili in sede" nel catalogo, mai inviati a
+  GoldenSneakers. Migrazione: 0015_custom_products.sql.
+✔ Done quando: test unitari su client ordini (payload, esiti certi/incerti,
+paginazione, link documenti), vetrina senza prezzi (HTML, JSON, frammenti) e
+import (formati, errori, collisioni con il feed); verifica end-to-end con un
+mock dell'API ordini.
+
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
 1. **Margine di default**: la migrazione parte da **30%** (continuità col
@@ -98,6 +122,24 @@ cliente — prerequisito consigliato prima di `DROPSHIP_MODE=live`.
    quattro categorie? (b) i prodotti senza sigle nel nome e con taglie 35,5–40
    restano "normali": se il fornitore usasse un `size_mapper` univoco per i GS
    si potrebbe togliere l'euristica.
+
+10. **Vetrina indicizzabile?** Oggi `/vetrina` è pubblica ma `noindex` e in
+    `Disallow` (mostra i prodotti del feed, regola d'oro 2). Se si vuole che
+    Google indicizzi modelli e brand, basta togliere il noindex e la riga di
+    `robots.txt`: decisione del titolare (e da verificare che il fornitore
+    non abbia nulla in contrario a vedere il suo assortimento indicizzato).
+11. **API ordini GoldenSneakers**: codici d'errore, stati e `payment_status`
+    completi, paginazione, annullamento, tracking, webhook — elenco in docs/09
+    § Domande aperte, da chiudere coi primi ordini live o col fornitore.
+12. **Prodotti propri — stock**: le richieste d'ordine NON scalano lo stock
+    dei prodotti propri (come per il feed, lo stock arriva dalla fonte: qui il
+    file importato). Va bene aggiornarlo re-importando il file, oppure le
+    richieste confermate devono scalarlo da sole?
+13. **Prodotti propri — spedizione**: partono dalla sede e non dal magazzino
+    del fornitore. Un carrello misto (feed + "in sede") arriva quindi in due
+    pacchi: oggi si applica comunque una sola spedizione con la regola
+    standard (`FREE_SHIPPING_MIN_ITEMS` / `SHIPPING_FEE`). Confermare o
+    definire una regola diversa.
 
 ## Valori già decisi (non richiedere di nuovo)
 

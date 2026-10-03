@@ -1,6 +1,8 @@
 {# Card prodotto del catalogo.
    `data-product` alimenta la scheda rapida (quick view): SOLO dati pubblici
-   (taglie, stock, prezzi netti di listino) — mai offer_price (Regola d'oro n.1). #}
+   (taglie, stock, prezzi netti di listino) — mai offer_price (Regola d'oro n.1).
+   In vetrina (showcase) i dati arrivano già SENZA prezzi dal controller:
+   niente prezzo, niente carrello, l'invito è ad accedere. #}
 {% set sizes = sizes_by_product[item.id] ?? [] %}
 {% set in_stock_sizes = sizes|filter(s => s.quantity > 0) %}
 {# il fornitore tiene a feed anche i prodotti a quantità 0: restano visibili
@@ -105,6 +107,22 @@
                     <span class="block text-[11px] uppercase tracking-wide text-neutral-400">{{ t('catalog.sold_out') }}</span>
                     <span class="text-sm font-medium text-neutral-500">{{ t('catalog.sold_out_hint') }}</span>
                 </p>
+            {% elseif showcase ?? false %}
+            <p class="leading-tight">
+                <span class="block text-[11px] uppercase tracking-wide text-neutral-400">{{ t('showcase.price_label') }}</span>
+                <span class="inline-flex items-center gap-1 text-sm font-semibold text-neutral-700">
+                    <svg class="h-3.5 w-3.5 shrink-0 text-amber-500" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                    {{ t('showcase.price_reserved') }}
+                </span>
+            </p>
+            {# con JS apre la scheda (taglie e disponibilità), senza JS porta alla richiesta di accesso #}
+            <a href="/richiedi-accesso" data-quickview data-product="{{ product_json|e('html_attr') }}"
+               class="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-neutral-900 px-3.5 py-2.5 text-sm font-semibold text-white
+                      transition-all hover:bg-neutral-700 active:scale-95 sm:w-auto">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="hidden sm:inline">{{ t('showcase.see_sizes') }}</span>
+                <span class="sm:hidden">{{ t('showcase.see_sizes_short') }}</span>
+            </a>
             {% else %}
             <p class="leading-tight">
                 <span class="block text-[11px] uppercase tracking-wide text-neutral-400">{{ t('catalog.price_from_label') }}</span>

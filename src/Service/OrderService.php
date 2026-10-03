@@ -229,15 +229,19 @@ final class OrderService
             'lines' => $snapshot['lines'],
         ];
 
-        // ordine dropship automatico presso il fornitore (per battere il delta
-        // del bonifico): un fallimento non blocca mai la richiesta
+        // ordine automatico presso GoldenSneakers (per battere il delta del
+        // bonifico; i prodotti propri restano fuori): un fallimento non
+        // blocca mai la richiesta
         $autoDropship = null;
         if ($this->config->bool('AUTO_DROPSHIP_ON_REQUEST', false)) {
             try {
                 $autoDropship = $this->dropship->autoCreateFromRequest($order);
             } catch (\Throwable $e) {
                 $this->logger->error('Auto-dropship fallito', ['order_id' => $orderId, 'error' => $e->getMessage()]);
-                $autoDropship = ['ok' => false, 'dropship_id' => null, 'message' => $e->getMessage(), 'simulated' => null];
+                $autoDropship = [
+                    'ok' => false, 'skipped' => false, 'dropship_id' => null, 'vendor_order_id' => null,
+                    'total_amount' => null, 'shipping_cost' => null, 'message' => $e->getMessage(), 'simulated' => null,
+                ];
             }
         }
 
@@ -406,8 +410,10 @@ final class OrderService
     /**
      * Snapshot completo per order_requests.cart_snapshot. L'offer_price per riga
      * è incluso SOLO qui (visibile esclusivamente lato admin, mai al cliente).
+     * `source` distingue i prodotti propri ('custom'), che non vanno ordinati
+     * a GoldenSneakers, da quelli del feed.
      *
-     * @param array{products: list<array{sku: string, name: string, brand: string,
+     * @param array{products: list<array{sku: string, name: string, brand: string, source: string,
      *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
      *   quantity_stock: int, price: string, qty: int, row_total: string}>,
      *   product_items: int, product_total: string}>, total_items: int, total_amount: string} $detail
@@ -434,6 +440,7 @@ final class OrderService
                     'sku' => $product['sku'],
                     'name' => $product['name'],
                     'brand' => $product['brand'],
+                    'source' => $product['source'],
                     'size_eu' => $size['size_eu'],
                     'size_us' => $size['size_us'],
                     'barcode' => $barcodes[$product['sku']][$size['size_eu']] ?? '',

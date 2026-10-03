@@ -1,0 +1,132 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ t('custom.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-wrap items-center gap-3 mb-2">
+        <h1 class="text-2xl font-bold">{{ t('custom.title') }}</h1>
+        {% if products is not empty %}
+            <a href="/vetrina?sezione=sede" target="_blank" rel="noopener"
+               class="ml-auto text-sm font-semibold underline text-neutral-600 hover:text-neutral-900">{{ t('custom.preview') }} ↗</a>
+        {% endif %}
+    </div>
+    <p class="text-sm text-neutral-500 mb-6 max-w-3xl">{{ t('custom.intro') }}</p>
+
+    {% if import_errors is not empty %}
+        <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-900">
+            <h2 class="font-bold mb-2">{{ t('custom.errors_title') }}</h2>
+            <ul class="list-disc pl-5 space-y-0.5 font-mono text-xs">
+                {% for error in import_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="grid lg:grid-cols-3 gap-5 items-start">
+        {# ── Elenco ── #}
+        <div class="lg:col-span-2 bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+            <h2 class="font-semibold px-5 pt-4">{{ t('custom.list_title') }} <span class="text-neutral-400 font-normal">({{ products|length }})</span></h2>
+            <table class="w-full text-sm mt-3">
+                <thead>
+                    <tr class="bg-neutral-50 text-neutral-500 text-left">
+                        <th class="px-4 py-2.5 font-medium">{{ t('custom.col_product') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('custom.col_sizes') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('custom.col_stock') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('custom.col_price') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('admin.status') }}</th>
+                        <th class="px-4 py-2.5"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    {% for p in products %}
+                        <tr class="{{ p.is_active ? '' : 'opacity-60' }}">
+                            <td class="px-4 py-2.5">
+                                <div class="flex items-center gap-3">
+                                    <img src="{{ p.image_url ?: '/placeholder.svg' }}" alt="" loading="lazy" data-fallback="/placeholder.svg"
+                                         class="h-10 w-10 shrink-0 rounded-lg bg-neutral-50 object-contain">
+                                    <div class="min-w-0">
+                                        <p class="font-semibold leading-snug">{{ p.name }}</p>
+                                        <p class="text-xs text-neutral-500"><span class="font-mono">{{ p.sku }}</span> · {{ p.brand }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-4 py-2.5 text-right">{{ p.sizes }}</td>
+                            <td class="px-4 py-2.5 text-right">{{ p.total_quantity }}</td>
+                            <td class="px-4 py-2.5 text-right whitespace-nowrap">{{ p.min_price is not null ? p.min_price|eur : '—' }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">
+                                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border
+                                    {{ p.is_active ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-neutral-100 border-neutral-300 text-neutral-500' }}">
+                                    {{ p.is_active ? t('custom.status_active') : t('custom.status_inactive') }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2.5">
+                                <div class="flex items-center justify-end gap-3 whitespace-nowrap text-xs font-semibold">
+                                    <form method="post" action="/admin/prodotti-propri/{{ p.id }}/attiva">
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <input type="hidden" name="active" value="{{ p.is_active ? '0' : '1' }}">
+                                        <button type="submit" class="underline text-neutral-600 hover:text-neutral-900">
+                                            {{ p.is_active ? t('custom.hide') : t('custom.show') }}
+                                        </button>
+                                    </form>
+                                    <form method="post" action="/admin/prodotti-propri/{{ p.id }}/elimina"
+                                          data-confirm="{{ t('custom.delete_confirm')|e('html_attr') }}">
+                                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                        <button type="submit" class="underline text-red-600">{{ t('custom.delete') }}</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-neutral-400">{{ t('custom.none') }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <aside class="space-y-4">
+            {# ── Import ── #}
+            <form method="post" action="/admin/prodotti-propri/importa" enctype="multipart/form-data"
+                  class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <h2 class="font-semibold">{{ t('custom.import_title') }}</h2>
+                <div>
+                    <label for="custom-file" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('custom.file_label', {mb: max_mb}) }}</label>
+                    <input type="file" id="custom-file" name="file" required accept=".json,.csv,application/json,text/csv"
+                           class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-900 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-semibold hover:file:bg-neutral-700">
+                </div>
+                <label class="flex items-start gap-2 text-sm text-neutral-700">
+                    <input type="checkbox" name="replace" value="1"
+                           class="mt-0.5 rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+                    {{ t('custom.replace_label') }}
+                </label>
+                <p class="text-xs text-neutral-400">{{ t('custom.replace_hint') }}</p>
+                <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                    {{ t('custom.import_button') }}
+                </button>
+            </form>
+
+            {# ── Formato: è quello del feed ── #}
+            <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-3">
+                <h2 class="font-semibold">{{ t('custom.format_title') }}</h2>
+                <p class="text-xs text-neutral-500">{{ t('custom.format_intro') }}</p>
+                <ul class="flex flex-wrap gap-1.5">
+                    {% for column in columns %}
+                        <li class="rounded-md border px-1.5 py-0.5 font-mono text-[11px] {{ column in required_columns ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-neutral-50 text-neutral-600' }}"
+                            {% if column in required_columns %}title="{{ t('custom.col_required') }}"{% endif %}>{{ column }}</li>
+                    {% endfor %}
+                </ul>
+                <ul class="list-disc pl-4 space-y-1.5 text-xs text-neutral-600">
+                    <li>{{ t('custom.format_price') }}</li>
+                    <li>{{ t('custom.format_sku') }}</li>
+                    <li>{{ t('custom.format_images') }}</li>
+                    <li>{{ t('custom.format_csv') }}</li>
+                </ul>
+                <div class="flex flex-wrap gap-2 pt-1">
+                    <a href="/admin/prodotti-propri/modello.csv" class="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold hover:border-neutral-900">{{ t('custom.download_csv') }}</a>
+                    <a href="/admin/prodotti-propri/modello.json" class="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-semibold hover:border-neutral-900">{{ t('custom.download_json') }}</a>
+                </div>
+            </section>
+        </aside>
+    </div>
+{% endblock %}

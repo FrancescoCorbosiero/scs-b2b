@@ -24,7 +24,7 @@
                 {% for ds in existing %}
                     <a href="/admin/dropship/{{ ds.id }}"
                        class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white/70 px-3 py-1.5 font-semibold hover:bg-white hover:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
-                        #{{ ds.id }}
+                        #{{ ds.id }}{% if ds.vendor_order_id %} · GS {{ ds.vendor_order_id }}{% endif %}
                         <span class="font-normal text-amber-800">({{ t('dropship.status.' ~ ds.status) }}{{ ds.mode == 'simulation' ? ' · ' ~ t('dropship.simulation_badge') }})</span>
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                     </a>
@@ -63,6 +63,9 @@
                                 <td class="px-3 py-2 font-mono text-xs">{{ line.sku }}</td>
                                 <td class="px-3 py-2">
                                     {{ line.name }}
+                                    {% if line.custom %}
+                                        <span class="ml-1 inline-flex rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">{{ t('custom.badge') }}</span>
+                                    {% endif %}
                                     {% if line.issue %}
                                         <p class="text-xs text-red-600 mt-0.5">{{ line.issue }}</p>
                                     {% endif %}
@@ -85,16 +88,22 @@
         </div>
 
         <aside class="space-y-4">
+            {# shipping_address dell'API ordini (POST /api/orders/create/) #}
             <div class="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
                 <h2 class="font-semibold">{{ t('dropship.address_title') }}</h2>
                 <div>
-                    <label for="ds-name" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_name') }}</label>
-                    <input type="text" id="ds-name" name="name" required maxlength="128" value="{{ draft.address.name }}"
+                    <label for="ds-name" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_recipient_name') }}</label>
+                    <input type="text" id="ds-name" name="recipient_name" required maxlength="128" value="{{ draft.address.recipient_name }}"
                            class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div>
-                    <label for="ds-street" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_street') }}</label>
-                    <input type="text" id="ds-street" name="street" required maxlength="255" value="{{ draft.address.street }}"
+                    <label for="ds-l1" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_l1') }}</label>
+                    <input type="text" id="ds-l1" name="address_l1" required maxlength="255" value="{{ draft.address.address_l1 }}"
+                           class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label for="ds-l2" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_l2') }}</label>
+                    <input type="text" id="ds-l2" name="address_l2" maxlength="255" value="{{ draft.address.address_l2 }}"
                            class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -112,8 +121,8 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label for="ds-country" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('dropship.address_country') }}</label>
-                        <input type="text" id="ds-country" name="country_code" required maxlength="2" pattern="[A-Za-z]{2}"
-                               value="{{ draft.address.country_code }}"
+                        <input type="text" id="ds-country" name="country" required maxlength="2" pattern="[A-Za-z]{2}"
+                               value="{{ draft.address.country }}"
                                class="w-full rounded-lg border-neutral-300 text-sm uppercase focus:border-amber-500 focus:ring-amber-500">
                     </div>
                     <div>
@@ -127,13 +136,6 @@
                     <input type="email" id="ds-email" name="email" required maxlength="255" value="{{ draft.address.email }}"
                            class="w-full rounded-lg border-neutral-300 text-sm focus:border-amber-500 focus:ring-amber-500">
                 </div>
-                <label class="flex items-start gap-2 text-xs text-neutral-600 pt-1">
-                    {# preselezionata se il rivenditore ha chiesto l'etichetta propria al checkout #}
-                    <input type="checkbox" name="client_provides_shipping_label" value="1"
-                           {{ draft.client_provides_shipping_label ? 'checked' }}
-                           class="mt-0.5 rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
-                    {{ t('dropship.shipping_label') }}
-                </label>
             </div>
 
             <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">

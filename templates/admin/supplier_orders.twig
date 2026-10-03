@@ -1,0 +1,141 @@
+{% extends 'layout.twig' %}
+{% import 'admin/_supplier_macros.twig' as sup %}
+
+{% block title %}{{ t('supplier.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-2xl font-bold mb-2">{{ t('supplier.title') }}</h1>
+    <p class="text-sm text-neutral-500 mb-6 max-w-3xl">{{ t('supplier.intro') }}</p>
+
+    {% if is_simulation %}
+        <div class="mb-6 rounded-lg px-4 py-3 text-sm border bg-sky-50 border-sky-200 text-sky-900">
+            <strong>{{ t('dropship.simulation_badge') }}</strong> — {{ t('supplier.simulation_notice') }}
+        </div>
+    {% endif %}
+
+    {# esiti incerti: da verificare sul portale prima di qualsiasi nuovo invio #}
+    {% set unknown = local_orders|filter(r => r.status == 'UNKNOWN') %}
+    {% if unknown is not empty %}
+        <div class="mb-6 rounded-lg px-4 py-3 text-sm border bg-red-50 border-red-300 text-red-900">
+            <strong>{{ t('dropship.status.UNKNOWN') }}:</strong>
+            {% for r in unknown %}
+                <a href="/admin/dropship/{{ r.id }}" class="font-semibold underline">#{{ r.id }}</a>{{ not loop.last ? ',' }}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {# ── Ordini sull'account GoldenSneakers (GET /api/orders/) ── #}
+    <section class="mb-10">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 class="font-bold text-lg">{{ t('supplier.remote_title') }}</h2>
+            <p class="text-xs text-neutral-500">{{ t('supplier.remote_hint') }}</p>
+        </div>
+        {% if not remote.ok %}
+            <div class="rounded-lg px-4 py-3 text-sm border bg-amber-50 border-amber-200 text-amber-900">
+                {{ t('supplier.read_failed', {error: remote.error}) }}
+            </div>
+        {% else %}
+            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-neutral-50 text-neutral-500 text-left">
+                            <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_order') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('admin.status') }}</th>
+                            <th class="px-4 py-2.5 font-medium text-right">{{ t('supplier.total') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_payment') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_documents') }}</th>
+                            <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_request') }}</th>
+                            <th class="px-4 py-2.5"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        {% for o in remote.orders %}
+                            <tr class="group hover:bg-amber-50/60 focus-within:bg-amber-50/60 transition-colors"
+                                data-row-link="/admin/ordini-fornitore/{{ o.order_id }}">
+                                <td class="px-4 py-2.5 font-semibold whitespace-nowrap">
+                                    <a href="/admin/ordini-fornitore/{{ o.order_id }}" class="focus:outline-none focus:ring-2 focus:ring-amber-500 rounded">#{{ o.order_id }}</a>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">{{ o.created_at|when }}</td>
+                                <td class="px-4 py-2.5">{{ sup.status(o.status) }}</td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">{{ o.total_amount is not null ? o.total_amount|eur : '—' }}</td>
+                                <td class="px-4 py-2.5">{{ sup.payment(o.payment_status, o.is_paid) }}</td>
+                                <td class="px-4 py-2.5 whitespace-nowrap text-xs">
+                                    {% if o.has_proforma %}<span class="rounded bg-neutral-100 px-1.5 py-0.5 font-semibold">{{ t('supplier.proforma') }}</span>{% endif %}
+                                    {% if o.has_invoice %}<span class="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">{{ t('supplier.invoice') }}</span>{% endif %}
+                                    {% if not o.has_proforma and not o.has_invoice %}<span class="text-neutral-400">—</span>{% endif %}
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    {% if o.local and o.local.order_request_id %}
+                                        <a href="/admin/richieste/{{ o.local.order_request_id }}" class="underline">#{{ o.local.order_request_id }}</a>
+                                    {% elseif o.local %}
+                                        <span class="text-xs text-neutral-500">{{ t('supplier.from_platform') }}</span>
+                                    {% else %}
+                                        <span class="text-neutral-400">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-2.5 text-right text-xs font-semibold text-neutral-400 group-hover:text-neutral-900 whitespace-nowrap">{{ t('admin.open') }} ›</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="8" class="px-4 py-8 text-center text-neutral-400">{{ t('supplier.none_remote') }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </section>
+
+    {# ── Ordini creati dalla piattaforma (registro locale) ── #}
+    <section>
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 class="font-bold text-lg">{{ t('supplier.local_title') }}</h2>
+            <p class="text-xs text-neutral-500">{{ t('supplier.local_hint') }}</p>
+        </div>
+        <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-neutral-50 text-neutral-500 text-left">
+                        <th class="px-4 py-2.5 font-medium">#</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('admin.date') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_request') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('dropship.vendor_order_id') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('admin.status') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_payment') }}</th>
+                        <th class="px-4 py-2.5 font-medium text-right">{{ t('supplier.total') }}</th>
+                        <th class="px-4 py-2.5 font-medium">{{ t('supplier.col_mode') }}</th>
+                        <th class="px-4 py-2.5"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100">
+                    {% for r in local_orders %}
+                        <tr class="group transition-colors {{ r.status == 'UNKNOWN' ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-amber-50/60' }} focus-within:bg-amber-50/60"
+                            data-row-link="/admin/dropship/{{ r.id }}">
+                            <td class="px-4 py-2.5 font-semibold">
+                                <a href="/admin/dropship/{{ r.id }}" class="focus:outline-none focus:ring-2 focus:ring-amber-500 rounded">#{{ r.id }}</a>
+                            </td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">{{ r.created_at }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap">
+                                {% if r.order_request_id %}<a href="/admin/richieste/{{ r.order_request_id }}" class="underline">#{{ r.order_request_id }}</a>{% else %}<span class="text-neutral-400">—</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 font-mono text-xs">{{ r.vendor_order_id ?? '—' }}</td>
+                            <td class="px-4 py-2.5">{{ sup.status(r.status) }}</td>
+                            <td class="px-4 py-2.5">{{ sup.payment(r.payment_status, r.is_paid) }}</td>
+                            <td class="px-4 py-2.5 text-right whitespace-nowrap">{{ r.total_price is not null ? r.total_price|eur : '—' }}</td>
+                            <td class="px-4 py-2.5 whitespace-nowrap text-xs">
+                                {% if r.mode == 'simulation' %}
+                                    <span class="rounded-full bg-sky-100 px-2 py-0.5 font-bold uppercase text-sky-800">{{ t('dropship.simulation_badge') }}</span>
+                                {% else %}
+                                    <span class="font-semibold">{{ t('supplier.mode_live') }}</span>
+                                {% endif %}
+                                {% if r.api == 'dropship' %}<span class="block text-neutral-400">{{ t('dropship.api_dropship') }}</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 text-right text-xs font-semibold text-neutral-400 group-hover:text-neutral-900 whitespace-nowrap">{{ t('admin.open') }} ›</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="9" class="px-4 py-8 text-center text-neutral-400">{{ t('supplier.none_local') }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
