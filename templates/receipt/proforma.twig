@@ -1,5 +1,8 @@
 {# Ricevuta pro-forma (PDF via dompdf): documento NON fiscale, nel locale del cliente.
-   MAI offer_price qui dentro (le righe arrivano già ripulite con stripCosts). #}
+   MAI offer_price qui dentro (le righe arrivano già ripulite con stripCosts).
+   `manual` = pro-forma creata a mano da /admin/proforma: niente riferimento a
+   una richiesta d'ordine; indirizzo, note, stato annullata e (show_bank)
+   coordinate per il bonifico con il numero come causale. #}
 <!doctype html>
 <html lang="{{ locale ?? 'it' }}">
 <head>
@@ -22,6 +25,10 @@
         .note { margin-top: 14px; font-size: 9.5px; color: #525252; }
         .vatnote { margin-top: 14px; border: 1px solid #d4d4d4; background: #f5f5f5; padding: 8px 10px; font-size: 10.5px; }
         .docmeta { font-size: 12px; }
+        .cancelled { margin-bottom: 14px; border: 2px solid #b91c1c; color: #b91c1c; padding: 8px 10px; font-weight: bold; text-align: center; }
+        .bank { margin-top: 14px; border: 1px solid #d4d4d4; padding: 10px; }
+        .bank td { padding: 2px 10px 2px 0; }
+        .notes { margin-top: 14px; border: 1px solid #d4d4d4; padding: 8px 10px; }
     </style>
 </head>
 <body>
@@ -41,21 +48,31 @@
                 <h1>{{ t('receipt.title') }}</h1>
                 <div class="docmeta">
                     <strong>{{ t('receipt.number') }}:</strong> {{ order.receipt_number ?: t('receipt.number_pending', {id: order.id}) }}<br>
-                    <strong>{{ t('receipt.date') }}:</strong> {{ order.created_at|date('d/m/Y') }}<br>
-                    <strong>{{ t('receipt.order_ref') }}:</strong> #{{ order.id }}
+                    <strong>{{ t('receipt.date') }}:</strong> {{ order.created_at|date('d/m/Y') }}
+                    {% if not manual %}<br><strong>{{ t('receipt.order_ref') }}:</strong> #{{ order.id }}{% endif %}
                 </div>
             </td>
         </tr>
     </table>
 
+    {% if manual and order.status == 'cancelled' %}
+        <div class="cancelled">{{ t('receipt.cancelled') }}</div>
+    {% endif %}
+
     <div class="box">
         <h2>{{ t('receipt.customer') }}</h2>
         <strong>{{ order.customer_name }}</strong>{% if order.company %} — {{ order.company }}{% endif %}<br>
-        {{ order.email }} · {{ order.phone }}<br>
+        {% set contacts = [order.email, order.phone]|filter(v => v) %}
+        {% if contacts is not empty %}{{ contacts|join(' · ') }}<br>{% endif %}
+        {% if manual and (order.address_street or order.address_city) %}
+            {{ order.address_street }}{% if order.address_street and (order.address_zip or order.address_city) %}, {% endif %}{{ order.address_zip }} {{ order.address_city }}<br>
+        {% endif %}
         {{ t('receipt.country') }}: {{ t('country.' ~ (order.country_code ?? 'IT')) }} ({{ order.country_code ?? 'IT' }})
         {% if order.vat_number %}<br>{{ t('receipt.vat_number') }}: {{ order.vat_number }}{% endif %}
     </div>
 
+    {# colonna barcode solo se almeno una riga ce l'ha (le righe manuali spesso no) #}
+    {% set show_barcode = order.lines|filter(l => l.barcode ?? false)|length > 0 %}
     <table class="lines">
         <thead>
             <tr>
@@ -63,7 +80,7 @@
                 <th>{{ t('email.col_product') }}</th>
                 <th>{{ t('email.col_size_eu') }}</th>
                 <th>{{ t('email.col_size_us') }}</th>
-                <th>Barcode</th>
+                {% if show_barcode %}<th>Barcode</th>{% endif %}
                 <th class="right">{{ t('email.col_qty') }}</th>
                 <th class="right">{{ t('email.col_unit_price') }}</th>
                 <th class="right">{{ t('email.col_subtotal') }}</th>
@@ -76,7 +93,7 @@
                     <td>{{ line.name }}</td>
                     <td>{{ line.size_eu }}</td>
                     <td>{{ line.size_us }}</td>
-                    <td>{{ line.barcode }}</td>
+                    {% if show_barcode %}<td>{{ line.barcode }}</td>{% endif %}
                     <td class="right">{{ line.qty }}</td>
                     <td class="right">{{ line.unit_price|eur }}</td>
                     <td class="right">{{ line.subtotal|eur }}</td>
@@ -118,7 +135,7 @@
     {% if vat_note %}
         <div class="vatnote">
             <strong>{{ t('receipt.vat_note_title') }}</strong>
-            {{ t('receipt.vat_note', {
+            {{ t(manual ? 'receipt.vat_note_document' : 'receipt.vat_note', {
                 rate: vat_note.rate_label,
                 total: vat_note.total_gross|eur,
                 taxable: vat_note.taxable|eur,
@@ -130,7 +147,29 @@
     {% elseif order.vat_scheme == 'export' %}
         <p class="note">{{ t('vat.note_export') }}</p>
     {% elseif (order.vat_rate ?? 0) == 0 %}
-        <p class="note">{{ t('vat.note_not_charged') }}</p>
+        <p class="note">{{ t(manual ? 'receipt.vat_not_charged_document' : 'vat.note_not_charged') }}</p>
+    {% endif %}
+
+    {% if manual and order.notes %}
+        <div class="notes">
+            <h2>{{ t('receipt.notes') }}</h2>
+            {{ order.notes|nl2br }}
+        </div>
+    {% endif %}
+
+    {# pro-forma manuale da pagare: coordinate per il bonifico, causale = numero #}
+    {% if manual and order.show_bank and order.status != 'cancelled' and bank.iban %}
+        <div class="bank">
+            <h2>{{ t('receipt.payment_title') }}</h2>
+            <table>
+                {% if bank.holder %}<tr><td class="muted">{{ t('payment.holder') }}</td><td><strong>{{ bank.holder }}</strong></td></tr>{% endif %}
+                {% if bank.name %}<tr><td class="muted">{{ t('payment.bank') }}</td><td><strong>{{ bank.name }}</strong></td></tr>{% endif %}
+                <tr><td class="muted">IBAN</td><td><strong>{{ bank.iban }}</strong></td></tr>
+                {% if bank.bic %}<tr><td class="muted">BIC/SWIFT</td><td><strong>{{ bank.bic }}</strong></td></tr>{% endif %}
+                <tr><td class="muted">{{ t('payment.amount') }}</td><td><strong>{{ ((order.total_gross is defined and order.total_gross > 0) ? order.total_gross : order.total_amount)|eur }}</strong></td></tr>
+                <tr><td class="muted">{{ t('payment.reference') }}</td><td><strong>{{ t('receipt.payment_reference', {number: order.receipt_number}) }}</strong></td></tr>
+            </table>
+        </div>
     {% endif %}
     <p class="note">{{ t('receipt.disclaimer') }}</p>
 </body>

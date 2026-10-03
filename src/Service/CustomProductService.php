@@ -317,8 +317,11 @@ final class CustomProductService
         return $row;
     }
 
-    /** "1.234,56 €" / "89,90" / "89.90" → "1234.56" / "89.90" / "89.90". */
-    private static function decimal(string $value): string
+    /**
+     * "1.234,56 €" / "89,90" / "89.90" → "1234.56" / "89.90" / "89.90".
+     * Usata anche dai form admin con importi scritti a mano (pro-forma).
+     */
+    public static function decimal(string $value): string
     {
         $value = str_replace(['€', ' ', "\u{00A0}"], '', trim($value));
         $comma = strrpos($value, ',');

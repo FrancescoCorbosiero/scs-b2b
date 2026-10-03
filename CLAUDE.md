@@ -21,6 +21,8 @@ gli ordini dell'account si consultano da `/admin/ordini-fornitore`.
 Oltre al feed, l'admin può importare **prodotti propri** (JSON/CSV nello stesso
 formato del feed) da `/admin/prodotti-propri`: stanno in una sezione separata
 del catalogo ("Disponibili in sede") e non vengono mai ordinati al fornitore.
+Da `/admin/proforma` l'admin crea anche **pro-forma manuali** (stessa serie PF
+delle ricevute degli ordini), le scarica in PDF e le invia al cliente.
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).
 
 ## Come usare questa documentazione

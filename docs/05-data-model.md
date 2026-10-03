@@ -131,6 +131,27 @@ Schema indicativo: rifinire in fase di implementazione mantenendo nomi e semanti
 - Seed migrazione 0003: UE-27 + GB + CH; modificabili da /admin/margini
 
 ## `receipt_counters` (numerazione ricevute pro-forma)
-- `year` SMALLINT PK, `last_number` INT — progressivo per anno (PF-<anno>-<NNNN>)
+- `year` SMALLINT PK, `last_number` INT — progressivo per anno (PF-<anno>-<NNNN>),
+  unico per le ricevute degli ordini e le pro-forma manuali
+
+## `manual_receipts` (pro-forma manuali da /admin/proforma — docs/06)
+- `id` PK, `receipt_number` VARCHAR(20) UNIQUE — dalla serie di
+  `receipt_counters`, assegnato alla creazione e mai cambiato
+- `status` VARCHAR(16) — `issued` | `cancelled` (+ `cancelled_at`): mai
+  cancellate, l'annullata conserva il numero
+- `user_id` FK NULL (ON DELETE SET NULL) — account da cui sono stati presi i dati
+- `locale` ('it'|'en') — lingua di PDF ed email
+- `customer_name`, `company` NULL, `email` NULL, `phone` NULL,
+  `address_street|city|zip` NULL, `country_code`, `vat_number` (obbligatoria)
+- `vat_scheme`, `vat_rate`, `vat_amount`, `total_items`, `total_amount`
+  (imponibile righe), `shipping_amount`, `total_gross` — stessi significati e
+  calcoli di `order_requests`
+- `lines_json` MEDIUMTEXT — righe `{sku, name, size_eu, size_us, barcode, qty,
+  unit_price, subtotal}` con i soli prezzi di vendita (`lines` è una parola
+  riservata di MySQL)
+- `notes` TEXT NULL (stampate sul PDF), `show_bank` TINYINT (coordinate per il
+  bonifico su PDF ed email)
+- `email_sent_at`, `email_sent_to` NULL — ultimo invio riuscito
+- `created_at` (data di emissione), `updated_at`
 
 Il carrello NON è a DB: vive nella sessione server-side (vedi 06/07).

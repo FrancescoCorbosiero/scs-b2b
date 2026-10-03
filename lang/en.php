@@ -373,6 +373,17 @@ return [
     'receipt.vat_note_title' => 'VAT note:',
     'receipt.vat_note' => 'with VAT at :rate% the total of this request would be :total (taxable amount :taxable + VAT :vat). Indicative amount only: no tax has been charged on this request and VAT treatment is defined on the invoice.',
     'receipt.disclaimer' => 'Pro-forma document, not valid for tax purposes. This is not an invoice: amounts are indicative and subject to confirmation by our staff.',
+    // manual pro-forma receipts (/admin/proforma): customer PDF and email
+    'receipt.cancelled' => 'Cancelled document: no longer valid',
+    'receipt.notes' => 'Notes',
+    'receipt.payment_title' => 'Payment by bank transfer',
+    'receipt.payment_reference' => 'Pro-forma :number',
+    'receipt.vat_note_document' => 'with VAT at :rate% the total of this document would be :total (taxable amount :taxable + VAT :vat). Indicative amount only: no tax has been charged on this document and VAT treatment is defined on the invoice.',
+    'receipt.vat_not_charged_document' => 'Amount excluding VAT: no tax has been charged on this document. VAT treatment is defined on the invoice.',
+    'email.proforma_subject' => 'Pro-forma :number — :company',
+    'email.proforma_title' => 'Pro-forma no. :number',
+    'email.proforma_intro' => 'please find attached pro-forma receipt no. :number dated :date (not a tax document).',
+    'email.proforma_payment_intro' => 'To pay, please make a bank transfer using the details below, quoting the pro-forma number as payment reference.',
 
     // Contacts
     'contact.title' => 'Contacts',

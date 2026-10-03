@@ -89,10 +89,16 @@ cliente — prerequisito consigliato prima di `DROPSHIP_MODE=live`.
   formato del feed, validazione tutto-o-niente, prezzi con le regole margine,
   sezione separata "Disponibili in sede" nel catalogo, mai inviati a
   GoldenSneakers. Migrazione: 0015_custom_products.sql.
+- **Pro-forma manuali** (`/admin/proforma`, docs/06): ricevute pro-forma
+  create a mano dall'admin con la stessa serie PF delle ricevute degli ordini,
+  righe libere con ricerca SKU (prezzo di listino, mai il costo), IVA come
+  nelle richieste d'ordine, PDF e invio email al cliente, modifica, duplica e
+  annullamento. Migrazione: 0016_manual_receipts.sql.
 ✔ Done quando: test unitari su client ordini (payload, esiti certi/incerti,
 paginazione, link documenti), vetrina senza prezzi (HTML, JSON, frammenti) e
-import (formati, errori, collisioni con il feed); verifica end-to-end con un
-mock dell'API ordini.
+import (formati, errori, collisioni con il feed) e pro-forma manuali (calcoli,
+numerazione condivisa, PDF/email, nessun costo nella ricerca SKU); verifica
+end-to-end con un mock dell'API ordini e un server SMTP locale.
 
 ## Domande aperte (chiedere al proprietario, NON assumere)
 
@@ -151,3 +157,6 @@ mock dell'API ordini.
 - PHP host: **8.3.6** · Deploy: **Docker Compose dietro Caddy Docker Proxy**
   (network esterna `caddy`, config via label, TLS gestito da Caddy — vedi 02)
 - Recapiti pubblici: vedi `01-overview.md`
+- Pro-forma manuali (03/10/2026): **stessa serie PF** delle ricevute degli
+  ordini; PDF scaricabile **e** invio email al cliente; righe libere con
+  ricerca SKU facoltativa; IVA con le stesse regole delle richieste d'ordine

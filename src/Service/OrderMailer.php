@@ -20,6 +20,8 @@ use Twig\Environment;
  *   all'arrivo del pagamento. NIENTE ricevuta a questo stadio.
  * - Cliente alla conferma admin: email di conferma con la ricevuta pro-forma
  *   PDF in allegato.
+ * - Pro-forma manuale (/admin/proforma): email nella lingua della pro-forma
+ *   con il PDF allegato e, se previste, le coordinate per il bonifico.
  * Mai costi, margini o offer_price verso il cliente (Regola d'oro n.1:
  * i template cliente non ricevono proprio quei dati).
  */
@@ -90,7 +92,7 @@ final class OrderMailer
             $html = $this->twig->render('emails/customer_order.twig', [
                 'order' => $order,
                 'is_update' => $isUpdate,
-                'bank' => $this->bankDetails(),
+                'bank' => $this->config->bankDetails(),
                 'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
                 'company_owner' => $this->config->str('CONTACT_OWNER_NAME'),
                 'contact_email' => $this->config->str('CONTACT_EMAIL'),
@@ -157,15 +159,39 @@ final class OrderMailer
         }
     }
 
-    /** @return array{holder: string, name: string, iban: string, bic: string} */
-    private function bankDetails(): array
+    /**
+     * Pro-forma manuale al cliente, con il PDF in allegato. A differenza delle
+     * email del ciclo ordine un errore di invio NON viene assorbito: l'admin
+     * ha premuto "Invia" e deve sapere subito se non è partita.
+     *
+     * @param array<string, mixed> $receipt riga di manual_receipts (con `lines`)
+     * @param array{content: string, name: string} $pdf
+     */
+    public function sendManualReceiptEmail(array $receipt, array $pdf): void
     {
-        return [
-            'holder' => $this->config->str('BANK_ACCOUNT_HOLDER'),
-            'name' => $this->config->str('BANK_NAME'),
-            'iban' => $this->config->str('BANK_IBAN'),
-            'bic' => $this->config->str('BANK_BIC'),
-        ];
+        $locale = is_string($receipt['locale'] ?? null) && $receipt['locale'] !== '' ? $receipt['locale'] : 'it';
+
+        $previousLocale = $this->lang->locale();
+        $this->lang->setLocale($locale);
+        try {
+            $html = $this->twig->render('emails/customer_proforma.twig', [
+                'doc' => self::stripCosts($receipt),
+                'bank' => $this->config->bankDetails(),
+                'company_name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+                'company_owner' => $this->config->str('CONTACT_OWNER_NAME'),
+                'contact_email' => $this->config->str('CONTACT_EMAIL'),
+                'contact_phone' => $this->config->str('CONTACT_PHONE'),
+                'contact_whatsapp' => $this->config->str('CONTACT_WHATSAPP'),
+            ]);
+        } finally {
+            $this->lang->setLocale($previousLocale);
+        }
+        $subject = $this->lang->tIn($locale, 'email.proforma_subject', [
+            'number' => (string) ($receipt['receipt_number'] ?? ''),
+            'company' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),
+        ]);
+
+        $this->send((string) ($receipt['email'] ?? ''), $subject, $html, null, $pdf);
     }
 
     /**

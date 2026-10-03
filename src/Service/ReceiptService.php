@@ -21,6 +21,9 @@ use Twig\Environment;
  * (VatService::indicativeVat). La numerazione può presentare salti se una
  * richiesta fallisce dopo l'assegnazione del numero: accettabile per un
  * documento pro-forma.
+ *
+ * Le pro-forma manuali (/admin/proforma, ManualReceiptService) usano la
+ * stessa serie di numeri e lo stesso template, con `manual: true`.
  */
 final class ReceiptService
 {
@@ -75,10 +78,11 @@ final class ReceiptService
      * L'ordine NON deve contenere offer_price nelle righe (usare stripCosts a monte).
      *
      * @param array<string, mixed> $order
+     * @param array{manual?: bool} $extra vedi renderHtml()
      */
-    public function buildPdf(array $order, string $locale): string
+    public function buildPdf(array $order, string $locale, array $extra = []): string
     {
-        $html = $this->renderHtml($order, $locale);
+        $html = $this->renderHtml($order, $locale, $extra);
 
         $options = new Options();
         $options->set('isRemoteEnabled', false); // nessuna risorsa esterna nel PDF
@@ -91,7 +95,11 @@ final class ReceiptService
         return (string) $dompdf->output();
     }
 
-    /** Nome file allegato/download, es. "ricevuta-PF-2026-0001.pdf". */
+    /**
+     * Nome file allegato/download, es. "ricevuta-PF-2026-0001.pdf".
+     *
+     * @param array<string, mixed> $order
+     */
     public function fileName(array $order, string $locale): string
     {
         $number = is_string($order['receipt_number'] ?? null) && $order['receipt_number'] !== ''
@@ -105,9 +113,15 @@ final class ReceiptService
     /**
      * HTML della ricevuta (sorgente del PDF), pubblico anche per i test.
      *
+     * Con `manual` (pro-forma manuale) il documento non cita una richiesta
+     * d'ordine e riporta indirizzo, note, stato "annullata" e — se la
+     * pro-forma lo prevede (show_bank) — le coordinate per il bonifico con il
+     * numero della pro-forma come causale.
+     *
      * @param array<string, mixed> $order
+     * @param array{manual?: bool} $extra
      */
-    public function renderHtml(array $order, string $locale): string
+    public function renderHtml(array $order, string $locale, array $extra = []): string
     {
         $vatNote = $this->vat->indicativeVat($order);
         if ($vatNote !== null) {
@@ -120,6 +134,8 @@ final class ReceiptService
         try {
             return $this->twig->render('receipt/proforma.twig', [
                 'order' => $order,
+                'manual' => (bool) ($extra['manual'] ?? false),
+                'bank' => $this->config->bankDetails(),
                 'vat_note' => $vatNote,
                 'company' => [
                     'name' => $this->config->str('CONTACT_COMPANY_NAME', 'SHOES & CLOTHING RESELLING'),

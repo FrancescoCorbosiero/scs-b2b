@@ -288,7 +288,8 @@ All'invio (stato `pending`), in quest'ordine:
 
 **Conferma admin** (`POST /admin/richieste/{id}/conferma`, dopo verifica
 dell'accredito): stato `confirmed`, assegnazione del numero ricevuta
-(PF-<anno>-<NNNN>) e **email di conferma al cliente con la ricevuta pro-forma
+(PF-<anno>-<NNNN>, serie condivisa con le pro-forma manuali di
+`/admin/proforma`) e **email di conferma al cliente con la ricevuta pro-forma
 PDF in allegato** (dompdf; scaricabile anche da /admin). Con l'IVA non
 addebitata la ricevuta porta la **Nota IVA** col totale che la richiesta
 avrebbe con l'IVA di legge, solo indicativo (docs/04). **Annulla**
@@ -327,6 +328,40 @@ Minimale, server-rendered (sempre in italiano):
   snapshot, indirizzo di spedizione, totali imponibile/VAT/lordo, costo
   fornitore, margine, **bottoni Conferma (pagamento ricevuto) / Annulla** e
   **download della ricevuta pro-forma PDF**.
+- **/admin/proforma — Pro-forma manuali** (decisioni del titolare del
+  03/10/2026): ricevute pro-forma create a mano, fuori dalle richieste
+  d'ordine (vendite in sede, accordi al telefono, preventivi da pagare).
+  - **Numero dalla stessa serie** delle ricevute degli ordini (PF-<anno>-<NNNN>,
+    `receipt_counters`), assegnato alla creazione nella stessa transazione
+    dell'inserimento (un errore non consuma il numero) e mai più cambiato.
+  - Cliente: nome, azienda, email, telefono, indirizzo, paese, **P.IVA
+    obbligatoria** e lingua di PDF/email; si può precompilare da un account di
+    `/admin/clienti` (i dati restano modificabili solo per quella pro-forma).
+  - **Righe libere** (SKU facoltativo, descrizione, taglia EU/US, quantità,
+    prezzo unitario netto; prezzo 0 = omaggio; max 100 righe, quelle vuote si
+    ignorano). "Cerca" su uno SKU a catalogo (feed o prodotti propri, solo
+    attivi) precompila descrizione, taglie, barcode e **prezzo di listino**
+    tramite `GET /admin/proforma/prodotto?sku=` — mai `offer_price`.
+  - Spedizione netta scritta a mano (vuota = gratuita; il form ricorda la
+    regola standard degli ordini), note stampate sul PDF e nell'email,
+    casella "Mostra le coordinate per il bonifico" (causale = numero della
+    pro-forma; da togliere se documenta un pagamento già ricevuto).
+  - **IVA come nelle richieste d'ordine**: schema da paese + P.IVA
+    (`VatService`), aliquota azzerata con `VAT_ON_ORDER=0`, imponibile =
+    righe + spedizione; con l'IVA non addebitata il PDF porta la Nota IVA
+    indicativa "di questo documento".
+  - **PDF** dallo stesso template della ricevuta degli ordini
+    (`receipt/proforma.twig` con `manual`): niente riferimento a una
+    richiesta d'ordine; indirizzo, note, coordinate per il bonifico e stato
+    "annullata" quando servono. **Invio al cliente**: email nella lingua
+    della pro-forma con il PDF allegato; un errore SMTP viene mostrato
+    all'admin e la pro-forma non risulta inviata.
+  - Elenco con ricerca (numero, cliente, azienda, email) e stato dell'invio;
+    dettaglio con Scarica PDF / Invia (o Invia di nuovo) / Modifica / Duplica /
+    Annulla. La modifica conserva numero e data; se avviene dopo l'invio, il
+    dettaglio ricorda di inviarla di nuovo. **Annullata**: non si modifica né
+    si invia, il PDF è marcato "Documento annullato" e il numero resta
+    occupato (mai cancellata).
 - **/admin/margini — gestione margini** (docs/04): regole per brand o
   nome-contiene (percentuale o importo fisso, priorità, attiva/disattiva,
   conteggio prodotti corrispondenti), margine di default, aliquote VAT per

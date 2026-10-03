@@ -1,0 +1,76 @@
+{% extends 'layout.twig' %}
+
+{# Elenco delle pro-forma manuali (docs/06 § /admin/proforma). #}
+
+{% block title %}{{ t('proforma.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <div class="flex flex-wrap items-center gap-3 mb-2">
+        <h1 class="text-2xl font-bold">{{ t('proforma.title') }}</h1>
+        <a href="/admin/proforma/nuova" class="ml-auto rounded-lg bg-neutral-900 text-white px-4 py-2 text-sm font-semibold hover:bg-neutral-700">+ {{ t('proforma.new') }}</a>
+    </div>
+    <p class="text-sm text-neutral-500 mb-5 max-w-3xl">{{ t('proforma.intro') }}</p>
+
+    <form method="get" action="/admin/proforma" class="mb-4 flex gap-2 max-w-md">
+        <input type="search" name="q" value="{{ q }}" placeholder="{{ t('proforma.search_placeholder') }}" aria-label="{{ t('proforma.search') }}"
+               class="min-w-0 grow rounded-lg border-neutral-300 text-sm">
+        <button type="submit" class="rounded-lg border border-neutral-300 bg-white px-4 text-sm font-semibold hover:border-neutral-900">{{ t('proforma.search') }}</button>
+    </form>
+
+    <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-neutral-50 text-neutral-500 text-left">
+                    <th class="px-4 py-2.5 font-medium">{{ t('proforma.col_number') }}</th>
+                    <th class="px-4 py-2.5 font-medium">{{ t('proforma.col_date') }}</th>
+                    <th class="px-4 py-2.5 font-medium">{{ t('proforma.col_customer') }}</th>
+                    <th class="px-4 py-2.5 font-medium text-right">{{ t('proforma.col_items') }}</th>
+                    <th class="px-4 py-2.5 font-medium text-right">{{ t('proforma.col_total') }}</th>
+                    <th class="px-4 py-2.5 font-medium">{{ t('proforma.col_status') }}</th>
+                    <th class="px-4 py-2.5 font-medium">{{ t('proforma.col_sent') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-100">
+                {% for r in receipts %}
+                    <tr class="hover:bg-neutral-50 {{ r.status == 'cancelled' ? 'opacity-60' }}">
+                        <td class="px-4 py-2.5 whitespace-nowrap">
+                            <a href="/admin/proforma/{{ r.id }}" class="font-mono font-semibold underline decoration-neutral-300 hover:decoration-neutral-900">{{ r.receipt_number }}</a>
+                        </td>
+                        <td class="px-4 py-2.5 whitespace-nowrap">{{ r.created_at|date('d/m/Y') }}</td>
+                        <td class="px-4 py-2.5">
+                            <span class="font-semibold">{{ r.customer_name }}</span>
+                            {% if r.company %}<span class="text-neutral-500"> — {{ r.company }}</span>{% endif %}
+                            <span class="text-neutral-400">· {{ r.country_code }}</span>
+                        </td>
+                        <td class="px-4 py-2.5 text-right">{{ r.total_items }}</td>
+                        <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">{{ r.total_gross|eur }}</td>
+                        <td class="px-4 py-2.5 whitespace-nowrap">
+                            <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase border
+                                {{ r.status == 'cancelled' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700' }}">
+                                {{ t('proforma.status_' ~ r.status) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2.5 whitespace-nowrap text-xs {{ r.email_sent_at ? 'text-neutral-600' : 'text-neutral-400' }}">
+                            {{ r.email_sent_at ? r.email_sent_at|date('d/m/Y H:i') : t('proforma.not_sent') }}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-neutral-400">{{ t(q ? 'proforma.none_search' : 'proforma.none') }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+        <nav class="mt-4 flex items-center justify-center gap-2 text-sm">
+            {% set qs = q ? '&q=' ~ q|url_encode : '' %}
+            {% if page > 1 %}
+                <a href="/admin/proforma?page={{ page - 1 }}{{ qs }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:border-neutral-900">←</a>
+            {% endif %}
+            <span class="text-neutral-500">{{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+                <a href="/admin/proforma?page={{ page + 1 }}{{ qs }}" class="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 hover:border-neutral-900">→</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+{% endblock %}

@@ -91,7 +91,10 @@ form ordine) diventa un lockout globale**. Obbligatorio:
   (gitignored). `.env.example` con placeholder.
 - `offer_price`: vedi CLAUDE.md Regola d'oro n.1. In particolare controllare i punti
   facili da sbagliare: export Excel/CSV, endpoint JSON del carrello, email cliente,
-  messaggi di errore/log esposti.
+  messaggi di errore/log esposti. Le pro-forma manuali (`/admin/proforma`)
+  contengono solo i prezzi scritti dall'admin, e la ricerca SKU che le
+  precompila (`/admin/proforma/prodotto`, solo admin) restituisce il prezzo di
+  listino, mai `offer_price`.
 - Log in `logs/` fuori dal document root; mai loggare token o password.
 
 ## Robustezza

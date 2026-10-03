@@ -111,6 +111,16 @@ php -S 127.0.0.1:8090 -t public router.php
   le righe del feed (mai quelle "in sede"). **Mai** il token vero né
   `FEED_BASE_URL` del fornitore con `DROPSHIP_MODE=live` in verifica: crea
   ordini reali.
+- Pro-forma manuali `/admin/proforma`: il form vuole JavaScript (righe Alpine
+  `proformaLines` in `app.js`, caricato PRIMA di Alpine nel layout); via curl
+  si postano `lines[0][name]`, `lines[0][qty]`, `lines[0][unit_price]`… La
+  ricerca SKU è `GET /admin/proforma/prodotto?sku=NK1001` (JSON, mai
+  offer_price). Il numero viene dalla stessa serie delle ricevute degli ordini
+  (`receipt_counters`). Il PDF si controlla con `pdftotext`. Per provare
+  l'invio email serve un SMTP locale: un sink Python minimale su
+  `127.0.0.1:2525` che salva i messaggi in file, e nel `.env` `SMTP_HOST`,
+  `SMTP_PORT=2525` (fuori produzione niente TLS). Il DB SQLite di sviluppo
+  vuole la tabella `manual_receipts` (DDL in `tests/Support/TestDb.php`).
 - Per fermare i server in background senza uccidere la propria shell:
   `pkill -f 'php -S 127.0.0.1:809[0-9]'` (il pattern tra parentesi non
   combacia con la riga di comando di pkill stesso).

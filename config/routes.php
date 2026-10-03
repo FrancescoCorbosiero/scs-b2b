@@ -6,6 +6,7 @@ use App\Controller\AccountController;
 use App\Controller\AdminAccountRequestController;
 use App\Controller\AdminController;
 use App\Controller\AdminCustomProductController;
+use App\Controller\AdminProformaController;
 use App\Controller\AdminUserController;
 use App\Controller\CartController;
 use App\Controller\CatalogController;
@@ -145,5 +146,17 @@ return static function (App $app): void {
 
         // ricevuta pro-forma della richiesta (rigenerata dallo snapshot)
         $group->get('/richieste/{id:[0-9]+}/ricevuta.pdf', [AdminController::class, 'receiptPdf']);
+
+        // pro-forma manuali: stessa serie PF delle ricevute degli ordini
+        $group->get('/proforma', [AdminProformaController::class, 'index']);
+        $group->get('/proforma/nuova', [AdminProformaController::class, 'createForm']);
+        $group->post('/proforma', [AdminProformaController::class, 'create']);
+        $group->get('/proforma/prodotto', [AdminProformaController::class, 'lookup']);
+        $group->get('/proforma/{id:[0-9]+}', [AdminProformaController::class, 'show']);
+        $group->get('/proforma/{id:[0-9]+}/modifica', [AdminProformaController::class, 'editForm']);
+        $group->post('/proforma/{id:[0-9]+}/modifica', [AdminProformaController::class, 'update']);
+        $group->get('/proforma/{id:[0-9]+}/pdf', [AdminProformaController::class, 'pdf']);
+        $group->post('/proforma/{id:[0-9]+}/invia', [AdminProformaController::class, 'send']);
+        $group->post('/proforma/{id:[0-9]+}/annulla', [AdminProformaController::class, 'cancel']);
     })->add(AdminAuthMiddleware::class);
 };

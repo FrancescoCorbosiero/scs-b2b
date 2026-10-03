@@ -1,0 +1,77 @@
+{# Email cliente con una pro-forma MANUALE (/admin/proforma), nella lingua
+   della pro-forma, con il PDF in allegato. Coordinate per il bonifico solo se
+   la pro-forma le prevede (show_bank). MAI costi o margini: le righe hanno
+   solo prezzi di vendita. #}
+<div style="font-family: Arial, Helvetica, sans-serif; color: #171717; max-width: 680px;">
+    <h1 style="font-size: 20px;">{{ t('email.proforma_title', {number: doc.receipt_number}) }}</h1>
+    <p>{{ t('email.customer_greeting', {name: doc.customer_name}) }}</p>
+    <p>{{ t('email.proforma_intro', {number: doc.receipt_number, date: doc.created_at|date('d/m/Y')}) }}</p>
+
+    <table cellpadding="4" cellspacing="0" style="font-size: 14px; margin-top: 14px;">
+        <tr>
+            <td style="color: #525252;">{{ t('email.total_items') }}</td>
+            <td align="right"><strong>{{ doc.total_items }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #525252;">{{ t('email.total_net') }}</td>
+            <td align="right"><strong>{{ doc.total_amount|eur }}</strong></td>
+        </tr>
+        <tr>
+            <td style="color: #525252;">{{ t('email.shipping') }}</td>
+            <td align="right">{{ (doc.shipping_amount ?? 0) > 0 ? (doc.shipping_amount|eur) : t('cart.shipping_free') }}</td>
+        </tr>
+        <tr>
+            <td style="color: #525252;">
+                {% if doc.vat_scheme == 'reverse_charge' %}{{ t('vat.label_reverse') }}
+                {% elseif doc.vat_scheme == 'export' %}{{ t('vat.label_export') }}
+                {% elseif (doc.vat_rate ?? 0) == 0 %}{{ t('vat.label_not_charged') }}
+                {% else %}{{ t('vat.label_rate', {rate: doc.vat_rate}) }}{% endif %}
+            </td>
+            <td align="right">{{ doc.vat_amount|eur }}</td>
+        </tr>
+        <tr>
+            <td style="border-top: 1px solid #d4d4d4;"><strong>{{ t(doc.show_bank ? 'email.total_to_pay' : 'email.total_gross') }}</strong></td>
+            <td align="right" style="border-top: 1px solid #d4d4d4;"><strong>{{ doc.total_gross|eur }}</strong></td>
+        </tr>
+    </table>
+
+    {% if doc.show_bank %}
+        <h2 style="font-size: 15px; margin-top: 18px;">{{ t('email.payment_title') }}</h2>
+        <p style="font-size: 13px; color: #525252;">{{ t('email.proforma_payment_intro') }}</p>
+        {% if bank.iban %}
+            <table cellpadding="5" cellspacing="0" border="1" style="border-collapse: collapse; border-color: #d4d4d4; font-size: 13px; width: 100%;">
+                {% if bank.holder %}<tr><td style="color: #525252; width: 40%;">{{ t('payment.holder') }}</td><td><strong>{{ bank.holder }}</strong></td></tr>{% endif %}
+                {% if bank.name %}<tr><td style="color: #525252;">{{ t('payment.bank') }}</td><td><strong>{{ bank.name }}</strong></td></tr>{% endif %}
+                <tr><td style="color: #525252;">IBAN</td><td><strong style="font-family: monospace;">{{ bank.iban }}</strong></td></tr>
+                {% if bank.bic %}<tr><td style="color: #525252;">BIC/SWIFT</td><td><strong style="font-family: monospace;">{{ bank.bic }}</strong></td></tr>{% endif %}
+                <tr><td style="color: #525252;">{{ t('payment.amount') }}</td><td><strong>{{ doc.total_gross|eur }}</strong></td></tr>
+                <tr><td style="color: #525252;">{{ t('payment.reference') }}</td><td><strong>{{ t('receipt.payment_reference', {number: doc.receipt_number}) }}</strong></td></tr>
+            </table>
+        {% else %}
+            <p style="font-size: 13px; background: #fafafa; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 12px;">{{ t('payment.details_missing') }}</p>
+        {% endif %}
+        {% if (doc.vat_rate ?? 0) == 0 %}
+            <p style="font-size: 13px; font-weight: bold; color: #047857;">{{ t('email.payment_net_notice') }}</p>
+        {% endif %}
+    {% endif %}
+
+    {% if doc.notes %}
+        <h2 style="font-size: 15px; margin-top: 18px;">{{ t('receipt.notes') }}</h2>
+        <p style="font-size: 13px;">{{ doc.notes|nl2br }}</p>
+    {% endif %}
+
+    {% if doc.vat_scheme == 'reverse_charge' %}
+        <p style="color: #525252; font-size: 12px;">{{ t('vat.note_reverse') }}</p>
+    {% elseif doc.vat_scheme == 'export' %}
+        <p style="color: #525252; font-size: 12px;">{{ t('vat.note_export') }}</p>
+    {% elseif (doc.vat_rate ?? 0) == 0 %}
+        <p style="color: #525252; font-size: 12px;">{{ t('receipt.vat_not_charged_document') }}</p>
+    {% endif %}
+
+    <p style="margin-top: 18px;">{{ t('email.customer_closing') }}</p>
+    <p style="margin: 4px 0;"><strong>{{ company_name }}</strong>{% if company_owner %}<br><span style="color: #525252; font-size: 13px;">{{ t('legal.owner_line', {owner: company_owner}) }}</span>{% endif %}</p>
+
+    <p style="color: #525252; font-size: 13px; margin-top: 18px;">
+        {{ t('email.customer_contacts') }}: {{ contact_email }} · {{ contact_phone }}{% if contact_whatsapp %} · WhatsApp {{ contact_whatsapp }}{% endif %}
+    </p>
+</div>

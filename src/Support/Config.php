@@ -72,4 +72,20 @@ final class Config
     {
         return $this->str('APP_ENV', 'production') === 'production';
     }
+
+    /**
+     * Coordinate per il bonifico, unico canale di pagamento (docs/06): pagine,
+     * email e pro-forma le leggono tutte da qui.
+     *
+     * @return array{holder: string, name: string, iban: string, bic: string}
+     */
+    public function bankDetails(): array
+    {
+        return [
+            'holder' => $this->str('BANK_ACCOUNT_HOLDER'),
+            'name' => $this->str('BANK_NAME'),
+            'iban' => $this->str('BANK_IBAN'),
+            'bic' => $this->str('BANK_BIC'),
+        ];
+    }
 }

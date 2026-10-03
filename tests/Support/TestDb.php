@@ -218,6 +218,38 @@ final class TestDb
             last_number INTEGER NOT NULL DEFAULT 0
         )');
 
+        $pdo->exec('CREATE TABLE manual_receipts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receipt_number TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT "issued",
+            user_id INTEGER NULL,
+            locale TEXT NOT NULL DEFAULT "it",
+            customer_name TEXT NOT NULL,
+            company TEXT NULL,
+            email TEXT NULL,
+            phone TEXT NULL,
+            address_street TEXT NULL,
+            address_city TEXT NULL,
+            address_zip TEXT NULL,
+            country_code TEXT NOT NULL DEFAULT "IT",
+            vat_number TEXT NOT NULL,
+            vat_scheme TEXT NOT NULL,
+            vat_rate NUMERIC NOT NULL DEFAULT 0,
+            vat_amount NUMERIC NOT NULL DEFAULT 0,
+            lines_json TEXT NOT NULL,
+            total_items INTEGER NOT NULL DEFAULT 0,
+            total_amount NUMERIC NOT NULL DEFAULT 0,
+            shipping_amount NUMERIC NOT NULL DEFAULT 0,
+            total_gross NUMERIC NOT NULL DEFAULT 0,
+            notes TEXT NULL,
+            show_bank INTEGER NOT NULL DEFAULT 1,
+            email_sent_at TEXT NULL,
+            email_sent_to TEXT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            cancelled_at TEXT NULL
+        )');
+
         self::seedDefaults($pdo);
 
         return $pdo;
