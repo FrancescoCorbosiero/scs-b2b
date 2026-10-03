@@ -6,7 +6,8 @@ description: Come buildare, lanciare e guidare l'app in locale (senza Docker) pe
 # Verifica locale (senza Docker/MySQL)
 
 L'app gira con PHP built-in server + SQLite. Percorsi coperti: login catalogo/admin,
-catalogo, carrello, richiesta d'ordine, area admin, flusso dropship.
+catalogo, vetrina pubblica, carrello, richiesta d'ordine, area admin, prodotti
+propri, ordini GoldenSneakers (API ordini, anche "live" contro un mock locale).
 
 ## Setup (una volta per sessione)
 
@@ -87,5 +88,31 @@ php -S 127.0.0.1:8090 -t public router.php
   `php -r '...UserTokenRepository->issue(id,"invite",72)'` e apri
   `/account/imposta-password?token=<chiaro>`. Login utente: email+password;
   ospite: solo password (con GUEST_LOGIN_ENABLED=1).
+- Vetrina `/vetrina` (senza login): nell'HTML non deve comparire né "€" né
+  la parola "price" (nemmeno nel JSON della scheda rapida e in
+  `?fragment=1&page=N`); `?prezzo_min=…` e `?ordina=prezzo_desc` vanno
+  ignorati; con la sessione catalogo redirige a `/catalogo` con gli stessi
+  filtri. I prodotti propri stanno in `?sezione=sede` (stessa cosa su
+  `/catalogo`).
+- Prodotti propri: `/admin/prodotti-propri`, upload multipart
+  (`curl -b jar -c jar -F _csrf=… -F file=@prodotti.csv [-F replace=1]`).
+  Modelli: `/admin/prodotti-propri/modello.csv|.json`. Uno SKU già usato dal
+  feed (es. NK1001) deve essere rifiutato con l'elenco errori; l'import è
+  tutto o niente.
+- Ordini GoldenSneakers: in `DROPSHIP_MODE=simulation` nessun ordine parte
+  (id finti 900000–999999) e le pagine `/admin/ordini-fornitore` mostrano
+  l'avviso se manca il token. Per provare il "live" SENZA il fornitore: un
+  mock PHP in scratch (`php -S 127.0.0.1:8099 mock.php`) che risponde con gli
+  esempi di docs/09 a `GET /api/orders/`, `GET /api/orders/{id}/` e
+  `POST /api/orders/create/` (201) e logga metodo/path/body; nel `.env`
+  `FEED_BASE_URL=http://127.0.0.1:8099`, `FEED_BEARER_TOKEN=tok-dev`,
+  `DROPSHIP_MODE=live`, `AUTO_DROPSHIP_ON_REQUEST=1`,
+  `AUTO_DROPSHIP_ALLOW_LIVE=1`. Il payload di creazione deve contenere solo
+  le righe del feed (mai quelle "in sede"). **Mai** il token vero né
+  `FEED_BASE_URL` del fornitore con `DROPSHIP_MODE=live` in verifica: crea
+  ordini reali.
+- Per fermare i server in background senza uccidere la propria shell:
+  `pkill -f 'php -S 127.0.0.1:809[0-9]'` (il pattern tra parentesi non
+  combacia con la riga di comando di pkill stesso).
 - Browser: Playwright con `executablePath: '/opt/pw-browsers/chromium'`
   (`npm install playwright-core` in scratch).
