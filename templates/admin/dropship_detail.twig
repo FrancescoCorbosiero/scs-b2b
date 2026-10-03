@@ -1,4 +1,5 @@
 {% extends 'layout.twig' %}
+{% import 'admin/_supplier_macros.twig' as sup %}
 
 {% block title %}{{ t('dropship.detail_title') }} #{{ ds.id }} — {{ t('admin.title') }}{% endblock %}
 
@@ -6,19 +7,32 @@
     {% if ds.order_request_id %}
         <a href="/admin/richieste/{{ ds.order_request_id }}" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('dropship.detail_request') }} #{{ ds.order_request_id }}</a>
     {% else %}
-        <a href="/admin/richieste" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('admin.orders') }}</a>
+        <a href="/admin/ordini-fornitore" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('supplier.back') }}</a>
     {% endif %}
     <div class="flex flex-wrap items-center gap-3 mt-2 mb-6">
         <h1 class="text-2xl font-bold">{{ t('dropship.detail_title') }} #{{ ds.id }}</h1>
+        {% if ds.vendor_order_id %}
+            <span class="rounded-lg bg-neutral-900 px-2.5 py-1 font-mono text-xs font-bold text-white">GS #{{ ds.vendor_order_id }}</span>
+        {% endif %}
         {% if ds.mode == 'simulation' %}
             <span class="inline-flex items-center rounded-full bg-sky-100 text-sky-800 border border-sky-200 px-3 py-0.5 text-xs font-bold uppercase">{{ t('dropship.simulation_badge') }}</span>
         {% endif %}
-        <span class="inline-flex items-center rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200 px-3 py-0.5 text-xs font-semibold">{{ t('dropship.status.' ~ ds.status) }}</span>
+        {{ sup.status(ds.status) }}
+        {% if is_orders_api %}
+            {{ sup.payment(ds.payment_status, ds.is_paid) }}
+        {% else %}
+            <span class="inline-flex items-center rounded-full bg-neutral-100 text-neutral-500 border border-neutral-200 px-2 py-0.5 text-[10px] font-bold uppercase">{{ t('dropship.api_dropship') }}</span>
+        {% endif %}
     </div>
 
     {% if ds.mode == 'simulation' %}
         <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-sky-50 border-sky-200 text-sky-900">
             {{ t('dropship.simulation_banner') }}
+        </div>
+    {% endif %}
+    {% if not is_orders_api %}
+        <div class="mb-4 rounded-lg px-4 py-3 text-sm border bg-neutral-50 border-neutral-200 text-neutral-600">
+            {{ t('dropship.legacy_notice') }}
         </div>
     {% endif %}
 
@@ -52,58 +66,74 @@
                 </table>
             </div>
 
-            {# ── Ultima lettura dal fornitore (order-details) ─────────── #}
-            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
-                <div class="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4">
-                    <h2 class="font-semibold">{{ t('dropship.vendor_section') }}</h2>
-                    {% if details_fetched_at %}
-                        <span class="text-xs text-neutral-400">{{ t('dropship.vendor_fetched_at', {at: details_fetched_at}) }}</span>
+            {# ── Ultima lettura dal fornitore ─────────────────────────── #}
+            {% if is_orders_api %}
+                <section class="space-y-3">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <h2 class="font-semibold">{{ t('dropship.vendor_section') }}</h2>
+                        {% if details_fetched_at %}
+                            <span class="text-xs text-neutral-400">{{ t('dropship.vendor_fetched_at', {at: details_fetched_at}) }}</span>
+                        {% endif %}
+                    </div>
+                    {% if vendor_parsed %}
+                        {% include 'admin/_supplier_vendor.twig' with {vo: vendor_parsed} %}
+                    {% else %}
+                        <p class="rounded-xl border border-neutral-200 bg-white px-5 py-4 text-sm text-neutral-500">{{ t('dropship.vendor_none') }}</p>
+                    {% endif %}
+                </section>
+            {% else %}
+                <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4">
+                        <h2 class="font-semibold">{{ t('dropship.vendor_section') }}</h2>
+                        {% if details_fetched_at %}
+                            <span class="text-xs text-neutral-400">{{ t('dropship.vendor_fetched_at', {at: details_fetched_at}) }}</span>
+                        {% endif %}
+                    </div>
+                    {% if vendor_order %}
+                        <table class="w-full text-sm mt-3">
+                            <thead>
+                                <tr class="bg-neutral-50 text-neutral-500 text-left">
+                                    <th class="px-3 py-2.5 font-medium">SKU</th>
+                                    <th class="px-3 py-2.5 font-medium">Prodotto</th>
+                                    <th class="px-3 py-2.5 font-medium">US</th>
+                                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_size_id') }}</th>
+                                    <th class="px-3 py-2.5 font-medium text-right">Qty</th>
+                                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_unit_price') }}</th>
+                                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_line_total') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-neutral-100">
+                                {% for item in vendor_order.items ?? [] %}
+                                    <tr>
+                                        <td class="px-3 py-2 font-mono text-xs">{{ item.sku ?? '—' }}</td>
+                                        <td class="px-3 py-2">{{ item.product_name ?? '—' }}</td>
+                                        <td class="px-3 py-2 whitespace-nowrap">{{ item.size_us ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-right font-mono text-xs">{{ item.size_id ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-right font-semibold">{{ item.quantity ?? '—' }}</td>
+                                        <td class="px-3 py-2 text-right text-neutral-500 whitespace-nowrap">{{ item.unit_price is defined ? item.unit_price|eur : '—' }}</td>
+                                        <td class="px-3 py-2 text-right whitespace-nowrap">{{ item.total_price is defined ? item.total_price|eur : '—' }}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr><td colspan="7" class="px-3 py-3 text-neutral-500 text-xs">{{ t('dropship.vendor_no_items') }}</td></tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if vendor_order.total_amount is defined and vendor_order.total_amount is not null %}
+                                <tfoot>
+                                    <tr class="border-t border-neutral-200">
+                                        <td colspan="6" class="px-3 py-2.5 text-right text-neutral-500">{{ t('dropship.vendor_total') }} ({{ vendor_order.currency ?? 'EUR' }})</td>
+                                        <td class="px-3 py-2.5 text-right font-bold whitespace-nowrap">{{ vendor_order.total_amount|eur }}</td>
+                                    </tr>
+                                </tfoot>
+                            {% endif %}
+                        </table>
+                        {% if vendor_order.created_at is defined and vendor_order.created_at %}
+                            <p class="px-5 pb-4 pt-2 text-xs text-neutral-400">{{ t('dropship.vendor_created') }}: {{ vendor_order.created_at }}</p>
+                        {% endif %}
+                    {% else %}
+                        <p class="px-5 pb-4 pt-2 text-sm text-neutral-500">{{ t('dropship.vendor_none') }}</p>
                     {% endif %}
                 </div>
-                {% if vendor_order %}
-                    <table class="w-full text-sm mt-3">
-                        <thead>
-                            <tr class="bg-neutral-50 text-neutral-500 text-left">
-                                <th class="px-3 py-2.5 font-medium">SKU</th>
-                                <th class="px-3 py-2.5 font-medium">Prodotto</th>
-                                <th class="px-3 py-2.5 font-medium">US</th>
-                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_size_id') }}</th>
-                                <th class="px-3 py-2.5 font-medium text-right">Qty</th>
-                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_unit_price') }}</th>
-                                <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_line_total') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-neutral-100">
-                            {% for item in vendor_order.items ?? [] %}
-                                <tr>
-                                    <td class="px-3 py-2 font-mono text-xs">{{ item.sku ?? '—' }}</td>
-                                    <td class="px-3 py-2">{{ item.product_name ?? '—' }}</td>
-                                    <td class="px-3 py-2 whitespace-nowrap">{{ item.size_us ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-right font-mono text-xs">{{ item.size_id ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-right font-semibold">{{ item.quantity ?? '—' }}</td>
-                                    <td class="px-3 py-2 text-right text-neutral-500 whitespace-nowrap">{{ item.unit_price is defined ? item.unit_price|eur : '—' }}</td>
-                                    <td class="px-3 py-2 text-right whitespace-nowrap">{{ item.total_price is defined ? item.total_price|eur : '—' }}</td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="7" class="px-3 py-3 text-neutral-500 text-xs">{{ t('dropship.vendor_no_items') }}</td></tr>
-                            {% endfor %}
-                        </tbody>
-                        {% if vendor_order.total_amount is defined and vendor_order.total_amount is not null %}
-                            <tfoot>
-                                <tr class="border-t border-neutral-200">
-                                    <td colspan="6" class="px-3 py-2.5 text-right text-neutral-500">{{ t('dropship.vendor_total') }} ({{ vendor_order.currency ?? 'EUR' }})</td>
-                                    <td class="px-3 py-2.5 text-right font-bold whitespace-nowrap">{{ vendor_order.total_amount|eur }}</td>
-                                </tr>
-                            </tfoot>
-                        {% endif %}
-                    </table>
-                    {% if vendor_order.created_at is defined and vendor_order.created_at %}
-                        <p class="px-5 pb-4 pt-2 text-xs text-neutral-400">{{ t('dropship.vendor_created') }}: {{ vendor_order.created_at }}</p>
-                    {% endif %}
-                {% else %}
-                    <p class="px-5 pb-4 pt-2 text-sm text-neutral-500">{{ t('dropship.vendor_none') }}</p>
-                {% endif %}
-            </div>
+            {% endif %}
 
             <div class="bg-white rounded-xl border border-neutral-200 p-5">
                 <h2 class="font-semibold mb-2">{{ t('dropship.payload_title') }}</h2>
@@ -123,12 +153,32 @@
                 <p><span class="text-neutral-500">{{ t('admin.date') }}:</span> {{ ds.created_at }}</p>
                 <p><span class="text-neutral-500">{{ t('admin.status') }}:</span> <strong>{{ t('dropship.status.' ~ ds.status) }}</strong></p>
                 <p><span class="text-neutral-500">{{ t('dropship.vendor_order_id') }}:</span> <span class="font-mono">{{ ds.vendor_order_id ?? '—' }}</span></p>
-                <p><span class="text-neutral-500">{{ t('dropship.package_id') }}:</span> <span class="font-mono">{{ ds.dropship_package_id ?? '—' }}</span></p>
+                {% if is_orders_api %}
+                    <p><span class="text-neutral-500">{{ t('dropship.api_label') }}:</span> {{ t('dropship.api_orders') }}</p>
+                {% else %}
+                    <p><span class="text-neutral-500">{{ t('dropship.package_id') }}:</span> <span class="font-mono">{{ ds.dropship_package_id ?? '—' }}</span></p>
+                {% endif %}
+                {# in live (API ordini) il totale è quello calcolato da GoldenSneakers, altrimenti è la nostra stima a costo fornitore #}
+                {% set vendor_total = is_orders_api and ds.mode == 'live' and ds.status != 'UNKNOWN' %}
                 <div class="flex justify-between border-t border-neutral-100 pt-2">
-                    <span class="text-neutral-500">{{ t('dropship.wholesale_total') }}</span>
+                    <span class="text-neutral-500">{{ vendor_total ? t('dropship.vendor_total_label') : t('dropship.wholesale_total') }}</span>
                     <strong>{{ ds.total_price|eur }}</strong>
                 </div>
-                <p class="text-xs text-neutral-400">{{ t('dropship.wholesale_note') }}</p>
+                {% if ds.shipping_cost is defined and ds.shipping_cost is not null %}
+                    <div class="flex justify-between">
+                        <span class="text-neutral-500">{{ t('dropship.shipping_cost') }}</span>
+                        <span>{{ ds.shipping_cost > 0 ? ds.shipping_cost|eur : t('dropship.shipping_free') }}</span>
+                    </div>
+                {% endif %}
+                {% if not vendor_total %}
+                    <p class="text-xs text-neutral-400">{{ t('dropship.wholesale_note') }}</p>
+                {% endif %}
+                {% if is_orders_api and ds.mode == 'live' and ds.vendor_order_id %}
+                    <a href="/admin/ordini-fornitore/{{ ds.vendor_order_id }}"
+                       class="mt-1 block text-center rounded-lg border border-neutral-300 font-semibold py-2 hover:bg-neutral-50">
+                        {{ t('dropship.open_vendor_live') }} →
+                    </a>
+                {% endif %}
             </div>
 
             {# ── Pacchetto dropship (package-details) ─────────────────── #}

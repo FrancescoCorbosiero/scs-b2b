@@ -6,6 +6,8 @@ account personali creati dall'admin via invito email (più una password condivis
 (UE-27 + UK/CH) e multi-lingua IT/EN (default IT).
 I rivenditori possono chiedere l'attivazione del profilo da `/richiedi-accesso`
 (dati aziendali + referente): l'admin approva e parte l'invito via email.
+Senza login chiunque può sfogliare la **vetrina** `/vetrina`: lo stesso catalogo
+senza alcun prezzo (`noindex`), linkata in evidenza dalla home.
 Gli utenti sfogliano il catalogo (stock per taglia, prezzi netti VAT esclusa),
 compongono un carrello e inviano una **richiesta d'ordine** che riceve subito le
 istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
@@ -13,8 +15,14 @@ istruzioni di pagamento via **bonifico bancario** (unico canale): l'ordine viene
 di conferma con la ricevuta pro-forma PDF. La **partita IVA è obbligatoria per
 tutti i clienti** e il VAT si calcola alla richiesta in base al paese di
 residenza (reverse charge per B2B UE, 22% per l'Italia). Con
-`AUTO_DROPSHIP_ON_REQUEST=1` la richiesta crea subito l'ordine dropship presso
-GoldenSneakers (docs/09) per bloccare lo stock prima del bonifico.
+`AUTO_DROPSHIP_ON_REQUEST=1` la richiesta crea subito l'ordine presso
+GoldenSneakers con l'API ordini (docs/09) per bloccare lo stock prima del bonifico;
+gli ordini dell'account si consultano da `/admin/ordini-fornitore`.
+Oltre al feed, l'admin può importare **prodotti propri** (JSON/CSV nello stesso
+formato del feed) da `/admin/prodotti-propri`: stanno in una sezione separata
+del catalogo ("Disponibili in sede") e non vengono mai ordinati al fornitore.
+Da `/admin/proforma` l'admin crea anche **pro-forma manuali** (stessa serie PF
+delle ricevute degli ordini), le scarica in PDF e le invia al cliente.
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).
 
 ## Come usare questa documentazione
@@ -31,7 +39,7 @@ Leggi i file in `docs/` in ordine numerico PRIMA di scrivere codice:
 | `docs/06-features.md` | Pagine e funzionalità dettagliate |
 | `docs/07-security.md` | Auth, sessioni, hardening |
 | `docs/08-roadmap.md` | Milestone di sviluppo + domande aperte |
-| `docs/09-order-dropship.md` | Ordini dropship GoldenSneakers (anteprima, solo simulazione) |
+| `docs/09-order-dropship.md` | Ordini GoldenSneakers con l'API ordini: crea, elenco, dettaglio (simulazione di default) |
 
 Fixture reale del feed: `fixtures/goldensneakers-sample.json`.
 Variabili d'ambiente: `.env.example` (documentato riga per riga).
@@ -53,8 +61,14 @@ Variabili d'ambiente: `.env.example` (documentato riga per riga).
    **non indicizzabili** (noindex + robots.txt). Fanno eccezione le pagine
    pubbliche di presentazione (`/`, `/spedizioni`, `/come-ordinare`,
    `/richiedi-accesso`): sono indicizzabili ma non espongono MAI prezzi o
-   prodotti del feed. Il catalogo vive su `/catalogo`.
+   prodotti del feed. Il catalogo vive su `/catalogo`. La **vetrina**
+   `/vetrina` è lo stesso catalogo aperto senza login ma SENZA prezzi: resta
+   `noindex`, i prezzi si tolgono lato server dai dati (non solo dal markup)
+   e i filtri/ordinamenti per prezzo vi sono ignorati.
 3. La fonte di verità del catalogo è il feed GoldenSneakers: nessun CRUD prodotti.
+   Unica aggiunta: i **prodotti propri** importati dall'admin da file nel formato
+   del feed (`products.source = 'custom'`), mai mescolati ai prodotti del feed,
+   mai toccati dal sync e mai inviati a GoldenSneakers.
 4. Tutte le stringhe UI centralizzate e multi-lingua: `lang/it.php` (fonte di
    verità, default) + `lang/en.php` (stesse chiavi; fallback sull'italiano).
    Area admin ed email admin solo in italiano; email cliente e ricevuta nel

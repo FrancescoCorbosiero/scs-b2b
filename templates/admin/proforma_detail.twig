@@ -1,0 +1,132 @@
+{% extends 'layout.twig' %}
+
+{# Dettaglio di una pro-forma manuale (docs/06 § /admin/proforma): azioni
+   PDF / invio al cliente / modifica / duplica / annulla. #}
+
+{% set cancelled = receipt.status == 'cancelled' %}
+
+{% block title %}{{ receipt.receipt_number }} — {{ t('proforma.title') }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="/admin/proforma" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('proforma.back') }}</a>
+    <div class="flex flex-wrap items-center gap-3 mt-2 mb-1">
+        <h1 class="text-2xl font-bold font-mono">{{ receipt.receipt_number }}</h1>
+        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold uppercase border
+            {{ cancelled ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700' }}">
+            {{ t('proforma.status_' ~ receipt.status) }}
+        </span>
+    </div>
+    <p class="text-sm text-neutral-500 mb-5">
+        {{ t('proforma.issued_on', {date: receipt.created_at|date('d/m/Y')}) }}
+        {% if cancelled and receipt.cancelled_at %} · {{ t('proforma.cancelled_on', {date: receipt.cancelled_at|date('d/m/Y')}) }}{% endif %}
+        · {{ t('lang.' ~ receipt.locale) }}
+    </p>
+
+    {# ── Azioni ── #}
+    <div class="mb-5 flex flex-wrap items-center gap-2 text-sm">
+        <a href="/admin/proforma/{{ receipt.id }}/pdf" target="_blank" rel="noopener"
+           class="rounded-lg bg-neutral-900 text-white px-4 py-2 font-semibold hover:bg-neutral-700">{{ t('proforma.action_pdf') }} ↗</a>
+        {% if not cancelled %}
+            {% if receipt.email %}
+                <form method="post" action="/admin/proforma/{{ receipt.id }}/invia"
+                      data-confirm="{{ t('proforma.send_confirm', {number: receipt.receipt_number, email: receipt.email})|e('html_attr') }}">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <button type="submit" class="rounded-lg bg-amber-400 text-neutral-900 px-4 py-2 font-semibold hover:bg-amber-300">
+                        {{ receipt.email_sent_at ? t('proforma.action_resend') : t('proforma.action_send') }}
+                    </button>
+                </form>
+            {% endif %}
+            <a href="/admin/proforma/{{ receipt.id }}/modifica" class="rounded-lg border border-neutral-300 bg-white px-4 py-2 font-semibold hover:border-neutral-900">{{ t('proforma.action_edit') }}</a>
+        {% endif %}
+        <a href="/admin/proforma/nuova?da={{ receipt.id }}" class="rounded-lg border border-neutral-300 bg-white px-4 py-2 font-semibold hover:border-neutral-900">{{ t('proforma.action_duplicate') }}</a>
+        {% if not cancelled %}
+            <form method="post" action="/admin/proforma/{{ receipt.id }}/annulla" class="sm:ml-auto"
+                  data-confirm="{{ t('proforma.cancel_confirm', {number: receipt.receipt_number})|e('html_attr') }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button type="submit" class="rounded-lg px-3 py-2 font-semibold text-red-700 underline hover:bg-red-50">{{ t('proforma.action_cancel') }}</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# ── Stato dell'invio ── #}
+    {% if receipt.email_sent_at %}
+        <p class="mb-2 text-sm text-neutral-600">✉ {{ t('proforma.sent_info', {at: receipt.email_sent_at|date('d/m/Y H:i'), to: receipt.email_sent_to}) }}</p>
+        {% if not cancelled and receipt.updated_at > receipt.email_sent_at %}
+            <p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{{ t('proforma.modified_after_send') }}</p>
+        {% endif %}
+    {% elseif not cancelled and not receipt.email %}
+        <p class="mb-4 text-sm text-neutral-500">{{ t('proforma.no_email') }}</p>
+    {% endif %}
+
+    <div class="grid lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 space-y-5 min-w-0">
+            <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-neutral-50 text-neutral-500 text-left">
+                            <th class="px-3 py-2.5 font-medium">{{ t('proforma.col_sku') }}</th>
+                            <th class="px-3 py-2.5 font-medium">{{ t('proforma.col_name') }}</th>
+                            <th class="px-3 py-2.5 font-medium">EU/US</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('proforma.col_qty') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('proforma.col_unit_price') }}</th>
+                            <th class="px-3 py-2.5 font-medium text-right">{{ t('proforma.col_subtotal') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100">
+                        {% for line in receipt.lines %}
+                            <tr>
+                                <td class="px-3 py-2 font-mono text-xs">{{ line.sku ?: '—' }}{% if line.barcode %}<br><span class="text-neutral-400">{{ line.barcode }}</span>{% endif %}</td>
+                                <td class="px-3 py-2">{{ line.name }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ line.size_eu ?: '—' }}{% if line.size_us %} / {{ line.size_us }}{% endif %}</td>
+                                <td class="px-3 py-2 text-right">{{ line.qty }}</td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap">{{ line.unit_price|eur }}</td>
+                                <td class="px-3 py-2 text-right font-semibold whitespace-nowrap">{{ line.subtotal|eur }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if receipt.notes %}
+                <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm">
+                    <h2 class="font-semibold mb-1">{{ t('proforma.field_notes') }}</h2>
+                    <p class="text-neutral-700">{{ receipt.notes|nl2br }}</p>
+                </section>
+            {% endif %}
+        </div>
+
+        <aside class="space-y-4">
+            <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-1">
+                <h2 class="font-semibold mb-1">{{ t('proforma.section_customer') }}</h2>
+                <p><strong>{{ receipt.customer_name }}</strong>{% if receipt.company %} — {{ receipt.company }}{% endif %}</p>
+                {% if receipt.email %}<p><a class="underline" href="mailto:{{ receipt.email }}">{{ receipt.email }}</a></p>{% endif %}
+                {% if receipt.phone %}<p>{{ receipt.phone }}</p>{% endif %}
+                {% if receipt.address_street or receipt.address_city %}
+                    <p>{{ receipt.address_street }}{% if receipt.address_street and (receipt.address_zip or receipt.address_city) %}, {% endif %}{{ receipt.address_zip }} {{ receipt.address_city }}</p>
+                {% endif %}
+                <p><span class="font-bold">{{ receipt.country_code }}</span> — {{ t('country.' ~ receipt.country_code) }}</p>
+                <p><span class="text-neutral-500">{{ t('proforma.field_vat_number') }}:</span> <span class="font-mono">{{ receipt.vat_number }}</span></p>
+                {% if linked_user %}
+                    <p class="pt-1 text-xs text-neutral-500">{{ t('proforma.linked_user') }}: <a class="underline" href="/admin/clienti">{{ linked_user.email }}</a></p>
+                {% endif %}
+            </section>
+
+            <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-1.5">
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('proforma.preview_items') }}</span><span>{{ receipt.total_items }}</span></div>
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('email.total_net') }}</span><span>{{ receipt.total_amount|eur }}</span></div>
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('email.shipping') }}</span><span>{{ receipt.shipping_amount > 0 ? receipt.shipping_amount|eur : t('cart.shipping_free') }}</span></div>
+                <div class="flex justify-between gap-3">
+                    <span class="text-neutral-500">
+                        {{ t('vat.scheme_short.' ~ receipt.vat_scheme) }}{% if receipt.vat_rate > 0 %} ({{ receipt.vat_rate }}%){% endif %}
+                    </span>
+                    <span>{{ receipt.vat_amount|eur }}</span>
+                </div>
+                <div class="flex justify-between gap-3 border-t border-neutral-200 pt-2 text-base"><strong>{{ t('email.total_gross') }}</strong><strong>{{ receipt.total_gross|eur }}</strong></div>
+                <p class="pt-1 text-xs {{ receipt.show_bank ? 'text-neutral-600' : 'text-neutral-400' }}">
+                    {{ receipt.show_bank ? '✓' : '—' }} {{ t('proforma.show_bank') }}
+                    {% if receipt.show_bank and not bank_configured %}<br><span class="font-semibold text-amber-700">{{ t('proforma.bank_missing') }}</span>{% endif %}
+                </p>
+            </section>
+        </aside>
+    </div>
+{% endblock %}

@@ -13,7 +13,8 @@ use PDO;
 use Psr\Log\LoggerInterface;
 
 /**
- * Sync del catalogo dal feed GoldenSneakers.
+ * Sync del catalogo dal feed GoldenSneakers (e import dei prodotti propri,
+ * che usano lo stesso formato e la stessa pipeline — importCustom()).
  *
  * - Idempotente: due run consecutivi sullo stesso feed producono lo stesso stato.
  * - Transazionale: il payload viene scaricato e validato TUTTO prima di toccare
@@ -23,7 +24,11 @@ use Psr\Log\LoggerInterface;
  *   il margine risolto dalle regole admin (MarginResolver).
  * - La categoria di taglia (normali/GS/PS) è dedotta qui da nome, size_mapper
  *   e taglie (SizeCategory) e salvata sul prodotto.
- * - Lock su file per evitare run concorrenti (cron + "Sincronizza ora").
+ * - Lock su file per evitare run concorrenti (cron + "Sincronizza ora" +
+ *   import prodotti propri).
+ * - Feed e prodotti propri (products.source) non si mescolano mai: il sync
+ *   non tocca né disattiva i prodotti propri e salta (con avviso nel log)
+ *   gli SKU del feed che appartengono già a un prodotto proprio.
  */
 final class FeedSyncService
 {
@@ -82,52 +87,15 @@ final class FeedSyncService
 
             // 2. Applica in transazione
             $seenAt = date('Y-m-d H:i:s');
-            $seenIds = [];
             $this->pdo->beginTransaction();
-            foreach ($grouped as $sku => $product) {
-                // gli SKU numerici diventano chiavi int in PHP: si ricasta
-                $sku = (string) $sku;
-                $category = SizeCategory::classify(
-                    $product['name'],
-                    $product['size_mapper'],
-                    array_column($product['sizes'], 'size_eu'),
-                );
-                $margin = $this->margins->resolve($product['brand'], $product['name'], $sku, $category);
-                $sizes = [];
-                $totalQuantity = 0;
-                $min = null;
-                foreach ($product['sizes'] as $size) {
-                    $price = $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']);
-                    $sizes[] = [
-                        'size_eu' => $size['size_eu'],
-                        'size_us' => $size['size_us'],
-                        'barcode' => $size['barcode'],
-                        'quantity' => $size['quantity'],
-                        'offer_price' => $size['offer_price'],
-                        'price' => $price,
-                        'supplier_size_id' => $size['supplier_size_id'],
-                    ];
-                    $totalQuantity += $size['quantity'];
-                    if ($min === null || (float) $price < (float) $min) {
-                        $min = $price;
-                    }
-                }
-
-                $result = $this->products->upsertProduct([
-                    'sku' => $sku,
-                    'name' => $product['name'],
-                    'brand' => $product['brand'],
-                    'size_mapper' => $product['size_mapper'],
-                    'size_category' => $category,
-                    'image_url' => $product['image_url'],
-                    'total_quantity' => $totalQuantity,
-                    'min_price' => $min,
-                ], $seenAt);
-                $this->products->replaceSizes($result['id'], $sizes);
-                $seenIds[] = $result['id'];
-                $counters[$result['created'] ? 'products_created' : 'products_updated']++;
-            }
-            $counters['products_deactivated'] = $this->products->deactivateExcept($seenIds, $seenAt);
+            $applied = $this->applyGrouped($grouped, ProductRepository::SOURCE_FEED, $seenAt);
+            $counters['products_created'] = $applied['created'];
+            $counters['products_updated'] = $applied['updated'];
+            $counters['products_deactivated'] = $this->products->deactivateExcept(
+                $applied['seen_ids'],
+                $seenAt,
+                ProductRepository::SOURCE_FEED,
+            );
             // visibilità sui feed "monchi": le immagini note NON vengono
             // cancellate (COALESCE nell'upsert), ma un feed senza immagini
             // va notato subito nei log invece che scoperto dal catalogo
@@ -140,10 +108,22 @@ final class FeedSyncService
             }
             $this->pdo->commit();
 
-            $this->syncLogs->finish($logId, 'ok', $counters);
+            // SKU del feed già usati da un prodotto proprio: non si toccano
+            // (l'admin decide se eliminare il prodotto proprio)
+            $message = null;
+            if ($applied['skipped'] !== []) {
+                $message = sprintf(
+                    'SKU del feed ignorati perché già usati da prodotti propri (%d): %s',
+                    count($applied['skipped']),
+                    implode(', ', array_slice($applied['skipped'], 0, 20)) . (count($applied['skipped']) > 20 ? '…' : ''),
+                );
+                $this->logger->warning($message);
+            }
+
+            $this->syncLogs->finish($logId, 'ok', $counters, $message);
             $this->logger->info('Sync feed completato', $counters);
 
-            return $counters + ['status' => 'ok', 'message' => null];
+            return $counters + ['status' => 'ok', 'message' => $message];
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -153,6 +133,128 @@ final class FeedSyncService
 
             return $counters + ['status' => 'error', 'message' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Import dei prodotti propri (/admin/prodotti-propri): righe GIÀ validate
+     * nel formato del feed, applicate con la stessa pipeline (categoria di
+     * taglia, margini, prezzi) ma con source = 'custom'. In una transazione e
+     * sotto lo stesso lock del sync. Con $replace i prodotti propri assenti
+     * dal file vengono disattivati, esattamente come fa il feed coi suoi.
+     * Nessuna riga in sync_logs: quella tabella racconta il feed.
+     *
+     * @param list<array{sku: string, name: string, brand: string, size_mapper: string,
+     *   size_eu: string, size_us: string, barcode: string, offer_price: string,
+     *   quantity: int, image_url: string|null, supplier_size_id: int|null}> $rows
+     * @return array{status: string, rows_read: int, products_created: int,
+     *   products_updated: int, products_deactivated: int, message: string|null}
+     */
+    public function importCustom(array $rows, bool $replace): array
+    {
+        $counters = ['rows_read' => count($rows), 'products_created' => 0, 'products_updated' => 0, 'products_deactivated' => 0];
+        $lock = $this->acquireLock();
+        if ($lock === null) {
+            return $counters + ['status' => 'skipped', 'message' => 'Un sync del catalogo è in corso: riprova tra qualche istante'];
+        }
+
+        try {
+            $seenAt = date('Y-m-d H:i:s');
+            $this->pdo->beginTransaction();
+            $applied = $this->applyGrouped($this->groupBySku($rows), ProductRepository::SOURCE_CUSTOM, $seenAt);
+            if ($applied['skipped'] !== []) {
+                // l'import valida prima gli SKU: qui è solo la rete di sicurezza
+                throw new \RuntimeException('SKU già presenti nel catalogo del fornitore: ' . implode(', ', $applied['skipped']));
+            }
+            $counters['products_created'] = $applied['created'];
+            $counters['products_updated'] = $applied['updated'];
+            if ($replace) {
+                $counters['products_deactivated'] = $this->products->deactivateExcept(
+                    $applied['seen_ids'],
+                    $seenAt,
+                    ProductRepository::SOURCE_CUSTOM,
+                );
+            }
+            $this->pdo->commit();
+            $this->logger->info('Import prodotti propri completato', $counters + ['replace' => $replace]);
+
+            return $counters + ['status' => 'ok', 'message' => null];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            $this->logger->error('Import prodotti propri fallito', ['error' => $e->getMessage()]);
+
+            return $counters + ['status' => 'error', 'message' => $e->getMessage()];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * Applica al catalogo i prodotti di UNA origine (feed o prodotti propri):
+     * categoria di taglia, margine, prezzo netto per taglia, upsert e
+     * sostituzione delle taglie. Gli SKU che appartengono all'altra origine
+     * restano intatti e finiscono in `skipped`. Da chiamare in transazione.
+     *
+     * @param array<string, array{name: string, brand: string, size_mapper: string,
+     *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
+     *   barcode: string, offer_price: string, quantity: int, supplier_size_id: int|null}>}> $grouped
+     * @return array{created: int, updated: int, seen_ids: list<int>, skipped: list<string>}
+     */
+    private function applyGrouped(array $grouped, string $source, string $seenAt): array
+    {
+        $applied = ['created' => 0, 'updated' => 0, 'seen_ids' => [], 'skipped' => []];
+        foreach ($grouped as $sku => $product) {
+            // gli SKU numerici diventano chiavi int in PHP: si ricasta
+            $sku = (string) $sku;
+            $category = SizeCategory::classify(
+                $product['name'],
+                $product['size_mapper'],
+                array_column($product['sizes'], 'size_eu'),
+            );
+            $margin = $this->margins->resolve($product['brand'], $product['name'], $sku, $category);
+            $sizes = [];
+            $totalQuantity = 0;
+            $min = null;
+            foreach ($product['sizes'] as $size) {
+                $price = $this->pricing->netPrice($size['offer_price'], $margin['margin_type'], $margin['margin_value']);
+                $sizes[] = [
+                    'size_eu' => $size['size_eu'],
+                    'size_us' => $size['size_us'],
+                    'barcode' => $size['barcode'],
+                    'quantity' => $size['quantity'],
+                    'offer_price' => $size['offer_price'],
+                    'price' => $price,
+                    'supplier_size_id' => $size['supplier_size_id'],
+                ];
+                $totalQuantity += $size['quantity'];
+                if ($min === null || (float) $price < (float) $min) {
+                    $min = $price;
+                }
+            }
+
+            $result = $this->products->upsertProduct([
+                'sku' => $sku,
+                'source' => $source,
+                'name' => $product['name'],
+                'brand' => $product['brand'],
+                'size_mapper' => $product['size_mapper'],
+                'size_category' => $category,
+                'image_url' => $product['image_url'],
+                'total_quantity' => $totalQuantity,
+                'min_price' => $min,
+            ], $seenAt);
+            if ($result['skipped']) {
+                $applied['skipped'][] = $sku;
+                continue;
+            }
+            $this->products->replaceSizes($result['id'], $sizes);
+            $applied['seen_ids'][] = $result['id'];
+            $applied[$result['created'] ? 'created' : 'updated']++;
+        }
+
+        return $applied;
     }
 
     /**

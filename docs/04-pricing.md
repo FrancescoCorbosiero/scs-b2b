@@ -112,6 +112,10 @@ quella standard di legge). Compare per gli schemi con aliquota di legge > 0
 (`domestic`, `eu`); non compare con reverse charge ed export (0% per legge,
 hanno già la loro nota) né con `VAT_ON_ORDER=1` (l'IVA è già nel totale).
 
+Le **pro-forma manuali** (`/admin/proforma`, docs/06) seguono le stesse
+regole: P.IVA obbligatoria, schema da paese + P.IVA, `VAT_ON_ORDER`,
+imponibile = righe + spedizione, Nota IVA (riferita "a questo documento").
+
 - Aliquote standard per paese in tabella `vat_rates` (UE-27 + GB + CH),
   modificabili da `/admin/margini`, dove i bottoni **Azzera** (tutte a 0) e
   **Ripristina** (valori di legge, `VatRateRepository::STANDARD_RATES`)

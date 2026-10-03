@@ -1,11 +1,13 @@
 # Sito pubblico indicizzabile (home, spedizioni, come ordinare, richiesta
 # profilo). Catalogo, carrello, area personale e admin restano fuori dai
-# motori: sono riservati ai clienti autenticati (docs/07).
+# motori: sono riservati ai clienti autenticati (docs/07). La vetrina
+# (/vetrina) è pubblica ma mostra i prodotti del catalogo: niente indicizzazione.
 User-agent: *
 Allow: /$
 Allow: /spedizioni
 Allow: /come-ordinare
 Allow: /richiedi-accesso
+Disallow: /vetrina
 Disallow: /catalogo
 Disallow: /carrello
 Disallow: /richiesta-ordine

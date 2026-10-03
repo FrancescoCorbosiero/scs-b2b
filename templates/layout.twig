@@ -18,23 +18,34 @@
         <link rel="canonical" href="{{ app_url }}{{ current_path }}">
     {% endif %}
     <link rel="stylesheet" href="/assets/app.css">
-    <script defer src="/assets/alpine.min.js"></script>
+    {# app.js PRIMA di Alpine: registra i componenti su alpine:init (pro-forma) #}
     <script defer src="/assets/app.js"></script>
+    <script defer src="/assets/alpine.min.js"></script>
 </head>
 <body class="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col">
 
 {% set in_admin = current_path starts with '/admin' %}
+{# catalogo: con accesso quello coi prezzi, altrimenti la vetrina pubblica #}
+{% set public_catalog_link = is_catalog_authed ? '/catalogo' : '/vetrina' %}
 
 {% if in_admin and is_admin_authed %}
+    {# due righe: logo + esci, poi il menu (che va a capo da solo se serve) #}
     <header class="bg-neutral-900 text-white sticky top-0 z-40 shadow">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            <a href="/admin" class="flex items-center gap-2 shrink-0">
-                <img src="/logo.png" alt="{{ company_name }}" class="h-7 sm:h-8 w-auto">
-                <span class="font-bold text-base tracking-tight text-amber-400">Admin</span>
-            </a>
-            <nav class="flex flex-wrap items-center gap-1">
+        <div class="max-w-7xl mx-auto px-4 py-3 text-sm">
+            <div class="flex items-center gap-4">
+                <a href="/admin" class="flex items-center gap-2 shrink-0">
+                    <img src="/logo.png" alt="{{ company_name }}" class="h-7 sm:h-8 w-auto">
+                    <span class="font-bold text-base tracking-tight text-amber-400">Admin</span>
+                </a>
+                <form method="post" action="/admin/logout" class="ml-auto">
+                    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                    <button type="submit" class="px-3 py-1.5 rounded-md bg-neutral-700 hover:bg-neutral-600">{{ t('nav.logout') }}</button>
+                </form>
+            </div>
+            <nav class="mt-2 -mx-3 flex flex-wrap items-center gap-1">
                 <a href="/admin" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin' ? 'bg-neutral-700' }}">{{ t('admin.dashboard') }}</a>
                 <a href="/admin/richieste" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste' ? 'bg-neutral-700' }}">{{ t('admin.orders') }}</a>
+                <a href="/admin/proforma" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/proforma' ? 'bg-neutral-700' }}">{{ t('proforma.title') }}</a>
                 <a href="/admin/richieste-profilo" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/richieste-profilo' ? 'bg-neutral-700' }}">
                     {{ t('signup.admin_title') }}
                     {% if account_requests_pending is defined and account_requests_pending > 0 %}
@@ -42,14 +53,12 @@
                     {% endif %}
                 </a>
                 <a href="/admin/clienti" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/clienti' ? 'bg-neutral-700' }}">{{ t('users.title') }}</a>
+                <a href="/admin/ordini-fornitore" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/ordini-fornitore' or current_path starts with '/admin/dropship' ? 'bg-neutral-700' }}">{{ t('supplier.title') }}</a>
                 <a href="/admin/margini" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/margini' ? 'bg-neutral-700' }}">{{ t('admin.margins') }}</a>
                 <a href="/admin/sync" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/sync' ? 'bg-neutral-700' }}">{{ t('admin.sync') }}</a>
+                <a href="/admin/prodotti-propri" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/prodotti-propri' ? 'bg-neutral-700' }}">{{ t('custom.title') }}</a>
                 <a href="/admin/recommended" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/recommended' ? 'bg-neutral-700' }}">{{ t('admin.recommended') }}</a>
             </nav>
-            <form method="post" action="/admin/logout" class="ml-auto">
-                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                <button type="submit" class="px-3 py-1.5 rounded-md bg-neutral-700 hover:bg-neutral-600">{{ t('nav.logout') }}</button>
-            </form>
         </div>
     </header>
 {% elseif public_page ?? false %}
@@ -60,6 +69,11 @@
                 <img src="/logo.png" alt="{{ company_name }}" class="h-8 w-auto sm:h-9">
             </a>
             <nav class="hidden items-center gap-1 text-sm md:flex">
+                <a href="{{ public_catalog_link }}"
+                   class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-colors hover:bg-neutral-100 {{ current_path == '/vetrina' ? 'bg-neutral-100' }}">
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+                    {{ t('nav.catalog') }}
+                </a>
                 {% for item in [
                     {href: '/come-ordinare', label: t('nav.how_to_order')},
                     {href: '/spedizioni', label: t('nav.shipping')}
@@ -92,6 +106,7 @@
             </div>
         </div>
         <nav class="space-y-1 border-t border-neutral-200 px-4 py-3 text-sm md:hidden" x-show="open" x-cloak>
+            <a href="{{ public_catalog_link }}" class="block rounded-md px-3 py-2 font-bold hover:bg-neutral-100">{{ t('nav.catalog') }}</a>
             <a href="/come-ordinare" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.how_to_order') }}</a>
             <a href="/spedizioni" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.shipping') }}</a>
             <a href="/login" class="block rounded-md px-3 py-2 font-semibold hover:bg-neutral-100">{{ t('nav.login') }}</a>
@@ -188,9 +203,13 @@
     </header>
 {% endif %}
 
-<main id="content" class="flex-1 w-full {{ public_page ?? false ? 'max-w-none px-0 py-0' : 'max-w-7xl mx-auto px-4 py-6' }}">
+{# le pagine pubbliche gestiscono da sé le sezioni a tutta larghezza; la
+   vetrina (public_contained) usa header/footer pubblici ma il contenitore
+   del catalogo #}
+{% set contained = not (public_page ?? false) or (public_contained ?? false) %}
+<main id="content" class="flex-1 w-full {{ contained ? 'max-w-7xl mx-auto px-4 py-6' : 'max-w-none px-0 py-0' }}">
     {% if flashes is not empty %}
-        <div class="{{ public_page ?? false ? 'mx-auto max-w-3xl px-4 pt-6' }}">
+        <div class="{{ not contained ? 'mx-auto max-w-3xl px-4 pt-6' }}">
             {% for flash in flashes %}
                 <div class="mb-4 rounded-lg px-4 py-3 text-sm border {{ flash.type == 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800' }}">
                     {{ flash.message }}
@@ -212,6 +231,7 @@
             <div>
                 <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_explore') }}</h2>
                 <ul class="space-y-2 text-sm">
+                    <li><a href="{{ public_catalog_link }}" class="font-semibold text-white transition-colors hover:text-amber-300">{{ t('nav.catalog') }}</a></li>
                     <li><a href="/come-ordinare" class="transition-colors hover:text-white">{{ t('nav.how_to_order') }}</a></li>
                     <li><a href="/spedizioni" class="transition-colors hover:text-white">{{ t('nav.shipping') }}</a></li>
                     <li><a href="/richiedi-accesso" class="transition-colors hover:text-white">{{ t('nav.request_access') }}</a></li>

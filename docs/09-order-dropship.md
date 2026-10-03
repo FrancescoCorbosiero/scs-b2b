@@ -1,22 +1,35 @@
-# 09 — Ordini dropship GoldenSneakers
+# 09 — Ordini GoldenSneakers (API ordini)
 
-Il dominio **order-dropship** dell'API GoldenSneakers permette di creare gli
-ordini direttamente presso il fornitore: lo stock GoldenSneakers viene scalato
-alla fonte e resta allineato col nostro catalogo. Sostituisce (in prospettiva)
-il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
+Quando un cliente invia una richiesta d'ordine, la piattaforma crea l'ordine
+direttamente presso GoldenSneakers, che spedisce all'indirizzo del cliente:
+lo stock del fornitore viene impegnato alla fonte e resta allineato col
+nostro catalogo. Nel codice, nella tabella `dropship_orders` e nelle
+variabili `.env` il nome resta "dropship" (il fornitore spedisce direttamente
+al nostro cliente), ma l'API è quella degli **ordini** (`/api/orders/`).
 
-> ⚠ **Stato: live IMPLEMENTATO ma NON ancora validato col fornitore.** Il
-> client (`src/Adapter/GoldenSneakersDropshipClient.php`) ha due modalità:
-> con `DROPSHIP_MODE=simulation` (default; qualsiasi valore ≠ `live` degrada
-> qui) **non effettua mai chiamate HTTP** e restituisce risposte fittizie;
-> con `DROPSHIP_MODE=live` invia davvero (bearer `FEED_BEARER_TOKEN`).
-> Creare un ordine dropship reale è **irreversibile** (il fornitore lo
-> conferma e scala il suo stock): PRIMA di mettere `live` in produzione va
-> completata la checklist di attivazione in fondo a questo documento.
-> I path sono stati **confermati su Swagger** (2026-08-03) e dal 2026-09-29
-> sono **fissi nel codice** (costanti `*_PATH` del client), non più in `.env`.
+> **Decisione del titolare del 02/10/2026**: gli ordini si creano con l'API
+> ordini GoldenSneakers — POST `/api/orders/create/` — e la piattaforma
+> integra anche elenco (GET `/api/orders/`) e dettaglio
+> (GET `/api/orders/{id}/`) per seguirne stato, pro-forma, fattura e
+> pagamento. Sostituisce la decisione del 29/09/2026 ("sempre ordini
+> orders-dropship, wholesale non usato"): l'API orders-dropship resta solo
+> per rileggere gli ordini registrati prima (§ Ordini storici).
+
+> ⚠ **Stato: live IMPLEMENTATO, verificato contro un mock locale con le
+> risposte d'esempio del fornitore, NON ancora con un ordine reale.** I
+> client (`src/Adapter/GoldenSneakersOrdersClient.php` e, per gli storici,
+> `GoldenSneakersDropshipClient.php`, entrambi su `GoldenSneakersApiClient`)
+> hanno due modalità: con `DROPSHIP_MODE=simulation` (default; qualsiasi
+> valore ≠ `live` degrada qui) la creazione **non parte mai** e la risposta è
+> fittizia; con `DROPSHIP_MODE=live` invia davvero (bearer
+> `FEED_BEARER_TOKEN`). Creare un ordine reale è **irreversibile** (il
+> fornitore lo prende in carico e impegna il suo stock): PRIMA di mettere
+> `live` in produzione va completata la checklist in fondo a questo
+> documento. I path sono **fissi nel codice** (costanti `*_PATH` dei client).
 
 ## Comportamento della modalità live (soldi veri: leggere prima di attivare)
+
+Regole comuni ai due client (`GoldenSneakersApiClient`):
 
 - **Mai retry sulla POST di creazione**: un timeout dopo l'invio non può
   distinguere "ordine creato" da "ordine perso"; ritentare alla cieca rischia
@@ -25,110 +38,92 @@ il giro manuale "richiesta email → ordine a mano sul sito del fornitore".
   senza `order_id` leggibile sollevano `DropshipUncertainException`; il
   service registra una riga in `dropship_orders` con **status `UNKNOWN`**
   (payload incluso) e scarta la bozza. L'admin verifica sul portale
-  GoldenSneakers se l'ordine esiste PRIMA di ricominciare il flusso.
+  GoldenSneakers se l'ordine esiste PRIMA di ricominciare il flusso; gli
+  UNKNOWN sono evidenziati in `/admin/ordini-fornitore`.
 - **Fallimenti certi**: fornitore irraggiungibile (DNS/connect/TLS), HTTP 4xx
   (rifiuto esplicito, con messaggio del fornitore riportato) o redirect 3xx
   (endpoint sbagliato) ⇒ nessun ordine creato, si può correggere e ripetere.
 - **Tetto di spesa opzionale** `DROPSHIP_MAX_ORDER_EUR`: se il costo
   fornitore stimato supera il tetto l'invio è rifiutato prima della chiamata.
-- **GET dettagli idempotente**: un retry con backoff; gli errori di lettura
-  non modificano nulla.
-- La **GET dettagli in live** aggiorna stato e tracking; stati fuori dalla
-  lista documentata non sovrascrivono quello salvato.
+- **Letture (GET) idempotenti**: un retry con backoff; gli errori di lettura
+  non modificano nulla. Con l'API ordini le letture partono **anche in
+  simulazione** purché ci sia il token (elenco e dettaglio degli ordini reali
+  dell'account sono informazioni, non effetti); non si rileggono mai gli
+  ordini registrati in simulazione, che hanno ID fittizi.
+- La paginazione dell'elenco (`{results, next}`) si segue **solo sullo stesso
+  schema e host di `FEED_BASE_URL`**: il token non parte mai verso altri host.
+- Link di pro-forma e fattura mostrati solo se `https` sul dominio
+  `goldensneakers.net` (i relativi si risolvono contro `FEED_BASE_URL`).
 
-## Endpoint (base `FEED_BASE_URL` = https://www.goldensneakers.net, prefisso `/api`)
+## Endpoint (base `FEED_BASE_URL` = https://www.goldensneakers.net)
 
-- Documentazione: https://www.goldensneakers.net/api/docs/ — sezione
-  "Order types: wholesale vs dropshipping" e tag `dropshipping-orders` /
-  `wholesale-orders` (in precedenza lo Swagger `/api/docs/v1/swagger/schema/`,
-  che richiede il bearer token). Gli esempi curl della doc usano l'URL
-  completo, es. `https://www.goldensneakers.net/api/orders-dropship/create-order/`.
-- Tag `dropshipping-orders`, quattro endpoint documentati. I path sono
-  **costanti** di `GoldenSneakersDropshipClient` (`CREATE_ORDER_PATH`,
-  `ORDER_DETAILS_PATH`, `PACKAGE_DETAILS_PATH`, `UPLOAD_LABEL_PATH`): fanno
-  parte del contratto dell'API, non della configurazione. Le vecchie
-  variabili `DROPSHIP_*_ENDPOINT` sono ignorate — un `.env` precedente
-  all'allineamento portava `DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/`
-  (path inesistente) e mandava ogni creazione a vuoto.
-  | Method | Path | Uso |
-  |---|---|---|
-  | POST | `/api/orders-dropship/create-order/` | creazione ordine (implementato) |
-  | GET | `/api/orders-dropship/order-details/{order_id}/` | dettagli/stato ordine (implementato) |
-  | GET | `/api/orders-dropship/package-details/{package_id}/` | dettagli pacchetto (implementato) |
-  | POST | `/api/orders-dropship/upload-shipping-label/{order_id}/` | upload etichetta + tracking (implementato) |
-- Tag `wholesale-orders` (POST `/api/orders/create/`): **non usato** — vedi
-  § Ordini wholesale.
+Documentazione: https://www.goldensneakers.net/api/docs/ (tag
+`wholesale-orders` e `dropshipping-orders`). Auth: `Authorization: Bearer
+<FEED_BEARER_TOKEN>`, lo stesso token del feed.
 
-  `upload-shipping-label` è multipart/form-data (file PDF/JPG/PNG +
-  `tracking_numbers` come array JSON) e vale solo per ordini creati con
-  `client_provides_shipping_label=True`, senza etichette già caricate:
-  l'API accetta UN solo upload per ordine e rifiuta i duplicati (per questo
-  ritentare dopo un errore di rete è sicuro). Risposta:
-  `{ "message", "order_id", "file_id", "tracking_numbers" }`.
+### API ordini — `GoldenSneakersOrdersClient` (in uso)
 
-- **Creazione ordine** (POST `/api/orders-dropship/create-order/`): payload
+| Method | Path | Uso |
+|---|---|---|
+| POST | `/api/orders/create/` | creazione ordine (richiesta del cliente, automatica o dal flusso admin) |
+| GET | `/api/orders/` | elenco ordini dell'account (`/admin/ordini-fornitore`) |
+| GET | `/api/orders/{order_id}/` | dettaglio: righe, indirizzi, pro-forma, fattura, pagamento |
+
+- **Creazione** — payload (esempio del fornitore, 02/10/2026):
 
   ```json
   {
-    "delivery_address": {
-      "name": "Mario Rossi",
+    "currency": "EUR",
+    "shipping_address": {
+      "recipient_name": "Mario Rossi",
+      "address_l1": "Via Roma 1",
+      "address_l2": "",
       "city": "Milano",
       "zip_code": "20121",
-      "street": "Via Montenapoleone 12",
-      "country_code": "IT",
-      "phone": "+393401234567",
-      "email": "mario.rossi@example.it"
+      "country": "IT",
+      "phone": "+390401234567",
+      "email": "info@sneakershop.it"
     },
-    "client_provides_shipping_label": false,
     "items": [
-      { "size_id": 123, "quantity": 2 },
-      { "sku": "AIR-JORDAN-1-HIGH", "size_us": "9.5", "quantity": 1 }
+      { "size_id": 12280, "quantity": 6 },
+      { "sku": "B75806", "size_us": "4", "quantity": 4 }
     ]
   }
   ```
 
-  Risposta: `{ "message", "order_id", "total_price", "dropship_package_id" }`.
-  Ricontrollato il 29/09/2026 sull'esempio della nuova documentazione:
-  payload e risposta invariati.
+  Risposta: `{ "order_id": 3125, "status": "UNCONFIRMED", "currency": "EUR",
+  "total_amount": 585, "created_at": "2025-05-04T09:00:00Z", "shipping_cost": 15,
+  "free_shipping": false, "payment_status": "unpaid" }`. Nessun prezzo nel
+  payload: il totale (spedizione del fornitore compresa) lo calcola
+  GoldenSneakers. `currency` è sempre `EUR`.
 
-- **Dettagli/stato ordine** (GET `/api/orders-dropship/order-details/{order_id}/`).
-  Solo il proprietario dell'ordine può leggerlo. Risposta: `order_id`,
-  `status`, `total_amount`, `currency`, `created_at`, `dropship_package_id`,
-  `tracking_numbers[]` e `items[]` (`size_id`, `sku`, `size_us`,
-  `product_name`, `quantity`, `unit_price`, `total_price` — costi fornitore,
-  SOLO area admin).
+- **Elenco** — lista di `{ order_id, status, currency, total_amount,
+  created_at, payment_status, is_paid, has_proforma, has_invoice }`;
+  accettata anche la forma paginata `{results, next}`.
 
-- **Dettagli pacchetto** (GET `/api/orders-dropship/package-details/{package_id}/`).
-  Risposta: `package_id`, `status` (es. `READY_FOR_PROFORMA`),
-  `creation_date`, `last_update_date`, `total_order_count`,
-  `total_order_price` e `orders[]` riassuntivi.
+- **Dettaglio** — `order_id`, `status`, `currency`, `total_amount`,
+  `created_at`, `billing` (la NOSTRA intestazione presso il fornitore: `name`,
+  `vat_id`, `full_vat_id`, indirizzo, `email`, `phone`), `shipping_address`
+  (come nel payload), `items[]` (`size_id`, `sku`, `product_name`, `size_us`,
+  `quantity`, `unit_price`, `total_price` — costi fornitore, SOLO area admin),
+  `proforma` e `invoice` (`{url, symbol, uploaded_at}` oppure `null`; l'URL
+  apre il portale GoldenSneakers e richiede l'accesso all'account),
+  `payment` (`status`, `is_paid`, `paid_amount`, `total_amount`, `currency`,
+  `due_date`): è il NOSTRO pagamento al fornitore, mai mostrato al cliente.
 
-  Il bottone "Aggiorna stato dal fornitore" in `/admin/dropship/{id}` legge
-  order-details e (se c'è un package id) package-details, aggiorna
-  stato/tracking/totale e salva lo snapshot in
-  `dropship_orders.details_payload` (migrazione `0009`), mostrato nella
-  vista di dettaglio. `response_payload` resta la risposta immutabile
-  della creazione.
+### API orders-dropship — `GoldenSneakersDropshipClient` (solo ordini storici)
 
-Auth prevista: lo stesso bearer token del feed (`FEED_BEARER_TOKEN`).
+Gli ordini registrati prima del 02/10/2026 (`dropship_orders.api =
+'dropship'`) si rileggono ancora con la loro API: order-details
+(`/api/orders-dropship/order-details/{id}/`), package-details
+(`/api/orders-dropship/package-details/{id}/`) e, per quelli creati con
+`client_provides_shipping_label=True`, upload-shipping-label
+(`/api/orders-dropship/upload-shipping-label/{id}/`, multipart, una sola
+volta per ordine). La creazione (`/api/orders-dropship/create-order/`) resta
+nel client ma la piattaforma non la usa più. Le vecchie variabili
+`DROPSHIP_*_ENDPOINT` di un `.env` sono ignorate e vanno tolte.
 
-## Ordini wholesale: non usati (decisione del 29/09/2026)
-
-La documentazione distingue due tipi d'ordine: **dropshipping** (quello della
-piattaforma, sopra) e **wholesale** (tag `wholesale-orders`,
-POST `/api/orders/create/`). Decisione del titolare: ogni richiesta d'ordine
-crea SEMPRE un ordine dropship, come finora; il wholesale non è integrato.
-
-Per riferimento, se servisse in futuro (dall'esempio della documentazione):
-- payload: `currency` (`"EUR"`), `shipping_address` { `recipient_name`,
-  `address_l1`, `address_l2`, `city`, `zip_code`, `country`, `phone`,
-  `email` } e `items` con la stessa identificazione taglia del dropship
-  (`size_id` oppure `sku` + `size_us`, più `quantity`);
-- risposta: `order_id`, `status` (es. `UNCONFIRMED`), `currency`,
-  `total_amount`, `created_at`, `shipping_cost`, `free_shipping`,
-  `payment_status` (es. `unpaid`).
-
-## Stati ordine
+## Stati ordine e pagamento
 
 | Stato | Significato |
 |---|---|
@@ -137,6 +132,13 @@ Per riferimento, se servisse in futuro (dall'esempio della documentazione):
 | `ENDED` | completato e consegnato |
 | `CANCELED` | annullato |
 | `WAITING_FOR_INVOICE` | in attesa di fatturazione |
+| `UNKNOWN` | solo locale: esito della creazione incerto, da verificare sul portale |
+
+Gli stati fuori da questa lista non sovrascrivono quello salvato (restano
+visibili nello snapshot del dettaglio). Lo stato del **pagamento al
+fornitore** (`payment_status`, es. `unpaid`/`paid`, e `is_paid`) arriva
+dall'API ordini e si salva sulla riga: valori nuovi si mostrano così come
+arrivano.
 
 ## Identificazione delle taglie: `size_id`
 
@@ -144,18 +146,26 @@ Gli item accettano `size_id` **oppure** `sku` + `size_us`. Il `size_id` è l'`id
 riga del feed assortment-flat (una riga per SKU+taglia): dal sync viene salvato
 in `product_sizes.supplier_size_id` (migrazione `0002_dropship.sql`). Il payload
 usa `size_id` quando disponibile e ripiega su `sku`+`size_us`; una riga senza
-né `size_id` né `size_us` non è ordinabile (serve un sync del feed).
+né `size_id` né `size_us` non è ordinabile (serve un sync del feed). I
+prodotti propri non hanno mai un `size_id` (l'`id` dei file importati viene
+ignorato) e non sono mai ordinabili al fornitore, nemmeno via `sku`+`size_us`:
+l'esclusione guarda l'origine della riga (`source`), sullo snapshot e sul
+catalogo corrente.
 
-## Flusso in /admin (tripla conferma)
+## Flusso in /admin
+
+### Ordine manuale dalla richiesta (tripla conferma)
 
 Dal dettaglio di una richiesta d'ordine (`/admin/richieste/{id}`), card
-"Ordine dropship GoldenSneakers" → tre step, **tutti rivalidati lato server**
-(`DropshipOrderService`), perché l'invio reale confermerebbe l'ordine:
+"Ordine GoldenSneakers" → tre step, **tutti rivalidati lato server**
+(`DropshipOrderService`), perché l'invio reale crea l'ordine:
 
-1. **Prepara** (`GET /admin/richieste/{id}/dropship`): indirizzo di consegna
-   precompilato coi dati del cliente (via/città/CAP da completare) e righe del
-   carrello verificate contro stock e `size_id` correnti; quantità modificabili
-   (0 = escludi riga).
+1. **Prepara** (`GET /admin/richieste/{id}/dropship`): `shipping_address`
+   precompilato coi dati del cliente (destinatario, `address_l1`, `address_l2`
+   facoltativo, città, CAP, paese, telefono, email) e righe del carrello
+   verificate contro stock, `size_id` e origine correnti; quantità
+   modificabili (0 = escludi riga). Le righe di **prodotti propri** (docs/06)
+   sono marcate e non ordinabili: non sono del fornitore.
 2. **Riepilogo** (`POST …/dropship/riepilogo`): payload JSON esatto che
    verrebbe inviato, stima a costo fornitore e **tre caselle di conferma
    obbligatorie** (indirizzo verificato, righe verificate, consapevolezza
@@ -166,28 +176,44 @@ Dal dettaglio di una richiesta d'ordine (`/admin/richieste/{id}`), card
    corrisponde e la frase è riverificata dal server all'invio
    (`POST …/dropship/invia`).
 
-L'esito viene registrato in `dropship_orders` (payload esatto, risposta,
-snapshot righe, stato, modalità) e mostrato in
-`/admin/dropship/{id}` con badge **SIMULAZIONE** quando `mode=simulation`.
-Il bottone "Aggiorna stato dal fornitore" usa l'endpoint order-details (in
-simulazione: risposta fittizia, nessuna chiamata).
+L'esito viene registrato in `dropship_orders` (`api = 'orders'`, payload
+esatto, risposta, snapshot righe, stato, totale e spedizione del fornitore,
+stato del pagamento, modalità) e mostrato in `/admin/dropship/{id}` con badge
+**SIMULAZIONE** quando `mode=simulation`. "Aggiorna stato dal fornitore"
+legge il dettaglio (`GET /api/orders/{id}/`) e aggiorna stato, pagamento e
+totale; lo snapshot completo finisce in `details_payload` e la pagina mostra
+righe, pro-forma, fattura, pagamento e indirizzi come li ha il fornitore.
+
+### Ordini GoldenSneakers (`/admin/ordini-fornitore`)
+
+- **Sul tuo account GoldenSneakers**: elenco letto in tempo reale da
+  `GET /api/orders/` (stato, totale, pagamento, pro-forma/fattura
+  disponibili), collegato alle richieste d'ordine della piattaforma quando
+  l'ordine è nato da lì (solo righe `live`: gli ID simulati non si collegano
+  mai). Ogni riga apre `/admin/ordini-fornitore/{id}`: dettaglio live con
+  righe, indirizzi, link a pro-forma e fattura, pagamento.
+- **Creati dalla piattaforma**: registro locale (ultimi 30), simulazioni
+  comprese, con gli esiti `UNKNOWN` in evidenza.
+
+Senza `FEED_BEARER_TOKEN` l'elenco non è leggibile e la pagina lo dice;
+in simulazione un avviso ricorda che le richieste non creano ordini.
 
 ## Configurazione (.env)
 
 | Variabile | Uso |
 |---|---|
-| `DROPSHIP_ENABLED` | `1` mostra la sezione in /admin (default 0) |
-| `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` invia davvero |
-| `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate live (default 30, min 5) |
+| `DROPSHIP_ENABLED` | `1` mostra la sezione in /admin e abilita gli ordini al fornitore (default 0) |
+| `DROPSHIP_MODE` | `simulation` (default) — qualsiasi altro valore ≠ `live` degrada a simulazione; `live` crea davvero gli ordini |
+| `DROPSHIP_HTTP_TIMEOUT` | timeout in secondi delle chiamate (default 30, min 5) |
 | `DROPSHIP_MAX_ORDER_EUR` | tetto sul costo fornitore stimato di un ordine; oltre ⇒ invio rifiutato prima della chiamata (0 = nessun tetto) |
-| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` (valore del flusso standard in `.env.example`) permette all'auto-dropship di inviare in live; con 0 **o riga assente** in live l'auto rifiuta e resta solo il flusso manuale |
+| `AUTO_DROPSHIP_ON_REQUEST` | `1` crea l'ordine a ogni richiesta del cliente (flusso di default) |
+| `AUTO_DROPSHIP_ALLOW_LIVE` | `1` (valore del flusso standard in `.env.example`) permette all'invio automatico di partire in live; con 0 **o riga assente** in live l'automatico rifiuta e resta solo il flusso manuale |
 
-Auth live: bearer `FEED_BEARER_TOKEN` (lo stesso del feed); senza token il
-client rifiuta prima di inviare qualsiasi cosa. Base URL: `FEED_BASE_URL`.
-I path non sono configurabili (vedi § Endpoint): le righe
-`DROPSHIP_CREATE_ENDPOINT`, `DROPSHIP_DETAILS_ENDPOINT`,
-`DROPSHIP_PACKAGE_ENDPOINT` e `DROPSHIP_LABEL_ENDPOINT` di un `.env` vecchio
-sono ignorate e vanno tolte.
+Le variabili sono le stesse di prima del 02/10/2026 e valgono per l'API
+ordini: **un `.env` già in `live` con l'invio automatico attivo crea gli
+ordini con `/api/orders/create/` dal primo deploy**. Auth: bearer
+`FEED_BEARER_TOKEN` (lo stesso del feed); senza token nessuna chiamata parte.
+Base URL: `FEED_BASE_URL`. I path non sono configurabili.
 
 ## Dropshipping per il rivenditore (consegna al SUO cliente finale)
 
@@ -196,54 +222,59 @@ indirizzo, comportamento storico):
 
 - **"A un mio cliente (dropshipping)"** (`ship_to=customer`): compila un
   destinatario dedicato (nome, indirizzo, paese, telefono) salvato nei campi
-  `recipient_*` di `order_requests` (migrazione `0010`). L'ordine dropship
-  (manuale o automatico) parte con QUELL'indirizzo; l'email di contatto verso
-  il fornitore resta quella del rivenditore (il cliente finale non riceve
-  comunicazioni). Il VAT continua a calcolarsi sul paese del RIVENDITORE
-  (è lui il nostro cliente B2B), non su quello di consegna.
-- **"Fornirò io l'etichetta"** — ⚠ **NASCOSTA per ora** (decisione del
-  06/08/2026): spedizione ed etichetta le gestisce SEMPRE GoldenSneakers,
-  perché manca il dato operativo indispensabile (indirizzo di
-  ritiro/mittente del magazzino GS per generare etichette corrette — vedi
-  Domande aperte). Il flusso completo resta implementato e pronto:
-  checkbox rimossa dal checkout (`templates/order/form.twig`) e flag
-  forzato a `false` in `OrderService::submit()`; per riattivarla basta
-  ripristinare quei due punti. Quando attiva: l'ordine viene creato con
-  `client_provides_shipping_label=True`, il fornitore NON spedisce finché
-  non carichiamo etichetta + tracking da `/admin/dropship/{id}` (file
-  PDF/JPG/PNG max 10 MB, MIME verificato; endpoint upload-shipping-label,
-  monouso). L'esito è registrato in `label_uploaded_at`/`label_file_name`
-  e i tracking finiscono in `tracking_numbers`. Il flusso manuale admin
-  può comunque creare ordini con etichetta nostra già oggi (checkbox nello
-  step 1).
+  `recipient_*` di `order_requests` (migrazione `0010`). L'ordine
+  GoldenSneakers (manuale o automatico) parte con QUEL `shipping_address`;
+  l'email di contatto verso il fornitore resta quella del rivenditore (il
+  cliente finale non riceve comunicazioni). Il VAT continua a calcolarsi sul
+  paese del RIVENDITORE (è lui il nostro cliente B2B), non su quello di
+  consegna.
+- **"Fornirò io l'etichetta"** — ⚠ **NASCOSTA** (decisione del 06/08/2026) e
+  ora anche **non prevista dall'API ordini**, che non ha un equivalente di
+  `client_provides_shipping_label`: spedizione ed etichetta le gestisce
+  sempre GoldenSneakers. Checkbox rimossa dal checkout
+  (`templates/order/form.twig`) e flag forzato a `false` in
+  `OrderService::submit()`. L'upload etichetta + tracking da
+  `/admin/dropship/{id}` resta solo per gli ordini storici creati con
+  l'etichetta nostra (file PDF/JPG/PNG max 10 MB, MIME verificato; esito in
+  `label_uploaded_at`/`label_file_name`, tracking in `tracking_numbers`).
 
 L'admin vede la richiesta dropshipping (badge + destinatario) nel dettaglio
 richiesta e nell'email; il rivenditore vede i tracking dei propri ordini in
 `/account/ordini` (solo tracking e stato: mai costi o dettagli fornitore).
+L'API ordini, nell'esempio della doc, non riporta tracking: se il fornitore
+li aggiunge al dettaglio (`tracking_numbers`), la colonna li mostra già.
 
 ⚠ Aperto (fiscale, non tecnico): per il dropshipping con consegna in un
 paese diverso da quello del rivenditore, verificare col commercialista il
 trattamento VAT (place of supply). Oggi il VAT segue il paese del
 rivenditore.
 
-## Auto-dropship alla richiesta d'ordine (M8) — flusso di DEFAULT
+## Ordine automatico alla richiesta d'ordine (M8) — flusso di DEFAULT
 
 Dal 06/08/2026 è il flusso standard: `.env.example` porta
 `AUTO_DROPSHIP_ON_REQUEST=1` e `AUTO_DROPSHIP_ALLOW_LIVE=1` (entrambi
 restano kill-switch). Con `AUTO_DROPSHIP_ON_REQUEST=1`, alla richiesta del cliente parte subito
-`DropshipOrderService::autoCreateFromRequest()`: ordine creato con l'indirizzo
-di spedizione del cliente (nuovi campi del form) e le righe dello snapshot
-clampate allo stock, saltando il flusso a 3 conferme (che resta per l'uso
-manuale da /admin). Motivazione: bloccare lo stock del fornitore PRIMA che
-arrivi il bonifico (il "delta" del pagamento).
+`DropshipOrderService::autoCreateFromRequest()`: ordine creato con
+`POST /api/orders/create/`, l'indirizzo di spedizione del cliente e le righe
+dello snapshot clampate allo stock, saltando il flusso a 3 conferme (che
+resta per l'uso manuale da /admin). Motivazione: bloccare lo stock del
+fornitore PRIMA che arrivi il bonifico (il "delta" del pagamento).
+
+Le righe di **prodotti propri** (`/admin/prodotti-propri`, docs/06) restano
+sempre fuori dall'ordine: li spedisce l'admin. Se la richiesta contiene solo
+prodotti propri non parte nulla e l'email admin lo dice con un esito neutro
+("Nessun ordine GoldenSneakers"). Con un ordine creato, l'email admin riporta
+il numero d'ordine GoldenSneakers e — solo con `ADMIN_EMAIL_SHOW_COST=1` —
+totale e spedizione del fornitore da pagare (pro-forma in
+`/admin/ordini-fornitore`).
 
 ⚠ **`.env` creati prima del 06/08/2026** (caso reale, richiesta #4 del
 28/09/2026): non hanno la riga `AUTO_DROPSHIP_ALLOW_LIVE`, che se assente
-vale 0 — in live l'email admin riporta "Ordine dropship automatico NON
-creato: Auto-dropship in modalità live disattivato (AUTO_DROPSHIP_ALLOW_LIVE=0)"
-anche con `AUTO_DROPSHIP_ON_REQUEST=1`. Portavano inoltre
-`DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/` (path sbagliato, ora
-ignorato: i path sono fissi nel codice). Per attivare l'invio automatico
+vale 0 — in live l'email admin riporta "Ordine GoldenSneakers automatico NON
+creato: Ordine automatico in modalità live disattivato
+(AUTO_DROPSHIP_ALLOW_LIVE=0)" anche con `AUTO_DROPSHIP_ON_REQUEST=1`.
+Portavano inoltre `DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/`
+(path sbagliato, ora ignorato: i path sono fissi nel codice). Per attivare l'invio automatico
 reale va aggiunta a mano `AUTO_DROPSHIP_ALLOW_LIVE=1`: è una scelta
 esplicita del titolare, il codice non la presume.
 
@@ -264,32 +295,37 @@ o approvazione admin entro una finestra temporale.
 
 ## Per attivare la modalità live (checklist)
 
-1. ~~Verificare su Swagger path e method~~ — fatto (2026-08-03); dal
-   2026-09-29 i path sono costanti del client (niente più
-   `DROPSHIP_*_ENDPOINT` in `.env`). Restano da osservare sul campo i codici
-   d'errore reali della creazione (la doc non li elenca).
-2. Configurare `FEED_BEARER_TOKEN` (se non già attivo per il feed) e valutare
-   un tetto `DROPSHIP_MAX_ORDER_EUR` prudente per i primi ordini.
-3. Test end-to-end con un ordine concordato col fornitore (importo minimo),
-   poi `DROPSHIP_MODE=live` in `.env`.
+1. Configurare `FEED_BEARER_TOKEN` (se non già attivo per il feed) e
+   verificare da `/admin/ordini-fornitore` che l'elenco degli ordini
+   dell'account si legga: le letture funzionano anche in simulazione e
+   confermano token e `FEED_BASE_URL` senza creare nulla.
+2. Valutare un tetto `DROPSHIP_MAX_ORDER_EUR` prudente per i primi ordini.
+3. Test end-to-end con un ordine concordato col fornitore (importo minimo)
+   dal flusso manuale a tre conferme, con `DROPSHIP_MODE=live`; controllare
+   l'ordine in `/admin/ordini-fornitore` e sul portale. Restano da osservare
+   sul campo i codici d'errore reali della creazione (la doc non li elenca).
 4. Dopo ogni ordine live, eseguire un sync del feed per riallineare lo stock
-   locale a quello scalato dal fornitore.
-5. Solo quando il flusso manuale è rodato, valutare `AUTO_DROPSHIP_ALLOW_LIVE=1`.
+   locale a quello impegnato dal fornitore.
+5. Solo quando il flusso manuale è rodato, valutare `AUTO_DROPSHIP_ALLOW_LIVE=1`
+   (se non già attivo).
 
 ## Domande aperte
 
-- Codici e messaggi d'errore reali della creazione (lo Swagger non li
-  elenca): da osservare nei primi ordini live.
-- Indirizzo di ritiro/mittente del magazzino GoldenSneakers e modalità di
-  consegna al corriere (ritiro o drop-off): indispensabile PRIMA di
-  riattivare l'opzione "etichetta fornita dal cliente" al checkout — senza,
-  le etichette dei rivenditori nascerebbero sbagliate. Da chiedere al
-  fornitore.
-- Cosa stampa GoldenSneakers come mittente sul pacco e quali documenti
-  mette dentro con la spedizione standard: per il dropshipping verso il
-  cliente finale serve un pacco "neutro" (mai prezzi wholesale).
-- La valuta è sempre EUR? (`currency` compare nella risposta dettagli).
-- `client_provides_shipping_label=true`: quale flusso operativo per caricare
-  l'etichetta?
-- Esiste un webhook/notifica di cambio stato o va fatto polling su
-  order-details?
+- Codici e messaggi d'errore reali di `POST /api/orders/create/` (la doc
+  non li elenca): da osservare nei primi ordini live.
+- Elenco completo degli stati ordine e dei valori di `payment_status`
+  dell'API ordini (negli esempi: `UNCONFIRMED`, `TO_SHIP`, `unpaid`): quelli
+  nuovi si vedono grezzi finché non vengono aggiunti a `lang/it.php`.
+- `GET /api/orders/` è paginato oltre una certa soglia? Il client accetta
+  già entrambe le forme.
+- Un ordine creato alla richiesta ma mai pagato dal cliente va annullato a
+  mano sul portale: l'API ordini ha un endpoint di annullamento?
+- Il dettaglio ordine riporterà i numeri di tracking (oggi non presenti
+  nell'esempio)?
+- `total_amount` della creazione include la spedizione del fornitore
+  (`shipping_cost`)? La piattaforma li mostra separati senza sommarli.
+- Indirizzo di ritiro/mittente del magazzino GoldenSneakers e cosa stampa
+  come mittente sul pacco: per il dropshipping verso il cliente finale serve
+  un pacco "neutro" (mai prezzi wholesale).
+- Esiste un webhook/notifica di cambio stato o va fatto polling sul
+  dettaglio?

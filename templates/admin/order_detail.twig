@@ -1,4 +1,5 @@
 {% extends 'layout.twig' %}
+{% import 'admin/_supplier_macros.twig' as sup %}
 
 {% block title %}{{ t('admin.order_detail') }} #{{ order.id }} — {{ t('admin.title') }}{% endblock %}
 
@@ -34,7 +35,13 @@
                     {% for line in lines %}
                         <tr>
                             <td class="px-3 py-2 font-mono text-xs">{{ line.sku }}</td>
-                            <td class="px-3 py-2">{{ line.name }}</td>
+                            <td class="px-3 py-2">
+                                {{ line.name }}
+                                {# prodotto proprio: non va a GoldenSneakers, lo spedisce l'admin #}
+                                {% if (line.source ?? 'feed') == 'custom' %}
+                                    <span class="ml-1 inline-flex rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-violet-700" title="{{ t('custom.badge_hint') }}">{{ t('custom.badge') }}</span>
+                                {% endif %}
+                            </td>
                             <td class="px-3 py-2 whitespace-nowrap">{{ line.size_eu }}{% if line.size_us %} / {{ line.size_us }}{% endif %}</td>
                             <td class="px-3 py-2 font-mono text-xs">{{ line.barcode }}</td>
                             <td class="px-3 py-2 text-right">{{ line.qty }}</td>
@@ -152,11 +159,14 @@
                                 <li>
                                     <a href="/admin/dropship/{{ ds.id }}"
                                        class="group flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-amber-50/60 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors">
-                                        <span class="font-semibold">#{{ ds.id }}</span>
+                                        <span class="font-semibold">#{{ ds.id }}{% if ds.vendor_order_id %} <span class="font-mono font-normal text-neutral-500">GS {{ ds.vendor_order_id }}</span>{% endif %}</span>
                                         <span class="text-neutral-500 min-w-0 flex-1 leading-snug">
                                             {{ t('dropship.status.' ~ ds.status) }}
                                             {% if ds.mode == 'simulation' %}· {{ t('dropship.simulation_badge') }}{% endif %}
                                             · {{ ds.created_at }}
+                                            {% if (ds.api ?? 'dropship') == 'orders' and ds.mode == 'live' %}
+                                                <span class="block mt-0.5">{{ sup.payment(ds.payment_status, ds.is_paid) }}</span>
+                                            {% endif %}
                                         </span>
                                         <svg class="w-4 h-4 ml-auto shrink-0 text-neutral-400 group-hover:text-neutral-900 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                                     </a>

@@ -33,6 +33,136 @@
         return input ? input.value : '';
     }
 
+    // ── Pro-forma manuale (/admin/proforma): righe dinamiche + ricerca SKU ──
+    // Registrato su alpine:init: nel layout app.js è caricato PRIMA di Alpine.
+    // I totali qui sono solo un'anteprima: quelli veri (e l'IVA) li calcola il
+    // server. Gli importi si leggono come lato server: "89,90", "1.234,56", "89.90".
+    function parseAmount(value) {
+        var v = String(value || '').replace(/[€\s ]/g, '');
+        var comma = v.lastIndexOf(',');
+        var dot = v.lastIndexOf('.');
+        v = comma !== -1 && (dot === -1 || comma > dot)
+            ? v.replace(/\./g, '').replace(',', '.')
+            : v.replace(/,/g, '');
+        var n = parseFloat(v);
+        return isNaN(n) ? 0 : n;
+    }
+
+    document.addEventListener('alpine:init', function () {
+        var uid = 0;
+        window.Alpine.data('proformaLines', function () {
+            return {
+                lines: [],
+                shipping: '',
+                lookupError: '',
+                stockText: '',
+                init: function () {
+                    var initial = [];
+                    try {
+                        initial = JSON.parse(this.$el.getAttribute('data-lines') || '[]');
+                    } catch (e) {
+                        initial = [];
+                    }
+                    this.shipping = this.$el.getAttribute('data-shipping') || '';
+                    this.lookupError = this.$el.getAttribute('data-lookup-error') || '';
+                    this.stockText = this.$el.getAttribute('data-stock-text') || '';
+                    for (var i = 0; i < initial.length; i++) this.lines.push(this.blank(initial[i]));
+                    if (!this.lines.length) this.add();
+                },
+                blank: function (line) {
+                    line = line || {};
+                    return {
+                        key: ++uid,
+                        sku: line.sku || '', name: line.name || '', size_eu: line.size_eu || '',
+                        size_us: line.size_us || '', barcode: line.barcode || '',
+                        qty: line.qty || '1', unit_price: line.unit_price || '',
+                        sizes: [], state: '', message: ''
+                    };
+                },
+                add: function () {
+                    this.lines.push(this.blank());
+                },
+                remove: function (index) {
+                    this.lines.splice(index, 1);
+                    if (!this.lines.length) this.add();
+                },
+                filled: function (line) {
+                    return line.name !== '' || line.sku !== '' || line.unit_price !== '';
+                },
+                subtotal: function (line) {
+                    return (parseInt(line.qty, 10) || 0) * parseAmount(line.unit_price);
+                },
+                get items() {
+                    var self = this;
+                    return this.lines.reduce(function (sum, l) { return sum + (self.filled(l) ? (parseInt(l.qty, 10) || 0) : 0); }, 0);
+                },
+                get net() {
+                    var self = this;
+                    return this.lines.reduce(function (sum, l) { return sum + (self.filled(l) ? self.subtotal(l) : 0); }, 0);
+                },
+                get total() {
+                    return this.net + parseAmount(this.shipping);
+                },
+                eur: formatEur,
+                stock: function (n) {
+                    return this.stockText.replace(':n', n);
+                },
+                // lo SKU cambiato invalida taglie e barcode presi dal catalogo
+                skuChanged: function (line) {
+                    line.sizes = [];
+                    line.barcode = '';
+                    line.state = '';
+                    line.message = '';
+                },
+                lookup: function (line) {
+                    var sku = (line.sku || '').trim();
+                    var self = this;
+                    if (!sku || line.state === 'loading') return;
+                    line.state = 'loading';
+                    line.message = '';
+                    fetch('/admin/proforma/prodotto?sku=' + encodeURIComponent(sku), {
+                        headers: { 'Accept': 'application/json' },
+                        credentials: 'same-origin'
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            if (!data || !data.ok) {
+                                line.state = 'error';
+                                line.message = (data && data.error) || self.lookupError;
+                                line.sizes = [];
+                                return;
+                            }
+                            var product = data.product;
+                            line.sku = product.sku;
+                            line.name = product.name;
+                            line.sizes = product.sizes || [];
+                            line.state = 'ok';
+                            // taglia già scritta o unica: si sceglie da sola
+                            var match = -1;
+                            for (var i = 0; i < line.sizes.length; i++) {
+                                if (line.size_eu !== '' && line.sizes[i].size_eu === line.size_eu) match = i;
+                            }
+                            if (match === -1 && line.sizes.length === 1) match = 0;
+                            if (match !== -1) self.pick(line, match);
+                        })
+                        .catch(function () {
+                            line.state = 'error';
+                            line.message = self.lookupError;
+                        });
+                },
+                pick: function (line, index) {
+                    var size = line.sizes[parseInt(index, 10)];
+                    if (!size) return;
+                    line.size_eu = size.size_eu;
+                    line.size_us = size.size_us;
+                    line.barcode = size.barcode;
+                    var price = parseFloat(size.price);
+                    line.unit_price = isNaN(price) ? '' : price.toFixed(2).replace('.', ',');
+                }
+            };
+        });
+    });
+
     function updateCartBadge(count) {
         // il badge esiste in più punti (nav desktop + pulsante carrello mobile)
         document.querySelectorAll('[data-cart-badge]').forEach(function (badge) {

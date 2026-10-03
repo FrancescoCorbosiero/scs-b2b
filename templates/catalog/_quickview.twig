@@ -1,6 +1,8 @@
 {# Scheda rapida: si apre da una card e permette di ordinare taglia per taglia
    senza lasciare il catalogo (le quantità finiscono nel carrello di sessione
-   via /carrello/aggiorna). Solo dati pubblici: stock e prezzi netti. #}
+   via /carrello/aggiorna). Solo dati pubblici: stock e prezzi netti.
+   In vetrina (showcase): solo taglie e disponibilità, nessun prezzo né
+   carrello, e l'invito ad accedere. #}
 <div x-data="{ qv: null }" x-cloak
      @scs-quickview.window="qv = $event.detail"
      @scs-quickview-close.window="qv = null"
@@ -47,10 +49,12 @@
                     <div class="scs-thin-scroll flex-1 overflow-y-auto p-4 sm:p-5">
                         <div class="mb-2 flex items-center justify-between">
                             <h3 class="text-xs font-bold uppercase tracking-wide text-neutral-400">{{ t('catalog.qv_sizes_title') }}</h3>
-                            <button type="button" @click="qv.sizes.forEach(s => s.qty = s.quantity)"
-                                    class="text-xs font-semibold text-neutral-500 underline underline-offset-2 transition-colors hover:text-neutral-900">
-                                {{ t('cart.take_all') }}
-                            </button>
+                            {% if not (showcase ?? false) %}
+                                <button type="button" @click="qv.sizes.forEach(s => s.qty = s.quantity)"
+                                        class="text-xs font-semibold text-neutral-500 underline underline-offset-2 transition-colors hover:text-neutral-900">
+                                    {{ t('cart.take_all') }}
+                                </button>
+                            {% endif %}
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -62,6 +66,7 @@
                                         <span class="text-[11px]" :class="s.quantity > 3 ? 'text-neutral-400' : 'text-red-600 font-semibold'"
                                               x-text="s.quantity + ' {{ t('catalog.qv_in_stock') }}'"></span>
                                     </div>
+                                    {% if not (showcase ?? false) %}
                                     <div class="mt-0.5 text-xs font-semibold text-neutral-600" x-text="window.scsFormatEur(s.price)"></div>
                                     <div class="mt-2 flex items-center gap-1">
                                         <button type="button" @click="s.qty = Math.max(0, (s.qty || 0) - 1)" :disabled="s.quantity === 0"
@@ -75,12 +80,27 @@
                                                 class="h-7 w-7 shrink-0 rounded-lg border border-neutral-200 text-neutral-600 transition-colors hover:bg-neutral-100 disabled:opacity-40"
                                                 aria-label="+">+</button>
                                     </div>
+                                    {% endif %}
                                 </div>
                             </template>
                         </div>
                     </div>
 
                     {# ── Riepilogo e azioni ── #}
+                    {% if showcase ?? false %}
+                    <div class="border-t border-neutral-100 bg-neutral-50 p-4 sm:p-5">
+                        <p class="font-bold">{{ t('showcase.qv_cta_title') }}</p>
+                        <p class="mt-1 text-sm text-neutral-500">{{ t('showcase.qv_cta_text') }}</p>
+                        <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <a href="/richiedi-accesso" class="flex-1 rounded-xl bg-neutral-900 px-5 py-3 text-center font-semibold text-white transition-colors hover:bg-neutral-700">
+                                {{ t('nav.request_access') }}
+                            </a>
+                            <a href="/login" class="rounded-xl border border-neutral-300 bg-white px-5 py-3 text-center font-semibold transition-colors hover:bg-neutral-100">
+                                {{ t('showcase.login_for_prices') }}
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
                     <div class="border-t border-neutral-100 bg-neutral-50 p-4 sm:p-5">
                         <div class="mb-3 flex items-center justify-between text-sm">
                             <span class="text-neutral-500">
@@ -106,6 +126,7 @@
                         </div>
                         <p class="mt-2 text-center text-[11px] text-neutral-400">{{ t('catalog.qv_hint') }}</p>
                     </div>
+                    {% endif %}
                 </div>
             </template>
         </div>

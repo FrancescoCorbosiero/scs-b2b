@@ -25,12 +25,22 @@
         /admin/richieste/{{ order.id }}: partirà l'email di conferma al cliente con la ricevuta pro-forma.
     </p>
     {% if auto_dropship is defined and auto_dropship %}
-        <p style="margin: 8px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid {{ auto_dropship.ok ? '#a7f3d0' : '#fecaca' }}; background: {{ auto_dropship.ok ? '#ecfdf5' : '#fef2f2' }};">
-            {% if auto_dropship.ok %}
-                <strong>Ordine dropship automatico #{{ auto_dropship.dropship_id }} creato presso GoldenSneakers</strong>
-                {{ auto_dropship.simulated ? '(SIMULAZIONE: nessuna chiamata reale inviata).' : '(modalità LIVE).' }}
+        {% set ok = auto_dropship.ok %}
+        {% set skipped = auto_dropship.skipped ?? false %}
+        <p style="margin: 8px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid {{ ok ? '#a7f3d0' : (skipped ? '#e5e5e5' : '#fecaca') }}; background: {{ ok ? '#ecfdf5' : (skipped ? '#fafafa' : '#fef2f2') }};">
+            {% if ok %}
+                <strong>Ordine GoldenSneakers{% if auto_dropship.vendor_order_id and not auto_dropship.simulated %} n. {{ auto_dropship.vendor_order_id }}{% endif %} creato automaticamente</strong>
+                (registrazione #{{ auto_dropship.dropship_id }}) {{ auto_dropship.simulated ? '— SIMULAZIONE: nessuna chiamata reale inviata.' : '— modalità LIVE.' }}
+                {# il totale GoldenSneakers è un COSTO: solo con ADMIN_EMAIL_SHOW_COST=1 #}
+                {% if show_cost and not auto_dropship.simulated and auto_dropship.total_amount is not null %}
+                    <br>Totale GoldenSneakers: <strong>{{ auto_dropship.total_amount|eur }}</strong>
+                    {% if auto_dropship.shipping_cost is not null %} (spedizione {{ auto_dropship.shipping_cost > 0 ? auto_dropship.shipping_cost|eur : 'gratuita' }}){% endif %}
+                    — da pagare al fornitore: pro-forma e stato in /admin/ordini-fornitore.
+                {% endif %}
+            {% elseif skipped %}
+                <strong>Nessun ordine GoldenSneakers:</strong> {{ auto_dropship.message }}
             {% else %}
-                <strong>Ordine dropship automatico NON creato:</strong> {{ auto_dropship.message }}
+                <strong>Ordine GoldenSneakers automatico NON creato:</strong> {{ auto_dropship.message }}
                 — gestiscilo manualmente da /admin/richieste/{{ order.id }}/dropship.
             {% endif %}
         </p>
@@ -57,7 +67,7 @@
             {% for line in order.lines %}
                 <tr>
                     <td>{{ line.sku }}</td>
-                    <td>{{ line.name }}</td>
+                    <td>{{ line.name }}{% if (line.source ?? 'feed') == 'custom' %} <strong style="color: #6d28d9;">[IN SEDE — spedizione a tuo carico]</strong>{% endif %}</td>
                     <td>{{ line.size_eu }}</td>
                     <td>{{ line.size_us }}</td>
                     <td>{{ line.barcode }}</td>

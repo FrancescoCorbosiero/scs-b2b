@@ -7,16 +7,34 @@ namespace App\Controller;
 use App\Repository\ProductRepository;
 use App\Service\SizeCategory;
 use App\Support\Config;
+use App\Support\Http;
 use App\Support\Lang;
+use App\Support\Session;
 use App\Support\View;
 use App\Support\XlsxWriter;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
+/**
+ * Catalogo, in due vesti sugli stessi dati e sugli stessi template:
+ *  - /catalogo (dietro login): prezzi netti, carrello, export;
+ *  - /vetrina (pubblica, docs/06): lo STESSO catalogo SENZA prezzi. I
+ *    prezzi spariscono dai dati passati al client (card, scheda rapida,
+ *    frammenti "Carica altri"), non solo dall'HTML, e filtri/ordinamenti
+ *    per prezzo vengono ignorati lato server: dalla vetrina non si può
+ *    risalire a nessun prezzo.
+ * In entrambe, prodotti del feed e prodotti propri stanno in due sezioni
+ * separate (?sezione=sede per i prodotti propri).
+ */
 final class CatalogController
 {
     private const SORTS = ['rilevanza', 'nome', 'prezzo_asc', 'prezzo_desc', 'disponibilita'];
+    /** Ordinamenti che rivelerebbero i prezzi: mai nella vetrina pubblica. */
+    private const PRICE_SORTS = ['prezzo_asc', 'prezzo_desc'];
     private const EXPORT_MAX_ROWS = 20000;
+
+    /** Valore di ?sezione= per i prodotti propri (in sede). */
+    public const SECTION_CUSTOM = 'sede';
 
     public function __construct(
         private readonly View $view,
@@ -24,13 +42,37 @@ final class CatalogController
         private readonly Config $config,
         private readonly XlsxWriter $xlsx,
         private readonly Lang $lang,
+        private readonly Session $session,
     ) {
     }
 
     public function index(Request $request, Response $response): Response
     {
+        return $this->renderCatalog($request, $response, showcase: false);
+    }
+
+    /**
+     * Vetrina pubblica: il catalogo senza prezzi, senza login. Chi ha già
+     * accesso al catalogo viene portato alla versione con i prezzi.
+     */
+    public function showcase(Request $request, Response $response): Response
+    {
+        if ($this->session->isCatalogAuthed()) {
+            $qs = $this->queryString($request->getQueryParams());
+
+            return Http::redirect($response, '/catalogo' . ($qs !== '' ? '?' . $qs : ''));
+        }
+
+        return $this->renderCatalog($request, $response, showcase: true);
+    }
+
+    private function renderCatalog(Request $request, Response $response, bool $showcase): Response
+    {
         $query = $request->getQueryParams();
-        $filters = $this->parseFilters($query);
+        $basePath = $showcase ? '/vetrina' : '/catalogo';
+        $sectionCounts = $this->products->activeCountsBySource();
+        $source = $this->sourceFor($query, $sectionCounts);
+        $filters = $this->parseFilters($query, $showcase) + ['source' => $source];
         $page = max(1, (int) ($query['page'] ?? 1));
         $perPage = max(1, $this->config->int('PRODUCTS_PER_PAGE', 24));
         $highMin = $this->config->int('AVAILABILITY_HIGH_MIN', 60);
@@ -42,28 +84,43 @@ final class CatalogController
         foreach ($result['items'] as $item) {
             $ids[] = (int) $item['id'];
         }
+        $items = $result['items'];
         $sizesByProduct = $this->products->sizesForProducts($ids);
+        if ($showcase) {
+            [$items, $sizesByProduct] = self::withoutPrices($items, $sizesByProduct);
+        }
 
         $totalPages = max(1, (int) ceil($result['total'] / $perPage));
+        $sectionQs = $source === ProductRepository::SOURCE_CUSTOM ? 'sezione=' . self::SECTION_CUSTOM : '';
 
         $data = [
-            'items' => $result['items'],
+            'items' => $items,
             'sizes_by_product' => $sizesByProduct,
             'total' => $result['total'],
             'page' => min($page, $totalPages),
             'total_pages' => $totalPages,
             'per_page' => $perPage,
             'filters' => $filters,
-            'brands' => $this->products->activeBrandsWithCounts(),
-            'size_facets' => $this->products->activeSizesWithCounts(),
-            'size_category_facets' => $this->products->activeSizeCategoryCounts(),
-            'sorts' => self::SORTS,
+            'brands' => $this->products->activeBrandsWithCounts($source),
+            'size_facets' => $this->products->activeSizesWithCounts($source),
+            'size_category_facets' => $this->products->activeSizeCategoryCounts($source),
+            'sorts' => $showcase ? array_values(array_diff(self::SORTS, self::PRICE_SORTS)) : self::SORTS,
             'availability_high_min' => $highMin,
             'availability_low_max' => $lowMax,
-            'active_filters' => $this->activeFilterChips($query, $filters),
+            'active_filters' => $this->activeFilterChips($query, $filters, $basePath),
             'query_string' => $this->queryString($query, ['page']),
             // per i link della navigazione brand: filtri correnti SENZA brand e pagina
             'brand_base_qs' => $this->queryString($query, ['page', 'brand']),
+            // vetrina pubblica (senza prezzi) o catalogo riservato
+            'showcase' => $showcase,
+            'catalog_path' => $basePath,
+            // sezioni: catalogo del fornitore / prodotti propri (in sede)
+            'section' => $source,
+            'section_counts' => $sectionCounts,
+            'reset_url' => $basePath . ($sectionQs !== '' ? '?' . $sectionQs : ''),
+            // la vetrina usa l'header del sito pubblico, il catalogo il suo
+            'public_page' => $showcase,
+            'public_contained' => $showcase,
         ];
 
         // "Carica altri": il client chiede solo le card della pagina successiva
@@ -76,6 +133,50 @@ final class CatalogController
     }
 
     /**
+     * Sezione richiesta: i prodotti propri solo se ce ne sono (altrimenti la
+     * scheda non esiste e si resta sul catalogo del fornitore).
+     *
+     * @param array<string, mixed> $query
+     * @param array<string, int> $sectionCounts
+     */
+    private function sourceFor(array $query, array $sectionCounts): string
+    {
+        return ($query['sezione'] ?? '') === self::SECTION_CUSTOM && ($sectionCounts[ProductRepository::SOURCE_CUSTOM] ?? 0) > 0
+            ? ProductRepository::SOURCE_CUSTOM
+            : ProductRepository::SOURCE_FEED;
+    }
+
+    /**
+     * Vetrina: i prezzi spariscono dai DATI destinati al client (card, JSON
+     * della scheda rapida, frammenti), non solo dal markup. Delle taglie
+     * restano misura e disponibilità; il barcode non serve a chi non ordina.
+     *
+     * @param list<array<string, mixed>> $items
+     * @param array<int, list<array{size_eu: string, size_us: string, barcode: string, quantity: int, price: string}>> $sizesByProduct
+     * @return array{0: list<array<string, mixed>>, 1: array<int, list<array{size_eu: string, size_us: string, quantity: int}>>}
+     */
+    private static function withoutPrices(array $items, array $sizesByProduct): array
+    {
+        $publicItems = [];
+        foreach ($items as $item) {
+            unset($item['price_from']);
+            $publicItems[] = $item;
+        }
+        $publicSizes = [];
+        foreach ($sizesByProduct as $productId => $sizes) {
+            foreach ($sizes as $size) {
+                $publicSizes[$productId][] = [
+                    'size_eu' => $size['size_eu'],
+                    'size_us' => $size['size_us'],
+                    'quantity' => $size['quantity'],
+                ];
+            }
+        }
+
+        return [$publicItems, $publicSizes];
+    }
+
+    /**
      * Filtri attivi come "chip" rimovibili: ognuno con l'URL che lo toglie
      * lasciando gli altri (stato interamente nella query string).
      *
@@ -83,10 +184,10 @@ final class CatalogController
      * @param array<string, mixed> $filters
      * @return list<array{label: string, value: string, remove_url: string}>
      */
-    private function activeFilterChips(array $query, array $filters): array
+    private function activeFilterChips(array $query, array $filters, string $basePath): array
     {
         $chips = [];
-        $urlWithout = function (string $key, ?string $value = null) use ($query): string {
+        $urlWithout = function (string $key, ?string $value = null) use ($query, $basePath): string {
             $clean = array_diff_key($query, ['page' => null]);
             if ($value !== null && is_array($clean[$key] ?? null)) {
                 $clean[$key] = array_values(array_filter(
@@ -98,7 +199,7 @@ final class CatalogController
             }
             $qs = http_build_query(array_filter($clean, static fn ($v) => $v !== '' && $v !== null && $v !== []));
 
-            return $qs === '' ? '/catalogo' : '/catalogo?' . $qs;
+            return $qs === '' ? $basePath : $basePath . '?' . $qs;
         };
 
         if ($filters['q'] !== '') {
@@ -135,11 +236,11 @@ final class CatalogController
                 'label' => $this->lang->t('catalog.chip_price'),
                 'value' => $min . ' – ' . $max,
                 // il prezzo è una coppia: si azzera insieme
-                'remove_url' => (static function () use ($query): string {
+                'remove_url' => (static function () use ($query, $basePath): string {
                     $clean = array_diff_key($query, ['page' => null, 'prezzo_min' => null, 'prezzo_max' => null]);
                     $qs = http_build_query(array_filter($clean, static fn ($v) => $v !== '' && $v !== null && $v !== []));
 
-                    return $qs === '' ? '/catalogo' : '/catalogo?' . $qs;
+                    return $qs === '' ? $basePath : $basePath . '?' . $qs;
                 })(),
             ];
         }
@@ -185,7 +286,9 @@ final class CatalogController
      */
     public function export(Request $request, Response $response): Response
     {
-        $filters = $this->parseFilters($request->getQueryParams());
+        $query = $request->getQueryParams();
+        $filters = $this->parseFilters($query, showcase: false)
+            + ['source' => $this->sourceFor($query, $this->products->activeCountsBySource())];
         $filters['in_stock'] = true;
 
         $result = $this->products->search(
@@ -249,18 +352,25 @@ final class CatalogController
     }
 
     /**
+     * Con $showcase (vetrina pubblica) filtri e ordinamenti per prezzo sono
+     * ignorati QUI, lato server: una query string costruita a mano non deve
+     * permettere di risalire ai prezzi per bisezione.
+     *
      * @param array<string, mixed> $query
      * @return array{q: string, brand: string, availability: string, recommended: bool,
      *   price_min: float|null, price_max: float|null, sort: string,
      *   sizes: list<string>, in_stock: bool, size_categories: list<string>}
      */
-    private function parseFilters(array $query): array
+    private function parseFilters(array $query, bool $showcase): array
     {
         $str = static fn (string $key): string => is_string($query[$key] ?? null) ? trim((string) $query[$key]) : '';
         $availability = $str('disponibilita');
         $sort = $str('ordina');
-        $priceMin = $query['prezzo_min'] ?? null;
-        $priceMax = $query['prezzo_max'] ?? null;
+        $priceMin = $showcase ? null : ($query['prezzo_min'] ?? null);
+        $priceMax = $showcase ? null : ($query['prezzo_max'] ?? null);
+        if ($showcase && in_array($sort, self::PRICE_SORTS, true)) {
+            $sort = 'rilevanza';
+        }
 
         // taglie: ?taglia[]=42&taglia[]=43 (max 40, valori normalizzati)
         $sizes = [];

@@ -24,7 +24,7 @@ Il token non va mai committato né loggato.
 
 | Campo feed | Tipo | Uso |
 |---|---|---|
-| `id` | int | id riga fornitore per SKU+taglia — salvato in `product_sizes.supplier_size_id`: è il `size_id` dell'API ordini dropship (vedi `09-order-dropship.md`) |
+| `id` | int | id riga fornitore per SKU+taglia — salvato in `product_sizes.supplier_size_id`: è il `size_id` dell'API ordini (vedi `09-order-dropship.md`) |
 | `sku` | string | **chiave di raggruppamento prodotto** (es. `JS3801`) |
 | `product_name` | string | nome prodotto |
 | `brand_name` | string | brand (per filtro) |
@@ -102,12 +102,40 @@ fonte di verità al posto dell'euristica.
   toccare il DB; in caso di errore HTTP/parsing, abortire senza modifiche.
 - Upsert per `sku` + replace dello stock taglie; i prodotti spariti dal feed vanno
   marcati `is_active = 0`, non cancellati (le richieste d'ordine passate li referenziano).
+  Il sync lavora solo sui prodotti con `source = 'feed'`: i prodotti propri
+  (§ sotto) non vengono mai aggiornati né disattivati da qui.
 - Precalcolare a sync il prezzo netto di listino con le regole margine (vedi `04-pricing.md`).
 - Registrare ogni run in `sync_logs`: iniziato/finito, righe lette, prodotti
-  creati/aggiornati/disattivati, errori.
+  creati/aggiornati/disattivati, errori. Uno SKU del feed che appartiene già a
+  un prodotto proprio viene saltato (il prodotto proprio resta com'è) e il run
+  lo segnala nel messaggio del log ("SKU del feed ignorati…").
 - Timeout HTTP ragionevole (es. 60s), retry singolo con backoff, User-Agent identificativo.
 - Gestire con grazia payload molto grandi (streaming/chunk se necessario; verificare
   su Swagger se l'endpoint è paginato).
+
+## Prodotti propri (import admin, stesso formato)
+
+Da `/admin/prodotti-propri` (docs/06) l'admin carica prodotti suoi da un file
+**JSON o CSV nello stesso formato riga del feed** (§ Formato riga): array di
+righe (o la pagina DRF `{"results": [...]}`, come il feed) per il JSON,
+intestazioni con gli stessi nomi di campo per il CSV. Nessun campo in più
+rispetto a un prodotto del feed.
+
+- Stessa validazione (`GoldenSneakersAdapter::normalizeRow`) e stessa pipeline
+  del sync (`FeedSyncService::importCustom`): categoria di taglia, regole
+  margine, prezzo netto da `offer_price`, upsert + taglie, sotto lo stesso
+  lock e in transazione. L'import è **tutto o niente**: un solo errore e il DB
+  resta com'era.
+- `products.source = 'custom'`; lo SKU è unico su tutto il catalogo, quindi
+  l'import rifiuta gli SKU già usati dal feed (e il sync salta quelli usati
+  dai prodotti propri, sopra).
+- `id` (il `size_id` del fornitore) viene ignorato: i prodotti propri non
+  vengono mai ordinati a GoldenSneakers (docs/09).
+- Immagini ammesse anche da `shoesclothingstore.com` oltre che da
+  `goldensneakers.net` (CSP allineata, docs/07).
+- Con "Sostituisci l'elenco" i prodotti propri assenti dal file diventano
+  `is_active = 0`, come i prodotti ritirati dal feed. Nessuna riga in
+  `sync_logs`: quella tabella racconta solo il feed.
 
 ## Sviluppo senza token
 

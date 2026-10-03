@@ -21,7 +21,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * Pagine pubbliche (docs/06 § Sito pubblico): home, spedizioni, come ordinare
  * e richiesta di attivazione profilo. Sono le uniche pagine indicizzabili e
  * NON mostrano mai prezzi o prodotti del feed: solo informazioni commerciali
- * (i prezzi restano dietro login — Regola d'oro n.1 e n.2).
+ * (i prezzi restano dietro login — Regola d'oro n.1 e n.2). I prodotti si
+ * vedono nella vetrina /vetrina (senza prezzi, noindex), a cui la home
+ * rimanda in evidenza.
  */
 final class PageController
 {
@@ -42,14 +44,21 @@ final class PageController
     {
         $brands = [];
         $catalogSize = 0;
+        $brandLinks = [];
         try {
             foreach ($this->products->activeBrandsWithCounts() as $brand) {
                 $brands[] = $brand['brand'];
                 $catalogSize += $brand['products'];
             }
+            // i link brand aprono la sezione principale della vetrina: solo i
+            // brand che lì hanno prodotti (un brand solo "in sede" darebbe 0)
+            foreach ($this->products->activeBrandsWithCounts(ProductRepository::SOURCE_FEED) as $brand) {
+                $brandLinks[] = $brand['brand'];
+            }
         } catch (\Throwable) {
             // la home non deve rompersi se il DB non risponde
             $brands = [];
+            $brandLinks = [];
         }
 
         return $this->view->render($response, 'pages/home.twig', [
@@ -57,6 +66,7 @@ final class PageController
             'indexable' => true,
             'meta_description' => $this->trans('meta.home_description'),
             'brands' => $brands,
+            'brand_links' => $brandLinks,
             'catalog_size' => $catalogSize,
             'shipping' => $this->shippingInfo(),
             'min_order_items' => $this->cart->minOrderItems(),

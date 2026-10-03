@@ -1,0 +1,241 @@
+{% extends 'layout.twig' %}
+
+{# Nuova / modifica pro-forma manuale (docs/06 § /admin/proforma). Le righe
+   sono un componente Alpine (proformaLines in app.js): i totali qui sono
+   un'anteprima, quelli veri e l'IVA li calcola il server al salvataggio. #}
+
+{% set editing = receipt is not null %}
+{% set page_title = editing ? t('proforma.edit_title', {number: receipt.receipt_number}) : t('proforma.new_title') %}
+
+{% block title %}{{ page_title }} — {{ t('admin.title') }}{% endblock %}
+
+{% block content %}
+    <a href="{{ editing ? '/admin/proforma/' ~ receipt.id : '/admin/proforma' }}" class="text-sm underline text-neutral-500 hover:text-neutral-900">← {{ t('proforma.back') }}</a>
+    <h1 class="text-2xl font-bold mt-2 mb-2">{{ page_title }}</h1>
+    {% if duplicate_of is defined %}
+        <p class="text-sm text-neutral-500 mb-4">{{ t('proforma.duplicate_hint', {number: duplicate_of}) }}</p>
+    {% elseif prefilled_from is defined %}
+        <p class="text-sm text-neutral-500 mb-4">{{ t('proforma.prefilled', {name: prefilled_from}) }}</p>
+    {% else %}
+        <p class="text-sm text-neutral-500 mb-4 max-w-3xl">{{ t('proforma.intro') }}</p>
+    {% endif %}
+
+    {% if errors is not empty %}
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-900" role="alert">
+            <h2 class="font-bold mb-2">{{ t('proforma.errors_title') }}</h2>
+            <ul class="list-disc pl-5 space-y-0.5">
+                {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {# precompilazione da un cliente registrato: GET, nessun dato salvato #}
+    {% if not editing and users is not empty %}
+        <form method="get" action="/admin/proforma/nuova"
+              class="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200 bg-white p-4 text-sm">
+            <div class="grow min-w-[16rem]">
+                <label for="pf-prefill" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.prefill_label') }}</label>
+                <select id="pf-prefill" name="cliente" class="w-full rounded-lg border-neutral-300 text-sm">
+                    <option value="">{{ t('proforma.prefill_choose') }}</option>
+                    {% for u in users %}
+                        <option value="{{ u.id }}" {{ form.user_id == u.id ~ '' ? 'selected' }}>{{ u.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="rounded-lg border border-neutral-300 px-4 py-2 font-semibold hover:border-neutral-900">{{ t('proforma.prefill_button') }}</button>
+        </form>
+    {% endif %}
+
+    <form method="post" action="{{ editing ? '/admin/proforma/' ~ receipt.id ~ '/modifica' : '/admin/proforma' }}"
+          class="space-y-5" novalidate
+          x-data="proformaLines"
+          data-lines="{{ form.lines|json_encode }}"
+          data-shipping="{{ form.shipping }}"
+          data-lookup-error="{{ t('proforma.lookup_error') }}"
+          data-stock-text="{{ t('proforma.lookup_stock') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="user_id" value="{{ form.user_id }}">
+
+        {# ── Cliente ── #}
+        <section class="rounded-xl border border-neutral-200 bg-white p-5">
+            <h2 class="font-semibold mb-4">{{ t('proforma.section_customer') }}</h2>
+            <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                {% for field in ['customer_name', 'company', 'email', 'phone'] %}
+                    <div>
+                        <label for="pf-{{ field }}" class="block text-xs font-medium text-neutral-600 mb-1">
+                            {{ t('proforma.field_' ~ field) }}{% if field == 'customer_name' %} *{% endif %}
+                        </label>
+                        <input id="pf-{{ field }}" name="{{ field }}" value="{{ form[field] }}"
+                               type="{{ field == 'email' ? 'email' : (field == 'phone' ? 'tel' : 'text') }}"
+                               {{ field == 'customer_name' ? 'required' }}
+                               class="w-full rounded-lg border-neutral-300 text-sm">
+                        {% if field == 'email' %}<p class="mt-1 text-xs text-neutral-400">{{ t('proforma.email_hint') }}</p>{% endif %}
+                    </div>
+                {% endfor %}
+                <div class="lg:col-span-2">
+                    <label for="pf-address_street" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_address_street') }}</label>
+                    <input id="pf-address_street" name="address_street" value="{{ form.address_street }}" class="w-full rounded-lg border-neutral-300 text-sm">
+                </div>
+                <div class="grid grid-cols-3 gap-3 sm:col-span-2 lg:col-span-1">
+                    <div>
+                        <label for="pf-address_zip" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_address_zip') }}</label>
+                        <input id="pf-address_zip" name="address_zip" value="{{ form.address_zip }}" class="w-full rounded-lg border-neutral-300 text-sm">
+                    </div>
+                    <div class="col-span-2">
+                        <label for="pf-address_city" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_address_city') }}</label>
+                        <input id="pf-address_city" name="address_city" value="{{ form.address_city }}" class="w-full rounded-lg border-neutral-300 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label for="pf-country" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_country') }} *</label>
+                    <select id="pf-country" name="country" class="w-full rounded-lg border-neutral-300 text-sm">
+                        {% for c in vat_countries %}
+                            <option value="{{ c.country_code }}" {{ c.country_code == form.country ? 'selected' }}>{{ c.country_code }} — {{ t('country.' ~ c.country_code) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="pf-vat_number" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_vat_number') }} *</label>
+                    <input id="pf-vat_number" name="vat_number" value="{{ form.vat_number }}" required class="w-full rounded-lg border-neutral-300 text-sm font-mono">
+                    <p class="mt-1 text-xs text-neutral-400">{{ t('proforma.vat_hint') }}</p>
+                </div>
+                <div>
+                    <label for="pf-locale" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_locale') }}</label>
+                    <select id="pf-locale" name="locale" class="w-full rounded-lg border-neutral-300 text-sm">
+                        {% for l in locales %}
+                            <option value="{{ l }}" {{ l == form.locale ? 'selected' }}>{{ t('lang.' ~ l) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        {# ── Righe ── #}
+        <section class="rounded-xl border border-neutral-200 bg-white p-5">
+            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+                <h2 class="font-semibold">{{ t('proforma.section_lines') }}</h2>
+                <span class="text-xs text-neutral-400" x-text="lines.length + ' / {{ max_lines }}'"></span>
+            </div>
+            <p class="text-xs text-neutral-500 mb-4 max-w-4xl">{{ t('proforma.lines_hint') }}</p>
+            <noscript><p class="text-sm text-red-700">{{ t('proforma.noscript') }}</p></noscript>
+
+            {# intestazione colonne (da sm in su; su mobile ogni campo ha la sua etichetta) #}
+            <div class="hidden sm:grid grid-cols-12 gap-2 px-2 pb-1 text-xs font-medium text-neutral-500">
+                <div class="col-span-3">{{ t('proforma.col_sku') }}</div>
+                <div class="col-span-3">{{ t('proforma.col_name') }} *</div>
+                <div>{{ t('proforma.col_size_eu') }}</div>
+                <div>{{ t('proforma.col_size_us') }}</div>
+                <div>{{ t('proforma.col_qty') }} *</div>
+                <div class="col-span-2">{{ t('proforma.col_unit_price') }} *</div>
+                <div class="text-right">{{ t('proforma.col_subtotal') }}</div>
+            </div>
+
+            <div class="space-y-2">
+                <template x-for="(line, index) in lines" :key="line.key">
+                    <div class="grid grid-cols-6 sm:grid-cols-12 gap-2 items-start rounded-lg border border-neutral-200 bg-neutral-50/60 p-3 sm:p-2 text-sm">
+                        <div class="col-span-6 sm:col-span-3 space-y-1">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-sku-' + line.key">{{ t('proforma.col_sku') }}</label>
+                            <div class="flex gap-1.5">
+                                <input type="text" :id="'pf-sku-' + line.key" :name="'lines[' + index + '][sku]'" x-model="line.sku"
+                                       @input="skuChanged(line)" @keydown.enter.prevent="lookup(line)"
+                                       class="min-w-0 grow rounded-md border-neutral-300 text-sm font-mono">
+                                <button type="button" @click="lookup(line)" :disabled="line.sku.trim() === '' || line.state === 'loading'"
+                                        class="shrink-0 rounded-md border border-neutral-300 bg-white px-2.5 text-xs font-semibold hover:border-neutral-900 disabled:opacity-40">
+                                    <span x-show="line.state !== 'loading'">{{ t('proforma.lookup') }}</span>
+                                    <span x-show="line.state === 'loading'" x-cloak>…</span>
+                                </button>
+                            </div>
+                            <template x-if="line.sizes.length > 1">
+                                <select @change="pick(line, $event.target.value)" class="w-full rounded-md border-neutral-300 text-xs" aria-label="{{ t('proforma.lookup_size') }}">
+                                    <option value="">{{ t('proforma.lookup_size') }}</option>
+                                    <template x-for="(size, s) in line.sizes" :key="s">
+                                        <option :value="s" :selected="size.size_eu === line.size_eu"
+                                                x-text="size.size_eu + (size.size_us ? ' (US ' + size.size_us + ')' : '') + ' — ' + eur(size.price) + ' · ' + stock(size.quantity)"></option>
+                                    </template>
+                                </select>
+                            </template>
+                            <p x-show="line.state === 'error'" x-cloak class="text-xs text-red-700" x-text="line.message"></p>
+                            <input type="hidden" :name="'lines[' + index + '][barcode]'" x-model="line.barcode">
+                        </div>
+                        <div class="col-span-6 sm:col-span-3">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-name-' + line.key">{{ t('proforma.col_name') }}</label>
+                            <input type="text" :id="'pf-name-' + line.key" :name="'lines[' + index + '][name]'" x-model="line.name"
+                                   class="w-full rounded-md border-neutral-300 text-sm">
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-eu-' + line.key">EU</label>
+                            <input type="text" :id="'pf-eu-' + line.key" :name="'lines[' + index + '][size_eu]'" x-model="line.size_eu"
+                                   @input="line.barcode = ''" class="w-full rounded-md border-neutral-300 text-sm px-2">
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-us-' + line.key">US</label>
+                            <input type="text" :id="'pf-us-' + line.key" :name="'lines[' + index + '][size_us]'" x-model="line.size_us"
+                                   class="w-full rounded-md border-neutral-300 text-sm px-2">
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-qty-' + line.key">{{ t('proforma.col_qty') }}</label>
+                            <input type="number" min="1" step="1" inputmode="numeric" :id="'pf-qty-' + line.key" :name="'lines[' + index + '][qty]'" x-model="line.qty"
+                                   class="w-full rounded-md border-neutral-300 text-sm px-2 text-right">
+                        </div>
+                        <div class="col-span-3 sm:col-span-2">
+                            <label class="sm:sr-only block text-xs font-medium text-neutral-600" :for="'pf-price-' + line.key">{{ t('proforma.col_unit_price') }}</label>
+                            <input type="text" inputmode="decimal" placeholder="0,00" :id="'pf-price-' + line.key" :name="'lines[' + index + '][unit_price]'" x-model="line.unit_price"
+                                   class="w-full rounded-md border-neutral-300 text-sm text-right">
+                        </div>
+                        <div class="col-span-3 sm:col-span-1 flex sm:flex-col items-center sm:items-end justify-between gap-1 self-end sm:self-center min-w-0">
+                            <span class="font-semibold whitespace-nowrap" x-text="filled(line) ? eur(subtotal(line)) : '—'"></span>
+                            <button type="button" @click="remove(index)" title="{{ t('proforma.remove_line') }}" aria-label="{{ t('proforma.remove_line') }}"
+                                    class="rounded p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <button type="button" @click="add()" x-show="lines.length < {{ max_lines }}"
+                    class="mt-3 rounded-lg border border-dashed border-neutral-400 px-4 py-2 text-sm font-semibold text-neutral-700 hover:border-neutral-900 hover:text-neutral-900">
+                + {{ t('proforma.add_line') }}
+            </button>
+        </section>
+
+        {# ── Spedizione, note, pagamento + riepilogo ── #}
+        <div class="grid lg:grid-cols-3 gap-5 items-start">
+            <section class="lg:col-span-2 rounded-xl border border-neutral-200 bg-white p-5 space-y-4 text-sm">
+                <h2 class="font-semibold">{{ t('proforma.section_totals') }}</h2>
+                <div class="max-w-xs">
+                    <label for="pf-shipping" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_shipping') }}</label>
+                    <input id="pf-shipping" name="shipping" x-model="shipping" inputmode="decimal" placeholder="0,00"
+                           class="w-full rounded-lg border-neutral-300 text-sm text-right">
+                    <p class="mt-1 text-xs text-neutral-400">{{ t('proforma.shipping_hint', {n: shipping_rule.free_from, fee: shipping_rule.fee|eur}) }}</p>
+                </div>
+                <div>
+                    <label for="pf-notes" class="block text-xs font-medium text-neutral-600 mb-1">{{ t('proforma.field_notes') }}</label>
+                    <textarea id="pf-notes" name="notes" rows="3" maxlength="2000" class="w-full rounded-lg border-neutral-300 text-sm">{{ form.notes }}</textarea>
+                    <p class="mt-1 text-xs text-neutral-400">{{ t('proforma.notes_hint') }}</p>
+                </div>
+                <div>
+                    <label class="flex items-start gap-2">
+                        <input type="checkbox" name="show_bank" value="1" {{ form.show_bank ? 'checked' }}
+                               class="mt-0.5 rounded border-neutral-300 text-amber-500 focus:ring-amber-500">
+                        <span>{{ t('proforma.show_bank') }}</span>
+                    </label>
+                    <p class="mt-1 ml-6 text-xs text-neutral-400">{{ t('proforma.show_bank_hint') }}</p>
+                    {% if not bank_configured %}
+                        <p class="mt-1 ml-6 text-xs font-semibold text-amber-700">{{ t('proforma.bank_missing') }}</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <aside class="rounded-xl border border-neutral-200 bg-white p-5 text-sm space-y-2 lg:sticky lg:top-28">
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('proforma.preview_items') }}</span><span class="font-semibold" x-text="items"></span></div>
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('proforma.preview_net') }}</span><span class="font-semibold" x-text="eur(net)"></span></div>
+                <div class="flex justify-between gap-3 border-t border-neutral-200 pt-2"><span class="text-neutral-500">{{ t('proforma.preview_total') }}</span><strong class="text-base whitespace-nowrap" x-text="eur(total)"></strong></div>
+                <p class="text-xs text-neutral-400">{{ t('proforma.preview_vat') }}</p>
+                <button type="submit" class="w-full rounded-lg bg-neutral-900 text-white font-semibold py-2.5 hover:bg-neutral-700">
+                    {{ editing ? t('proforma.save_update') : t('proforma.save_create') }}
+                </button>
+            </aside>
+        </div>
+    </form>
+{% endblock %}

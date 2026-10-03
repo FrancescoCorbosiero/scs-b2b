@@ -24,7 +24,7 @@ final class GoldenSneakersAdapter
     // dominio immagini: il fornitore ha già cambiato host una volta
     // (www.goldensneakers.net → media.goldensneakers.net, 08/2026), quindi
     // si accetta il dominio e QUALSIASI suo sottodominio — mai domini terzi
-    private const IMAGE_DOMAIN = 'goldensneakers.net';
+    public const IMAGE_DOMAIN = 'goldensneakers.net';
     private const MAX_PAGES = 200;
 
     public function __construct(
@@ -168,12 +168,20 @@ final class GoldenSneakersAdapter
     }
 
     /**
+     * Valida e normalizza UNA riga nel formato assortment-flat. È pubblica
+     * perché lo stesso formato vale per l'import dei prodotti propri
+     * (/admin/prodotti-propri): un prodotto proprio è una riga di feed come
+     * le altre, validata dalle stesse regole.
+     *
      * @param array<mixed> $raw
+     * @param int $index posizione riportata nei messaggi d'errore
+     * @param list<string> $imageDomains domini (e sottodomini) ammessi per le immagini
      * @return array{sku: string, name: string, brand: string, size_mapper: string,
      *   size_eu: string, size_us: string, barcode: string, offer_price: string,
      *   quantity: int, image_url: string|null, supplier_size_id: int|null}
+     * @throws FeedException riga non valida
      */
-    private function normalizeRow(array $raw, int $index): array
+    public function normalizeRow(array $raw, int $index, array $imageDomains = [self::IMAGE_DOMAIN]): array
     {
         $sku = $this->requireString($raw, 'sku', $index, 64);
         $name = $this->requireString($raw, 'product_name', $index, 255);
@@ -217,13 +225,16 @@ final class GoldenSneakersAdapter
             'barcode' => $this->optionalString($raw, 'barcode', 32),
             'offer_price' => number_format($offerFloat, 2, '.', ''),
             'quantity' => $quantity,
-            'image_url' => $this->imageUrl($raw),
+            'image_url' => $this->imageUrl($raw, $imageDomains),
             'supplier_size_id' => $supplierSizeId,
         ];
     }
 
-    /** @param array<mixed> $raw */
-    private function imageUrl(array $raw): ?string
+    /**
+     * @param array<mixed> $raw
+     * @param list<string> $imageDomains
+     */
+    private function imageUrl(array $raw, array $imageDomains): ?string
     {
         // il feed usa image_full_url quando c'è, altrimenti image: su alcune
         // righe il primo è vuoto e solo il secondo porta il percorso
@@ -262,7 +273,14 @@ final class GoldenSneakersAdapter
             return null;
         }
         $host = strtolower($host);
-        if ($host !== self::IMAGE_DOMAIN && !str_ends_with($host, '.' . self::IMAGE_DOMAIN)) {
+        $allowed = false;
+        foreach ($imageDomains as $domain) {
+            if ($host === $domain || str_ends_with($host, '.' . $domain)) {
+                $allowed = true;
+                break;
+            }
+        }
+        if (!$allowed) {
             return null;
         }
 
