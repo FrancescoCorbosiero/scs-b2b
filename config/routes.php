@@ -88,12 +88,15 @@ return static function (App $app): void {
         $group->get('/richieste/{id:[0-9]+}/modifica', [AdminController::class, 'orderEdit']);
         $group->post('/richieste/{id:[0-9]+}/modifica', [AdminController::class, 'orderEditSave']);
 
-        // ordine dropship GoldenSneakers: 3 step di conferma (docs/09)
+        // ordine presso GoldenSneakers (API ordini): 3 step di conferma (docs/09)
         $group->get('/richieste/{id:[0-9]+}/dropship', [DropshipController::class, 'prepare']);
         $group->post('/richieste/{id:[0-9]+}/dropship/riepilogo', [DropshipController::class, 'review']);
         $group->post('/richieste/{id:[0-9]+}/dropship/conferma', [DropshipController::class, 'confirm']);
         $group->post('/richieste/{id:[0-9]+}/dropship/invia', [DropshipController::class, 'send']);
         $group->get('/dropship/{id:[0-9]+}', [DropshipController::class, 'detail']);
+        // ordini sull'account GoldenSneakers (API ordini, sola lettura)
+        $group->get('/ordini-fornitore', [DropshipController::class, 'supplierOrders']);
+        $group->get('/ordini-fornitore/{id:[0-9]+}', [DropshipController::class, 'supplierOrder']);
         $group->post('/dropship/{id:[0-9]+}/aggiorna', [DropshipController::class, 'refresh']);
         $group->post('/dropship/{id:[0-9]+}/etichetta', [DropshipController::class, 'uploadLabel']);
 

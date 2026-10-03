@@ -42,6 +42,7 @@
                     {% endif %}
                 </a>
                 <a href="/admin/clienti" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/clienti' ? 'bg-neutral-700' }}">{{ t('users.title') }}</a>
+                <a href="/admin/ordini-fornitore" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path starts with '/admin/ordini-fornitore' or current_path starts with '/admin/dropship' ? 'bg-neutral-700' }}">{{ t('supplier.title') }}</a>
                 <a href="/admin/margini" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/margini' ? 'bg-neutral-700' }}">{{ t('admin.margins') }}</a>
                 <a href="/admin/sync" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/sync' ? 'bg-neutral-700' }}">{{ t('admin.sync') }}</a>
                 <a href="/admin/recommended" class="px-3 py-1.5 rounded-md hover:bg-neutral-700 {{ current_path == '/admin/recommended' ? 'bg-neutral-700' }}">{{ t('admin.recommended') }}</a>

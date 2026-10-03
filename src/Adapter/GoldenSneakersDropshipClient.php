@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Adapter;
 
-use App\Support\Config;
-use Psr\Log\LoggerInterface;
-
 /**
  * Client per gli ordini dropshipping dell'API GoldenSneakers (tag
  * "dropshipping-orders" della documentazione ufficiale,
@@ -14,37 +11,28 @@ use Psr\Log\LoggerInterface;
  * GET order-details/{order_id}/, GET package-details/{package_id}/,
  * POST upload-shipping-label/{order_id}/.
  *
+ * ⚠ Dal 02/10/2026 gli ordini NUOVI si creano con l'API ordini
+ * (GoldenSneakersOrdersClient, /api/orders/): questo client resta per gli
+ * ordini registrati prima, cioè per rileggerne stato/tracking e per
+ * l'eventuale upload dell'etichetta. createOrder() non è più chiamato dalla
+ * piattaforma ma resta coperto dai test finché esistono ordini legacy.
+ *
  * I path sono costanti di classe (*_PATH), NON configurazione: fanno parte
  * del contratto dell'API come il payload. Le vecchie variabili
  * DROPSHIP_*_ENDPOINT non vengono più lette, così un .env copiato da una
  * versione precedente (es. DROPSHIP_CREATE_ENDPOINT=/api/orders-dropship/create/,
  * path inesistente) non può più mandare gli ordini nel vuoto.
  *
- * Due modalità (DROPSHIP_MODE):
- *  - simulation (default): NESSUNA chiamata HTTP, risposte fittizie marcate
- *    `simulated: true`. Qualsiasi valore diverso da "live" degrada qui.
- *  - live: chiamate reali su FEED_BASE_URL con il bearer token del feed
- *    (FEED_BEARER_TOKEN). Creare un ordine è IRREVERSIBILE
- *    (il fornitore lo conferma e scala il suo stock reale), quindi:
- *      • la POST di creazione NON viene MAI ritentata automaticamente:
- *        un retry dopo un timeout può produrre un ordine doppio;
- *      • gli esiti ambigui (timeout dopo l'invio, HTTP 5xx, risposta 2xx
- *        illeggibile) sollevano DropshipUncertainException: il chiamante
- *        registra l'accaduto e l'admin verifica sul portale del fornitore
- *        PRIMA di ritentare;
- *      • i fallimenti certi (endpoint non raggiungibile, HTTP 4xx) sollevano
- *        DropshipException: nessun ordine è partito, si può correggere e
- *        ripetere.
- *    La lettura dello stato (GET) è idempotente: un retry con backoff.
+ * Modalità e regole di sicurezza (simulation/live, nessun retry sulla POST,
+ * esiti certi/incerti) sono quelle di GoldenSneakersApiClient. In
+ * simulazione questo client non effettua MAI chiamate HTTP, nemmeno le GET:
+ * gli ordini simulati hanno ID fittizi.
  *
  * Stati ordine documentati: UNCONFIRMED, TO_SHIP, ENDED, CANCELED,
  * WAITING_FOR_INVOICE.
  */
-final class GoldenSneakersDropshipClient
+final class GoldenSneakersDropshipClient extends GoldenSneakersApiClient
 {
-    public const MODE_SIMULATION = 'simulation';
-    public const MODE_LIVE = 'live';
-
     public const STATUSES = ['UNCONFIRMED', 'TO_SHIP', 'ENDED', 'CANCELED', 'WAITING_FOR_INVOICE'];
 
     /** Path API (base FEED_BASE_URL): i parametri {id} si accodano con lo slash finale. */
@@ -52,47 +40,6 @@ final class GoldenSneakersDropshipClient
     public const ORDER_DETAILS_PATH = '/api/orders-dropship/order-details/';
     public const PACKAGE_DETAILS_PATH = '/api/orders-dropship/package-details/';
     public const UPLOAD_LABEL_PATH = '/api/orders-dropship/upload-shipping-label/';
-
-    /**
-     * Errori cURL che avvengono PRIMA che la richiesta parta (DNS, connect,
-     * handshake TLS, proxy): il fornitore non ha ricevuto nulla, fallire è
-     * sicuro. Tutto il resto (timeout, errori di invio/ricezione) è ambiguo.
-     */
-    private const PRE_SEND_ERRNOS = [
-        CURLE_UNSUPPORTED_PROTOCOL,   // 1
-        CURLE_URL_MALFORMAT,          // 3
-        CURLE_COULDNT_RESOLVE_PROXY,  // 5
-        CURLE_COULDNT_RESOLVE_HOST,   // 6
-        CURLE_COULDNT_CONNECT,        // 7
-        CURLE_SSL_CONNECT_ERROR,      // 35
-    ];
-
-    /**
-     * @param \Closure|null $transport SOLO per i test: sostituisce cURL.
-     *   Firma: fn(string $method, string $url, list<string> $headers,
-     *   ?string $body, int $timeout): array{status: int, body: string,
-     *   errno: int, error: string}
-     */
-    public function __construct(
-        private readonly Config $config,
-        private readonly LoggerInterface $logger,
-        private readonly ?\Closure $transport = null,
-    ) {
-    }
-
-    public function mode(): string
-    {
-        // qualsiasi valore diverso da "live" degrada a simulazione: mai
-        // inviare un ordine reale per un errore di battitura in .env
-        return strtolower($this->config->str('DROPSHIP_MODE', self::MODE_SIMULATION)) === self::MODE_LIVE
-            ? self::MODE_LIVE
-            : self::MODE_SIMULATION;
-    }
-
-    public function isSimulation(): bool
-    {
-        return $this->mode() === self::MODE_SIMULATION;
-    }
 
     /**
      * Crea l'ordine dropship presso il fornitore.
@@ -123,88 +70,16 @@ final class GoldenSneakersDropshipClient
             ];
         }
 
-        $url = $this->liveUrl(self::CREATE_ORDER_PATH);
-        $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
-        if ($body === false) {
-            throw new DropshipException('Payload non serializzabile in JSON: nessun ordine inviato.');
-        }
+        // NESSUN retry: postCreate invia una volta sola e classifica l'esito
+        $decoded = $this->postCreate(self::CREATE_ORDER_PATH, $payload, 'ordine dropship');
 
-        // NESSUN retry: la creazione non è idempotente
-        $res = $this->request('POST', $url, $body);
-
-        if ($res['errno'] !== 0) {
-            if (in_array($res['errno'], self::PRE_SEND_ERRNOS, true)) {
-                $this->logger->error('Creazione ordine dropship: connessione fallita, nessun invio', [
-                    'errno' => $res['errno'], 'error' => $res['error'],
-                ]);
-                throw new DropshipException(
-                    "Fornitore non raggiungibile ({$res['error']}): nessun ordine è stato inviato. Riprova più tardi."
-                );
-            }
-            $this->logger->error('Creazione ordine dropship: esito INCERTO (errore di rete dopo l\'invio)', [
-                'errno' => $res['errno'], 'error' => $res['error'],
-            ]);
-            throw new DropshipUncertainException(
-                "Errore di rete dopo l'invio ({$res['error']}): l'ordine potrebbe essere stato creato."
-            );
-        }
-
-        $status = $res['status'];
-        if ($status >= 200 && $status < 300) {
-            $decoded = json_decode($res['body'], true);
-            $orderId = is_array($decoded) ? $this->positiveInt($decoded['order_id'] ?? null) : null;
-            if ($orderId === null) {
-                $this->logger->error('Creazione ordine dropship: HTTP 2xx ma risposta illeggibile', [
-                    'status' => $status, 'body' => mb_substr($res['body'], 0, 500),
-                ]);
-                throw new DropshipUncertainException(
-                    "Il fornitore ha risposto HTTP {$status} ma senza un order_id leggibile: l'ordine potrebbe essere stato creato."
-                );
-            }
-            /** @var array<string, mixed> $decoded */
-            $totalPrice = $decoded['total_price'] ?? null;
-            $this->logger->info('Ordine dropship creato presso il fornitore', [
-                'order_id' => $orderId, 'status' => $status,
-            ]);
-
-            return [
-                'message' => is_string($decoded['message'] ?? null) ? $decoded['message'] : '',
-                'order_id' => $orderId,
-                'total_price' => is_int($totalPrice) || is_float($totalPrice) || (is_string($totalPrice) && is_numeric($totalPrice))
-                    ? (float) $totalPrice
-                    : null,
-                'dropship_package_id' => $this->positiveInt($decoded['dropship_package_id'] ?? null),
-                'simulated' => false,
-            ];
-        }
-
-        if ($status >= 400 && $status < 500) {
-            // rifiuto esplicito del fornitore: nessun ordine creato
-            $detail = $this->errorDetail($res['body']);
-            $this->logger->error('Creazione ordine dropship rifiutata dal fornitore', [
-                'status' => $status, 'detail' => $detail,
-            ]);
-            throw new DropshipException(
-                "Il fornitore ha rifiutato l'ordine (HTTP {$status}" . ($detail !== '' ? ": {$detail}" : '') . '). Nessun ordine è stato creato.'
-            );
-        }
-
-        if ($status >= 300 && $status < 400) {
-            // redirect su una POST = URL sbagliato (FEED_BASE_URL senza https
-            // o senza www, oppure path cambiato dal fornitore): la richiesta
-            // non viene processata
-            throw new DropshipException(
-                "Il fornitore ha risposto con un redirect (HTTP {$status}): verificare FEED_BASE_URL e il path di creazione sulla documentazione API (docs/09). Nessun ordine creato."
-            );
-        }
-
-        // 5xx o status anomalo: il fornitore potrebbe aver processato l'ordine
-        $this->logger->error('Creazione ordine dropship: esito INCERTO', [
-            'status' => $status, 'body' => mb_substr($res['body'], 0, 500),
-        ]);
-        throw new DropshipUncertainException(
-            "Errore del fornitore (HTTP {$status}): l'ordine potrebbe essere stato creato."
-        );
+        return [
+            'message' => is_string($decoded['message'] ?? null) ? $decoded['message'] : '',
+            'order_id' => (int) $decoded['order_id'],
+            'total_price' => $this->optionalFloat($decoded['total_price'] ?? null),
+            'dropship_package_id' => $this->positiveInt($decoded['dropship_package_id'] ?? null),
+            'simulated' => false,
+        ];
     }
 
     /**
@@ -415,157 +290,5 @@ final class GoldenSneakersDropshipClient
         throw new DropshipException(
             "Il fornitore ha rifiutato l'etichetta (HTTP {$res['status']}" . ($detail !== '' ? ": {$detail}" : '') . ').'
         );
-    }
-
-    // ── Interni (solo live) ──────────────────────────────────────────
-
-    /**
-     * GET idempotente con un retry e backoff: usata per le letture, mai
-     * per la creazione.
-     *
-     * @return array<string, mixed> il JSON della risposta
-     */
-    private function getJson(string $url, string $context): array
-    {
-        $lastError = '';
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
-            $res = $this->request('GET', $url, null);
-            if ($res['errno'] === 0 && $res['status'] >= 200 && $res['status'] < 300) {
-                $decoded = json_decode($res['body'], true);
-                if (is_array($decoded)) {
-                    /** @var array<string, mixed> $decoded */
-                    return $decoded;
-                }
-                throw new DropshipException("Risposta {$context} non è JSON valido.");
-            }
-            $lastError = $res['errno'] !== 0
-                ? $res['error']
-                : 'HTTP ' . $res['status'] . ($this->errorDetail($res['body']) !== '' ? ': ' . $this->errorDetail($res['body']) : '');
-            $this->logger->warning("Lettura {$context} fallita", [
-                'url' => $url, 'attempt' => $attempt, 'error' => $lastError,
-            ]);
-            if ($attempt < 2) {
-                sleep(2);
-            }
-        }
-
-        throw new DropshipException("Lettura {$context} fallita: {$lastError}");
-    }
-
-    private function optionalFloat(mixed $value): ?float
-    {
-        return is_int($value) || is_float($value) || (is_string($value) && is_numeric($value))
-            ? (float) $value
-            : null;
-    }
-
-    /** @return list<string> */
-    private function stringList(mixed $value): array
-    {
-        $list = [];
-        foreach (is_array($value) ? $value : [] as $entry) {
-            if (is_string($entry) && $entry !== '') {
-                $list[] = $entry;
-            } elseif (is_int($entry)) {
-                $list[] = (string) $entry;
-            }
-        }
-
-        return $list;
-    }
-
-    /** Base URL + path API (costante), con token verificato PRIMA di ogni invio. */
-    private function liveUrl(string $path): string
-    {
-        if ($this->config->str('FEED_BEARER_TOKEN') === '') {
-            throw new DropshipException('FEED_BEARER_TOKEN mancante: impossibile usare DROPSHIP_MODE=live. Nessun ordine inviato.');
-        }
-
-        return rtrim($this->config->str('FEED_BASE_URL', 'https://www.goldensneakers.net'), '/') . $path;
-    }
-
-    /**
-     * @param string|array<string, mixed>|null $body stringa = JSON;
-     *   array = campi multipart/form-data (i file come \CURLFile)
-     * @return array{status: int, body: string, errno: int, error: string}
-     */
-    private function request(string $method, string $url, string|array|null $body): array
-    {
-        $timeout = max(5, $this->config->int('DROPSHIP_HTTP_TIMEOUT', 30));
-        $headers = [
-            'Authorization: Bearer ' . $this->config->str('FEED_BEARER_TOKEN'),
-            'Accept: application/json',
-        ];
-        if (is_string($body)) {
-            $headers[] = 'Content-Type: application/json';
-        }
-        // multipart (array): il Content-Type col boundary lo imposta cURL
-
-        if ($this->transport !== null) {
-            /** @var array{status: int, body: string, errno: int, error: string} */
-            return ($this->transport)($method, $url, $headers, $body, $timeout);
-        }
-
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new DropshipException('Inizializzazione cURL fallita: nessuna richiesta inviata.');
-        }
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            // MAI seguire redirect: una POST replicata altrove è imprevedibile
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_TIMEOUT => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 15,
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_USERAGENT => 'SCS-B2B-Catalog/1.0 (+https://b2b.shoesclothingstore.com)',
-            CURLOPT_HTTPHEADER => $headers,
-        ]);
-        if ($body !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-        }
-        $responseBody = curl_exec($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $errno = curl_errno($ch);
-        // mai loggare né rilanciare gli header: contengono il token
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        return [
-            'status' => $status,
-            'body' => is_string($responseBody) ? $responseBody : '',
-            'errno' => $errno,
-            'error' => $error,
-        ];
-    }
-
-    private function positiveInt(mixed $value): ?int
-    {
-        if (is_int($value) && $value > 0) {
-            return $value;
-        }
-        if (is_string($value) && ctype_digit($value) && (int) $value > 0) {
-            return (int) $value;
-        }
-
-        return null;
-    }
-
-    /** Messaggio d'errore leggibile dal body del fornitore (troncato, mai HTML). */
-    private function errorDetail(string $body): string
-    {
-        $decoded = json_decode($body, true);
-        if (is_array($decoded)) {
-            foreach (['message', 'detail', 'error'] as $key) {
-                if (is_string($decoded[$key] ?? null) && $decoded[$key] !== '') {
-                    return mb_substr($decoded[$key], 0, 300);
-                }
-            }
-            $flat = json_encode($decoded, JSON_UNESCAPED_UNICODE);
-
-            return is_string($flat) ? mb_substr($flat, 0, 300) : '';
-        }
-        $text = trim(strip_tags($body));
-
-        return mb_substr($text, 0, 300);
     }
 }

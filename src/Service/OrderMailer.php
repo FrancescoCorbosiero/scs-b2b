@@ -12,8 +12,9 @@ use Twig\Environment;
 /**
  * Email del ciclo ordine via PHPMailer/SMTP (docs/06).
  *
- * - Admin: tabella completa + esito auto-dropship, SEMPRE in italiano; costo
- *   fornitore e margine SOLO se ADMIN_EMAIL_SHOW_COST=1 (default on).
+ * - Admin: tabella completa + esito dell'ordine automatico a GoldenSneakers,
+ *   SEMPRE in italiano; costo fornitore e margine SOLO se
+ *   ADMIN_EMAIL_SHOW_COST=1 (default on).
  * - Cliente alla richiesta: istruzioni di pagamento via bonifico nel locale
  *   del cliente, con l'avviso esplicito che l'ordine è confermato SOLO
  *   all'arrivo del pagamento. NIENTE ricevuta a questo stadio.
@@ -35,7 +36,9 @@ final class OrderMailer
 
     /**
      * @param array<string, mixed> $order
-     * @param array{ok: bool, dropship_id: int|null, message: string|null, simulated: bool|null}|null $autoDropship
+     * @param array{ok: bool, skipped: bool, dropship_id: int|null, vendor_order_id: int|null,
+     *   total_amount: float|null, shipping_cost: float|null, message: string|null,
+     *   simulated: bool|null}|null $autoDropship esito dell'ordine automatico a GoldenSneakers
      */
     public function sendAdminEmail(array $order, ?array $autoDropship = null): void
     {

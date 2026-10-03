@@ -17,6 +17,11 @@ use PDO;
  */
 final class ProductRepository
 {
+    /** Origine del prodotto (colonna `source`): feed GoldenSneakers o prodotto proprio importato da /admin. */
+    public const SOURCE_FEED = 'feed';
+    public const SOURCE_CUSTOM = 'custom';
+    public const SOURCES = [self::SOURCE_FEED, self::SOURCE_CUSTOM];
+
     public function __construct(private readonly PDO $pdo)
     {
     }
@@ -212,12 +217,14 @@ final class ProductRepository
     }
 
     /**
-     * Dati per costruire gli item dell'ordine dropship (docs/09). SOLO USO
-     * INTERNO: include offer_price ed è richiamato esclusivamente da /admin.
+     * Dati per costruire gli item dell'ordine presso GoldenSneakers (docs/09).
+     * SOLO USO INTERNO: include offer_price ed è richiamato esclusivamente da
+     * /admin e dall'invio automatico. `source` serve a escludere i prodotti
+     * propri, che non vanno mai ordinati al fornitore.
      *
      * @param list<string> $skus
      * @return array<string, array<string, array{supplier_size_id: int|null, size_us: string,
-     *   quantity: int, offer_price: string}>> sku => size_eu => dati
+     *   quantity: int, offer_price: string, source: string}>> sku => size_eu => dati
      */
     public function dropshipDataForSkuSizes(array $skus): array
     {
@@ -226,7 +233,7 @@ final class ProductRepository
         }
         $placeholders = implode(',', array_fill(0, count($skus), '?'));
         $stmt = $this->pdo->prepare(
-            "SELECT p.sku, s.size_eu, s.size_us, s.quantity, s.offer_price, s.supplier_size_id
+            "SELECT p.sku, p.source, s.size_eu, s.size_us, s.quantity, s.offer_price, s.supplier_size_id
              FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
              WHERE p.is_active = 1 AND p.sku IN ({$placeholders})"
         );
@@ -238,6 +245,7 @@ final class ProductRepository
                 'size_us' => (string) $row['size_us'],
                 'quantity' => (int) $row['quantity'],
                 'offer_price' => (string) $row['offer_price'],
+                'source' => (string) ($row['source'] ?? self::SOURCE_FEED),
             ];
         }
 
@@ -465,7 +473,7 @@ final class ProductRepository
     public function findActiveBySku(string $sku): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT id, sku, name, brand, size_mapper, size_category, image_url, is_recommended, total_quantity
+            'SELECT id, sku, source, name, brand, size_mapper, size_category, image_url, is_recommended, total_quantity
              FROM products WHERE sku = ? AND is_active = 1'
         );
         $stmt->execute([$sku]);

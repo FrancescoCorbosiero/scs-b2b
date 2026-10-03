@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Unit;
 
 use App\Adapter\GoldenSneakersDropshipClient;
+use App\Adapter\GoldenSneakersOrdersClient;
 use App\Repository\DropshipOrderRepository;
 use App\Repository\OrderRequestRepository;
 use App\Repository\ProductRepository;
@@ -68,6 +69,7 @@ final class OrderLifecycleTest extends TestCase
             $products,
             $this->dropshipOrders,
             new GoldenSneakersDropshipClient($config, new NullLogger()),
+            new GoldenSneakersOrdersClient($config, new NullLogger()),
             $session,
             $config,
             $lang,
@@ -325,9 +327,12 @@ final class OrderLifecycleTest extends TestCase
         self::assertNotNull($summary);
         $record = $this->dropshipOrders->find((int) $summary['id']);
         self::assertNotNull($record);
+        self::assertSame('orders', $record['api'], 'ordine creato con l\'API ordini GoldenSneakers');
         $payload = json_decode((string) $record['request_payload'], true);
-        self::assertSame('Via Montenapoleone 12', $payload['delivery_address']['street']);
-        self::assertSame('IT', $payload['delivery_address']['country_code']);
+        self::assertSame('EUR', $payload['currency']);
+        self::assertSame('Mario Rossi', $payload['shipping_address']['recipient_name']);
+        self::assertSame('Via Montenapoleone 12', $payload['shipping_address']['address_l1']);
+        self::assertSame('IT', $payload['shipping_address']['country']);
         self::assertSame([['size_id' => 11769, 'quantity' => 6]], $payload['items']);
     }
 
@@ -361,6 +366,10 @@ final class OrderLifecycleTest extends TestCase
 
     public function testAutoDropshipFailsGracefullyWithoutAddress(): void
     {
+        // prodotto a catalogo: l'unico motivo di rifiuto deve essere l'indirizzo
+        TestDb::seedProduct($this->pdo, 'JS3801', 'adidas Gazelle', 'Adidas', [
+            ['size_eu' => '42', 'size_us' => '8.5', 'quantity' => 10],
+        ]);
         $id = $this->seedPendingOrder();
         $order = $this->orders->find($id);
         $order['address_street'] = '';
@@ -368,7 +377,27 @@ final class OrderLifecycleTest extends TestCase
         $result = $this->dropship->autoCreateFromRequest($order);
 
         self::assertFalse($result['ok']);
-        self::assertNotNull($result['message']);
+        self::assertFalse($result['skipped']);
+        self::assertSame((new Lang(dirname(__DIR__, 2)))->t('dropship.error_address_address_l1'), $result['message']);
         self::assertSame([], $this->dropshipOrders->findByOrderRequest($id));
+    }
+
+    public function testSnapshotMarksCustomProductLines(): void
+    {
+        TestDb::seedProduct($this->pdo, 'LOCAL-01', 'Sneaker in sede', 'Nike', [
+            ['size_eu' => '43', 'quantity' => 10, 'price' => '90.00'],
+        ], source: 'custom');
+        $this->seedCart();
+        $this->cart->addProduct('LOCAL-01');
+        $this->cart->setQuantity('LOCAL-01', '43', 2);
+
+        $result = $this->service->submit($this->orderInput(), '127.0.0.1', 'phpunit');
+
+        self::assertTrue($result['ok'], implode(' / ', $result['errors']));
+        $order = $this->orders->find((int) $result['order_id']);
+        self::assertNotNull($order);
+        $lines = json_decode((string) $order['cart_snapshot'], true)['lines'] ?? [];
+        $sources = array_column($lines, 'source', 'sku');
+        self::assertSame(['NK1001' => 'feed', 'LOCAL-01' => 'custom'], $sources);
     }
 }

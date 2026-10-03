@@ -112,7 +112,7 @@ final class CartService
     /**
      * Vista completa del carrello a prezzi netti (VAT esclusa). MAI offer_price qui.
      *
-     * @return array{products: list<array{sku: string, name: string, brand: string,
+     * @return array{products: list<array{sku: string, name: string, brand: string, source: string,
      *   image_url: string|null, sizes: list<array{size_eu: string, size_us: string,
      *   quantity_stock: int, price: string, qty: int, row_total: string}>,
      *   product_items: int, product_total: string}>, total_items: int, total_amount: string}
@@ -156,6 +156,9 @@ final class CartService
                 'sku' => $sku,
                 'name' => (string) $product['name'],
                 'brand' => (string) $product['brand'],
+                // prodotto del feed o proprio (importato da /admin): decide se
+                // la riga va nell'ordine a GoldenSneakers
+                'source' => (string) ($product['source'] ?? ProductRepository::SOURCE_FEED),
                 'image_url' => is_string($product['image_url'] ?? null) ? $product['image_url'] : null,
                 'sizes' => $sizesOut,
                 'product_items' => $productItems,

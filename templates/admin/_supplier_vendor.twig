@@ -1,0 +1,128 @@
+{# Dettaglio di un ordine GoldenSneakers come lo restituisce l'API ordini
+   (GET /api/orders/{id}/, già validato da GoldenSneakersOrdersClient).
+   Usato dal dettaglio live (/admin/ordini-fornitore/{id}) e dalla
+   registrazione locale dopo "Aggiorna stato dal fornitore".
+   Contiene COSTI del fornitore e la nostra intestazione: solo area admin.
+
+   Variabili: vo (dettaglio), cols (classi della griglia delle schede). #}
+{% import 'admin/_supplier_macros.twig' as sup %}
+{% set cols = cols ?? 'sm:grid-cols-2' %}
+
+<div class="space-y-5">
+    <div class="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
+        <h3 class="font-semibold px-5 pt-4">{{ t('supplier.items_title') }}</h3>
+        <table class="w-full text-sm mt-3">
+            <thead>
+                <tr class="bg-neutral-50 text-neutral-500 text-left">
+                    <th class="px-3 py-2.5 font-medium">SKU</th>
+                    <th class="px-3 py-2.5 font-medium">Prodotto</th>
+                    <th class="px-3 py-2.5 font-medium">US</th>
+                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.col_size_id') }}</th>
+                    <th class="px-3 py-2.5 font-medium text-right">Qty</th>
+                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_unit_price') }}</th>
+                    <th class="px-3 py-2.5 font-medium text-right">{{ t('dropship.vendor_line_total') }}</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-neutral-100">
+                {% for item in vo.items %}
+                    <tr>
+                        <td class="px-3 py-2 font-mono text-xs">{{ item.sku ?: '—' }}</td>
+                        <td class="px-3 py-2">{{ item.product_name ?: '—' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ item.size_us ?: '—' }}</td>
+                        <td class="px-3 py-2 text-right font-mono text-xs">{{ item.size_id ?? '—' }}</td>
+                        <td class="px-3 py-2 text-right font-semibold">{{ item.quantity }}</td>
+                        <td class="px-3 py-2 text-right text-neutral-500 whitespace-nowrap">{{ item.unit_price is not null ? item.unit_price|eur : '—' }}</td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap">{{ item.total_price is not null ? item.total_price|eur : '—' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7" class="px-3 py-3 text-neutral-500 text-xs">{{ t('supplier.items_none') }}</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if vo.total_amount is not null %}
+                <tfoot>
+                    <tr class="border-t border-neutral-200">
+                        <td colspan="6" class="px-3 py-2.5 text-right text-neutral-500">{{ t('supplier.total') }}{% if vo.currency %} ({{ vo.currency }}){% endif %}</td>
+                        <td class="px-3 py-2.5 text-right font-bold whitespace-nowrap">{{ vo.total_amount|eur }}</td>
+                    </tr>
+                </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    <div class="grid {{ cols }} gap-4 items-start">
+        {# ── Pagamento: quello che DOBBIAMO a GoldenSneakers ── #}
+        <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-2">
+            <h3 class="font-semibold flex flex-wrap items-center justify-between gap-2">
+                {{ t('supplier.payment_title') }}
+                {{ sup.payment(vo.payment.status, vo.payment.is_paid) }}
+            </h3>
+            {% if vo.payment.total_amount is not null %}
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('supplier.total') }}</span><strong>{{ vo.payment.total_amount|eur }}</strong></div>
+            {% endif %}
+            {% if vo.payment.paid_amount is not null %}
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('supplier.paid_amount') }}</span><span>{{ vo.payment.paid_amount|eur }}</span></div>
+            {% endif %}
+            {% if vo.payment.due_date %}
+                <div class="flex justify-between gap-3"><span class="text-neutral-500">{{ t('supplier.due_date') }}</span><span>{{ vo.payment.due_date|when }}</span></div>
+            {% endif %}
+        </section>
+
+        {# ── Documenti del fornitore: pro-forma e fattura ── #}
+        <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-3">
+            <h3 class="font-semibold">{{ t('supplier.documents_title') }}</h3>
+            {% for doc in [{label: t('supplier.proforma'), d: vo.proforma}, {label: t('supplier.invoice'), d: vo.invoice}] %}
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-medium">
+                            {{ doc.label }}
+                            {% if doc.d and doc.d.symbol %}<span class="font-mono text-xs text-neutral-500">{{ doc.d.symbol }}</span>{% endif %}
+                        </p>
+                        {% if not doc.d %}
+                            <p class="text-xs text-neutral-400">{{ t('supplier.document_missing') }}</p>
+                        {% elseif doc.d.uploaded_at %}
+                            <p class="text-xs text-neutral-400">{{ t('supplier.document_uploaded', {at: doc.d.uploaded_at|when}) }}</p>
+                        {% endif %}
+                    </div>
+                    {% if doc.d and doc.d.url %}
+                        <a href="{{ doc.d.url }}" target="_blank" rel="noopener noreferrer"
+                           class="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-semibold hover:border-neutral-900">
+                            {{ t('supplier.document_open') }} ↗
+                        </a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <p class="text-xs text-neutral-400">{{ t('supplier.documents_hint') }}</p>
+        </section>
+
+        {# ── Indirizzo di spedizione registrato dal fornitore ── #}
+        {% set ship = vo.shipping_address %}
+        <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-1">
+            <h3 class="font-semibold mb-1">{{ t('supplier.shipping_title') }}</h3>
+            {% if ship.recipient_name %}<p><strong>{{ ship.recipient_name }}</strong></p>{% endif %}
+            {% if ship.address_l1 %}<p>{{ ship.address_l1 }}</p>{% endif %}
+            {% if ship.address_l2 %}<p>{{ ship.address_l2 }}</p>{% endif %}
+            {% if ship.zip_code or ship.city %}<p>{{ ship.zip_code }} {{ ship.city }}{% if ship.country %} ({{ ship.country }}){% endif %}</p>{% endif %}
+            {% if ship.phone or ship.email %}<p class="text-neutral-500">{{ [ship.phone, ship.email]|filter(v => v)|join(' · ') }}</p>{% endif %}
+        </section>
+
+        {# ── Intestazione dell'ordine (il nostro account GoldenSneakers) ── #}
+        {% set bill = vo.billing %}
+        <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-1">
+            <h3 class="font-semibold mb-1">{{ t('supplier.billing_title') }}</h3>
+            {% if bill.name %}<p><strong>{{ bill.name }}</strong></p>{% endif %}
+            {% if bill.full_vat_id or bill.vat_id %}<p class="font-mono text-xs">{{ bill.full_vat_id ?: bill.vat_id }}</p>{% endif %}
+            {% if bill.address_l1 %}<p>{{ bill.address_l1 }}{% if bill.address_l2 %}, {{ bill.address_l2 }}{% endif %}</p>{% endif %}
+            {% if bill.zip_code or bill.city %}<p>{{ bill.zip_code }} {{ bill.city }}{% if bill.country %} ({{ bill.country }}){% endif %}</p>{% endif %}
+            {% if bill.phone or bill.email %}<p class="text-neutral-500">{{ [bill.phone, bill.email]|filter(v => v)|join(' · ') }}</p>{% endif %}
+        </section>
+
+        {% if vo.tracking_numbers is not empty %}
+            <section class="bg-white rounded-xl border border-neutral-200 p-5 text-sm space-y-1">
+                <h3 class="font-semibold mb-1">{{ t('supplier.tracking_title') }}</h3>
+                {% for number in vo.tracking_numbers %}
+                    <p class="font-mono text-xs">{{ number }}</p>
+                {% endfor %}
+            </section>
+        {% endif %}
+    </div>
+</div>

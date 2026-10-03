@@ -25,7 +25,7 @@
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('admin.items') }}</span><strong>{{ draft.lines|reduce((sum, l) => sum + l.qty, 0) }}</strong></div>
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('dropship.wholesale_total') }}</span><strong>{{ draft.wholesale_total|eur }}</strong></div>
                 <div class="flex justify-between"><span class="text-neutral-500">{{ t('dropship.address_title') }}</span>
-                    <span class="text-right">{{ draft.payload.delivery_address.name }}, {{ draft.payload.delivery_address.city }} ({{ draft.payload.delivery_address.country_code }})</span></div>
+                    <span class="text-right">{{ draft.payload.shipping_address.recipient_name }}, {{ draft.payload.shipping_address.city }} ({{ draft.payload.shipping_address.country }})</span></div>
             </div>
 
             <form method="post" action="/admin/richieste/{{ order.id }}/dropship/invia"
