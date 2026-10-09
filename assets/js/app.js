@@ -384,6 +384,45 @@
             revealEls.forEach(function (el) { revealObserver.observe(el); });
         }
 
+        // ── Numeri che "contano" fino al valore quando entrano in vista ──
+        // data-countup="14": il testo nel markup è già il valore finale
+        // (senza JS o con movimento ridotto resta quello).
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var counters = document.querySelectorAll('[data-countup]');
+        if (counters.length && !reduceMotion && 'IntersectionObserver' in window) {
+            var countObserver = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (!entry.isIntersecting) return;
+                    countObserver.unobserve(entry.target);
+                    var el = entry.target;
+                    var target = parseInt(el.getAttribute('data-countup'), 10) || 0;
+                    var suffix = el.getAttribute('data-suffix') || '';
+                    var start = null;
+                    var duration = 1400;
+                    function frame(ts) {
+                        if (start === null) start = ts;
+                        var p = Math.min(1, (ts - start) / duration);
+                        var eased = 1 - Math.pow(1 - p, 3);
+                        el.textContent = Math.round(target * eased) + suffix;
+                        if (p < 1) window.requestAnimationFrame(frame);
+                    }
+                    el.textContent = '0' + suffix;
+                    window.requestAnimationFrame(frame);
+                });
+            }, { threshold: 0.4 });
+            counters.forEach(function (el) { countObserver.observe(el); });
+        }
+
+        // ── Alone che segue il mouse sulle card [data-spotlight] ─────
+        // Le coordinate vanno in variabili CSS via CSSOM (ammesso dalla CSP).
+        document.querySelectorAll('[data-spotlight]').forEach(function (card) {
+            card.addEventListener('pointermove', function (e) {
+                var rect = card.getBoundingClientRect();
+                card.style.setProperty('--x', (e.clientX - rect.left) + 'px');
+                card.style.setProperty('--y', (e.clientY - rect.top) + 'px');
+            });
+        });
+
         // ══ Catalogo ════════════════════════════════════════════════
         // ── Scheda rapida: ordina taglia per taglia senza cambiare pagina ──
         // Senza JS il bottone della card resta un POST /carrello/aggiungi
