@@ -32,14 +32,23 @@ Pagine di presentazione servite da `PageController` con header/footer dedicati
 vedono nella vetrina, mai su queste pagine indicizzabili.
 
 - **`/` — home**: hero con claim e CTA (**"Sfoglia il catalogo"** → vetrina
-  come azione principale, poi "Richiedi accesso" e "Come funziona"), numeri
-  chiave (modelli, brand, giorni di consegna, paesi), elenco brand cliccabili
-  (ognuno apre `/vetrina?brand=…`, più "Tutto il catalogo"), fascia in
-  evidenza "Catalogo aperto" con il bottone per la vetrina, sei motivi per
-  usare il catalogo, teaser dei 5 passi, blocco spedizioni, CTA finale. La
-  vetrina è anche la prima voce del menu pubblico ("Catalogo", su desktop e
-  mobile) e del footer; per chi ha già l'accesso gli stessi link portano a
-  `/catalogo`.
+  come azione principale, poi "Richiedi accesso" e "Come funziona"), accanto
+  un **mockup illustrativo** di scheda catalogo (sneaker disegnata in
+  `pages/_sneaker.twig`, taglie d'esempio, prezzo "visibile dopo l'accesso":
+  nessun dato del feed), numeri chiave animati (modelli, brand, giorni di
+  consegna, paesi), **nastro brand** che scorre (ognuno apre
+  `/vetrina?brand=…`, più "Tutto il catalogo"), fascia "Catalogo aperto"
+  con il bottone per la vetrina, griglia "bento" dei sei motivi con
+  mini-illustrazioni (barre stock, selettore taglie EU/US, rotte di
+  spedizione, bonifico, pro-forma), timeline dei 5 passi, blocco spedizioni
+  con **"Cosa cambia in base al paese"** (selettore Alpine: consegna,
+  soglia di spedizione e regime IVA — IT `domestic`, UE `reverse_charge`,
+  UK/CH `export`, come `VatService` con partita IVA obbligatoria), FAQ a
+  fisarmonica (`<details>`, stesse risposte di `/come-ordinare`), CTA
+  finale e, su mobile, barra fissa "Sfoglia / Richiedi accesso" dopo la
+  hero. La vetrina è anche la prima voce del menu pubblico ("Catalogo", su
+  desktop e mobile) e del footer; per chi ha già l'accesso gli stessi link
+  portano a `/catalogo` (e la barra mobile non compare).
 - **`/come-ordinare`**: i 5 passi in timeline (registrazione → richiesta
   d'ordine → bonifico → conferma → ricezione), ognuno con testo, due punti
   chiave e icona; comparsa animata allo scroll. In fondo nota sui tempi e FAQ
@@ -63,6 +72,15 @@ timestamp del file e nessuna modifica ai template (istruzioni in
 `public/img/custom/README.md`). Gli sfondi sono `<img>` posizionati, non
 `background-image`: la CSP vieta gli style inline. Mai usare foto dei prodotti
 del feed su queste pagine: sono indicizzabili.
+
+**Stile del sito pubblico**: header e sezioni scure in nero "ink", fondo
+"paper" per le chiare, titoli in Archivo largo (classe `scs-display`, e tutti
+gli `h1`/`h2` sotto `body.scs-public`), testo in Inter. I font sono
+self-hosted (pacchetti `@fontsource-variable/*`, copiati in
+`public/assets/fonts/` da `scripts/copy-js.mjs` durante `npm run build`):
+la CSP non ammette CDN. Gli effetti (grana, griglia, nastro, spotlight,
+contatori) sono classi in `assets/css/app.css` e poche righe in `app.js`;
+con `prefers-reduced-motion` restano tutti fermi.
 
 ## /vetrina — catalogo pubblico senza prezzi
 

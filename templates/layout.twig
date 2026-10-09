@@ -22,7 +22,7 @@
     <script defer src="/assets/app.js"></script>
     <script defer src="/assets/alpine.min.js"></script>
 </head>
-<body class="min-h-screen bg-neutral-100 text-neutral-900 flex flex-col">
+<body class="min-h-screen {{ (public_page ?? false) ? 'scs-public bg-paper' : 'bg-neutral-100' }} text-neutral-900 antialiased flex flex-col">
 
 {% set in_admin = current_path starts with '/admin' %}
 {# catalogo: con accesso quello coi prezzi, altrimenti la vetrina pubblica #}
@@ -62,15 +62,15 @@
         </div>
     </header>
 {% elseif public_page ?? false %}
-    {# ── Sito pubblico: header leggero, nessun dato riservato ── #}
-    <header class="sticky top-0 z-40 border-b border-neutral-200 bg-white/90 backdrop-blur" x-data="{ open: false }">
-        <div class="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+    {# ── Sito pubblico: header scuro "vetro", nessun dato riservato ── #}
+    <header class="sticky top-0 z-40 border-b border-white/10 bg-ink/95 text-white backdrop-blur-xl" x-data="{ open: false }">
+        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
             <a href="/" class="shrink-0">
                 <img src="/logo.png" alt="{{ company_name }}" class="h-8 w-auto sm:h-9">
             </a>
-            <nav class="hidden items-center gap-1 text-sm md:flex">
+            <nav class="ml-4 hidden items-center gap-1 text-sm md:flex">
                 <a href="{{ public_catalog_link }}"
-                   class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-bold transition-colors hover:bg-neutral-100 {{ current_path == '/vetrina' ? 'bg-neutral-100' }}">
+                   class="inline-flex items-center gap-2 rounded-full px-3.5 py-2 font-semibold transition-colors hover:bg-white/10 {{ current_path == '/vetrina' ? 'bg-white/10' : 'text-neutral-200' }}">
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
                     {{ t('nav.catalog') }}
                 </a>
@@ -78,7 +78,7 @@
                     {href: '/come-ordinare', label: t('nav.how_to_order')},
                     {href: '/spedizioni', label: t('nav.shipping')}
                 ] %}
-                    <a href="{{ item.href }}" class="rounded-lg px-3 py-1.5 font-medium transition-colors hover:bg-neutral-100 {{ current_path == item.href ? 'bg-neutral-100' }}">{{ item.label }}</a>
+                    <a href="{{ item.href }}" class="rounded-full px-3.5 py-2 font-medium transition-colors hover:bg-white/10 hover:text-white {{ current_path == item.href ? 'bg-white/10 text-white' : 'text-neutral-300' }}">{{ item.label }}</a>
                 {% endfor %}
             </nav>
 
@@ -88,28 +88,44 @@
                     <input type="hidden" name="redirect" value="{{ current_uri }}">
                     <label for="locale-public" class="sr-only">{{ t('nav.language_label') }}</label>
                     <select id="locale-public" name="locale" data-autosubmit
-                            class="rounded-lg border-neutral-300 py-1.5 pl-2 pr-8 text-sm focus:border-amber-500 focus:ring-amber-500">
+                            class="rounded-full border-white/15 bg-white/5 py-1.5 pl-3 pr-8 text-sm text-white focus:border-amber-400 focus:ring-amber-400">
                         {% for l in locales %}
                             <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.flag_' ~ l) }} {{ t('lang.' ~ l) }}</option>
                         {% endfor %}
                     </select>
                 </form>
                 {% if is_catalog_authed %}
-                    <a href="/catalogo" class="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('nav.go_catalog') }}</a>
+                    <a href="/catalogo" class="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-amber-300">{{ t('nav.go_catalog') }}</a>
                 {% else %}
-                    <a href="/login" class="hidden rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold transition-colors hover:bg-neutral-100 sm:block">{{ t('nav.login') }}</a>
-                    <a href="/richiedi-accesso" class="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-700">{{ t('nav.request_access') }}</a>
+                    <a href="/login" class="hidden rounded-full px-4 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-white/10 hover:text-white sm:block">{{ t('nav.login') }}</a>
+                    <a href="/richiedi-accesso" class="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-amber-300">{{ t('nav.request_access') }}</a>
                 {% endif %}
-                <button type="button" class="rounded-md p-2 hover:bg-neutral-100 md:hidden" @click="open = !open" aria-label="Menu">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <button type="button" class="rounded-full p-2 hover:bg-white/10 md:hidden" @click="open = !open" :aria-expanded="open" aria-label="Menu">
+                    <svg x-show="!open" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+                    <svg x-show="open" x-cloak class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
                 </button>
             </div>
         </div>
-        <nav class="space-y-1 border-t border-neutral-200 px-4 py-3 text-sm md:hidden" x-show="open" x-cloak>
-            <a href="{{ public_catalog_link }}" class="block rounded-md px-3 py-2 font-bold hover:bg-neutral-100">{{ t('nav.catalog') }}</a>
-            <a href="/come-ordinare" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.how_to_order') }}</a>
-            <a href="/spedizioni" class="block rounded-md px-3 py-2 hover:bg-neutral-100">{{ t('nav.shipping') }}</a>
-            <a href="/login" class="block rounded-md px-3 py-2 font-semibold hover:bg-neutral-100">{{ t('nav.login') }}</a>
+        <nav class="space-y-1 border-t border-white/10 px-4 py-3 text-sm md:hidden" x-show="open" x-cloak x-transition.opacity>
+            <a href="{{ public_catalog_link }}" class="flex items-center gap-2 rounded-xl px-3 py-2.5 font-bold hover:bg-white/10">
+                <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>{{ t('nav.catalog') }}
+            </a>
+            <a href="/come-ordinare" class="block rounded-xl px-3 py-2.5 text-neutral-200 hover:bg-white/10">{{ t('nav.how_to_order') }}</a>
+            <a href="/spedizioni" class="block rounded-xl px-3 py-2.5 text-neutral-200 hover:bg-white/10">{{ t('nav.shipping') }}</a>
+            {% if not is_catalog_authed %}
+                <a href="/login" class="block rounded-xl px-3 py-2.5 font-semibold text-neutral-200 hover:bg-white/10">{{ t('nav.login') }}</a>
+            {% endif %}
+            <form method="post" action="/lingua" class="px-3 py-2 sm:hidden">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <input type="hidden" name="redirect" value="{{ current_uri }}">
+                <label for="locale-public-m" class="mb-1 block text-xs text-neutral-400">{{ t('nav.language_label') }}</label>
+                <select id="locale-public-m" name="locale" data-autosubmit
+                        class="w-full rounded-xl border-white/15 bg-white/5 py-2 pl-3 pr-8 text-sm text-white focus:border-amber-400 focus:ring-amber-400">
+                    {% for l in locales %}
+                        <option value="{{ l }}" {{ locale == l ? 'selected' }}>{{ t('lang.flag_' ~ l) }} {{ t('lang.' ~ l) }}</option>
+                    {% endfor %}
+                </select>
+            </form>
         </nav>
     </header>
 {% elseif is_catalog_authed and not in_admin %}
@@ -222,44 +238,58 @@
 </main>
 
 {% if public_page ?? false %}
-    <footer class="border-t border-neutral-200 bg-neutral-900 text-neutral-300">
-        <div class="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
-            <div class="sm:col-span-2 lg:col-span-1">
-                <img src="/logo.png" alt="{{ company_name }}" class="h-9 w-auto">
-                <p class="mt-3 text-sm leading-relaxed text-neutral-400">{{ t('footer.tagline') }}</p>
+    <footer class="scs-grain relative isolate overflow-hidden bg-ink text-neutral-300">
+        <div class="scs-glow pointer-events-none absolute -right-40 -top-56 -z-10 h-[30rem] w-[30rem] opacity-60"></div>
+        <div class="mx-auto max-w-7xl px-4">
+            {# fascia d'invito: parla al rivenditore anche in fondo alla pagina #}
+            <div class="flex flex-col gap-6 border-b border-white/10 py-12 sm:flex-row sm:items-end sm:justify-between">
+                <p class="max-w-2xl text-2xl font-extrabold leading-tight text-white sm:text-3xl">{{ t('footer.tagline') }}</p>
+                <a href="{{ public_catalog_link }}" class="group inline-flex shrink-0 items-center gap-3 self-start rounded-full bg-white py-2 pl-6 pr-2 font-bold text-ink transition-colors hover:bg-amber-400 sm:self-auto">
+                    {{ t('nav.catalog') }}
+                    <span class="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-amber-400 transition-transform group-hover:-rotate-45">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                    </span>
+                </a>
             </div>
-            <div>
-                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_explore') }}</h2>
-                <ul class="space-y-2 text-sm">
-                    <li><a href="{{ public_catalog_link }}" class="font-semibold text-white transition-colors hover:text-amber-300">{{ t('nav.catalog') }}</a></li>
-                    <li><a href="/come-ordinare" class="transition-colors hover:text-white">{{ t('nav.how_to_order') }}</a></li>
-                    <li><a href="/spedizioni" class="transition-colors hover:text-white">{{ t('nav.shipping') }}</a></li>
-                    <li><a href="/richiedi-accesso" class="transition-colors hover:text-white">{{ t('nav.request_access') }}</a></li>
-                    <li><a href="/login" class="transition-colors hover:text-white">{{ t('nav.login') }}</a></li>
-                </ul>
-            </div>
-            <div>
-                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_contacts') }}</h2>
-                <ul class="space-y-2 text-sm">
-                    {% if contact.email %}<li><a href="mailto:{{ contact.email }}" class="transition-colors hover:text-white">{{ contact.email }}</a></li>{% endif %}
-                    {% if contact.phone %}<li><a href="tel:{{ contact.phone|replace({' ': ''}) }}" class="transition-colors hover:text-white">{{ contact.phone }}</a></li>{% endif %}
-                    {% if contact.whatsapp_link %}<li><a href="{{ contact.whatsapp_link }}" rel="noopener" class="transition-colors hover:text-white">WhatsApp {{ contact.whatsapp }}</a></li>{% endif %}
-                    <li><a href="{{ main_site_url }}" rel="noopener" class="transition-colors hover:text-white">{{ t('footer.main_site') }}</a></li>
-                </ul>
-            </div>
-            <div>
-                <h2 class="mb-3 text-xs font-bold uppercase tracking-wide text-neutral-500">{{ t('footer.col_company') }}</h2>
-                <p class="text-sm leading-relaxed text-neutral-400">
-                    <strong class="text-neutral-200">{{ contact.company ?: company_name }}</strong><br>
-                    {% if contact.owner %}{{ t('legal.owner_line', {owner: contact.owner}) }}<br>{% endif %}
-                    {% if contact.address %}{{ contact.address }}<br>{% endif %}
-                    {% if contact.vat %}{{ contact.vat }}{% endif %}
-                </p>
+            <div class="grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                    <img src="/logo.png" alt="{{ company_name }}" class="h-9 w-auto">
+                    <p class="mt-4 text-sm leading-relaxed text-neutral-500">{{ t('footer.vat_excluded') }}</p>
+                </div>
+                <div>
+                    <h2 class="mb-4 text-xs font-bold uppercase tracking-[.2em] text-neutral-500">{{ t('footer.col_explore') }}</h2>
+                    <ul class="space-y-2.5 text-sm">
+                        <li><a href="{{ public_catalog_link }}" class="font-semibold text-white transition-colors hover:text-amber-400">{{ t('nav.catalog') }}</a></li>
+                        <li><a href="/come-ordinare" class="transition-colors hover:text-white">{{ t('nav.how_to_order') }}</a></li>
+                        <li><a href="/spedizioni" class="transition-colors hover:text-white">{{ t('nav.shipping') }}</a></li>
+                        <li><a href="/richiedi-accesso" class="transition-colors hover:text-white">{{ t('nav.request_access') }}</a></li>
+                        <li><a href="/login" class="transition-colors hover:text-white">{{ t('nav.login') }}</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h2 class="mb-4 text-xs font-bold uppercase tracking-[.2em] text-neutral-500">{{ t('footer.col_contacts') }}</h2>
+                    <ul class="space-y-2.5 text-sm">
+                        {% if contact.email %}<li><a href="mailto:{{ contact.email }}" class="transition-colors hover:text-white">{{ contact.email }}</a></li>{% endif %}
+                        {% if contact.phone %}<li><a href="tel:{{ contact.phone|replace({' ': ''}) }}" class="transition-colors hover:text-white">{{ contact.phone }}</a></li>{% endif %}
+                        {% if contact.whatsapp_link %}<li><a href="{{ contact.whatsapp_link }}" rel="noopener" class="transition-colors hover:text-white">WhatsApp {{ contact.whatsapp }}</a></li>{% endif %}
+                        <li><a href="{{ main_site_url }}" rel="noopener" class="transition-colors hover:text-white">{{ t('footer.main_site') }} ↗</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h2 class="mb-4 text-xs font-bold uppercase tracking-[.2em] text-neutral-500">{{ t('footer.col_company') }}</h2>
+                    <p class="text-sm leading-relaxed text-neutral-400">
+                        <strong class="text-neutral-200">{{ contact.company ?: company_name }}</strong><br>
+                        {% if contact.owner %}{{ t('legal.owner_line', {owner: contact.owner}) }}<br>{% endif %}
+                        {% if contact.address %}{{ contact.address }}<br>{% endif %}
+                        {% if contact.vat %}{{ contact.vat }}{% endif %}
+                    </p>
+                </div>
             </div>
         </div>
-        <div class="border-t border-neutral-800">
-            <div class="mx-auto max-w-6xl px-4 py-5 text-xs text-neutral-500">
-                © {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}
+        <div class="border-t border-white/10">
+            <div class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
+                <span>© {{ "now"|date("Y") }} {{ company_name }}</span>
+                <span>{{ t('shipping.coverage_value') }}</span>
             </div>
         </div>
     </footer>
