@@ -1,7 +1,13 @@
-{# Sneaker illustrata, generica (nessun marchio): decorativa, per le pagine
-   pubbliche al posto delle foto del feed, che lì non possono comparire.
-   Parametri: class (dimensioni), accent (classe fill dei dettagli),
-   body (classe fill della tomaia). Colori via classi: niente style inline. #}
+{# Sneaker generica (nessun marchio): decorativa, per le pagine pubbliche al
+   posto delle foto del feed, che lì non possono comparire.
+   Se esiste public/img/custom/mockup-shoe.* (PNG/WebP trasparente) si usa
+   quella; altrimenti l'illustrazione SVG qui sotto.
+   Parametri: class (dimensioni), accent (classe fill dei dettagli SVG),
+   body (classe fill della tomaia SVG). Colori via classi: niente style inline. #}
+{% set shoe_photo = images['mockup-shoe']|default('') %}
+{% if shoe_photo %}
+<img src="{{ shoe_photo }}" alt="" aria-hidden="true" loading="lazy" decoding="async" class="{{ class ?? 'w-full h-auto' }} object-contain drop-shadow-xl">
+{% else %}
 {% set accent = accent ?? 'fill-amber-400' %}
 {% set body = body ?? 'fill-stone-50' %}
 <svg class="{{ class ?? 'w-full h-auto' }}" viewBox="20 30 390 165" fill="none" aria-hidden="true" focusable="false">
@@ -23,3 +29,4 @@
     </g>
     <path d="M120 146 C134 128 160 116 196 112" stroke="#a8a29e" stroke-width="1.2" stroke-dasharray="3 3"/>
 </svg>
+{% endif %}

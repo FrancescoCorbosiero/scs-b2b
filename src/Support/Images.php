@@ -9,7 +9,7 @@ namespace App\Support;
  *
  * Di default si usano le illustrazioni SVG in `public/img/`. Per passare a
  * FOTO REALI basta metterle in `public/img/custom/` con lo stesso nome
- * (`hero.jpg`, `cta.jpg`, `network.jpg`, `pattern.png`, …): vengono usate
+ * (`hero.jpg`, `cta.jpg`, `network.jpg`, `pattern.png`, `mockup-shoe.png`, …): vengono usate
  * automaticamente, senza toccare i template. L'URL porta in coda il
  * timestamp del file, così il browser non serve la versione vecchia.
  *
@@ -23,6 +23,15 @@ final class Images
         'cta' => '/img/cta-boxes.svg',       // blocchi call-to-action
         'network' => '/img/europe-network.svg', // copertura spedizioni
         'pattern' => '/img/pattern-dots.svg',   // texture leggera sezioni chiare
+    ];
+
+    /**
+     * Immagini senza illustrazione di serie: compaiono in `all()` solo se il
+     * file esiste in `public/img/custom/`, altrimenti i template usano il
+     * proprio fallback (es. la sneaker SVG di `pages/_sneaker.twig`).
+     */
+    private const OPTIONAL = [
+        'mockup-shoe', // sneaker (PNG/WebP trasparente) nelle schede mockup della home
     ];
 
     private const EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'];
@@ -43,7 +52,7 @@ final class Images
 
         $images = self::DEFAULTS;
         $dir = $this->config->rootPath() . '/public/img/custom';
-        foreach (array_keys(self::DEFAULTS) as $name) {
+        foreach ([...array_keys(self::DEFAULTS), ...self::OPTIONAL] as $name) {
             foreach (self::EXTENSIONS as $ext) {
                 $file = $dir . '/' . $name . '.' . $ext;
                 if (is_file($file)) {

@@ -8,6 +8,7 @@ Metti qui le foto per sostituire le illustrazioni di default, con questi nomi
 | `hero.jpg` | Sfondo delle intestazioni scure (home, come ordinare, spedizioni, richiedi accesso) | orizzontale, ≥ 1920×1080, soggetto scuro o scontrastato (sopra ci va testo bianco) |
 | `cta.jpg` | Blocchi call-to-action con immagine (home e spedizioni) | 4:3 o quadrata, ≥ 1200px |
 | `network.jpg` | Sezione "copertura spedizioni" | 4:3, ≥ 1200px |
+| `mockup-shoe.png` | Sneaker nelle schede mockup della home (hero desktop e mobile, ventaglio "catalogo aperto"); se manca resta l'illustrazione SVG | PNG/WebP con **sfondo trasparente**, profilo laterale, circa 1400×600, senza loghi |
 | `pattern.png` | Texture leggera in cima alla sezione "Perché sceglierci" della home | piccola e ripetibile (tile) |
 
 Il file viene preso automaticamente: nessuna modifica ai template. L'URL
