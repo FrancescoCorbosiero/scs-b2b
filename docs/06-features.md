@@ -34,7 +34,7 @@ vedono nella vetrina, mai su queste pagine indicizzabili.
 - **`/` — home**: hero con claim e CTA (**"Sfoglia il catalogo"** → vetrina
   come azione principale, poi "Richiedi accesso" e "Come funziona"), accanto
   un **mockup illustrativo** di scheda catalogo (sneaker disegnata in
-  `pages/_sneaker.twig`, taglie d'esempio, prezzo "visibile dopo l'accesso":
+  `pages/_sneaker.twig`, sostituibile con una foto in `public/img/custom/mockup-shoe.png`, taglie d'esempio, prezzo "visibile dopo l'accesso":
   nessun dato del feed), numeri chiave animati (modelli, brand, giorni di
   consegna, paesi), **nastro brand** che scorre (ognuno apre
   `/vetrina?brand=…`, più "Tutto il catalogo"), fascia "Catalogo aperto"
