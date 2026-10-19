@@ -45,6 +45,9 @@
                     {{ t('admin.updated') }}: {{ last_sync.products_updated }} ·
                     {{ t('admin.deactivated') }}: {{ last_sync.products_deactivated }}
                 </p>
+                {% if last_sync.status != 'ok' and last_sync.message %}
+                    <p class="text-xs text-red-600 mt-1 line-clamp-2">{{ last_sync.message }}</p>
+                {% endif %}
             {% else %}
                 <p class="text-neutral-400">{{ t('admin.sync_never') }}</p>
             {% endif %}

@@ -99,7 +99,28 @@ fonte di verità al posto dell'euristica.
 
 - Eseguito da cron ogni `FEED_SYNC_INTERVAL` (default 2h) + trigger manuale da /admin.
 - **Idempotente e transazionale**: scaricare e validare TUTTO il payload prima di
-  toccare il DB; in caso di errore HTTP/parsing, abortire senza modifiche.
+  toccare il DB; in caso di errore HTTP o di una risposta che non è il feed,
+  abortire senza modifiche.
+- **Righe invalide** (campo obbligatorio mancante, prezzo o quantità non
+  numerici): scartate e riportate nella nota del run, che resta `ok`, finché
+  sono al massimo il 5% delle righe. Le taglie scartate spariscono dal
+  prodotto; uno SKU senza righe valide viene disattivato come un prodotto
+  ritirato e torna al primo sync con dati corretti. Oltre il 5% (o con zero
+  righe valide) il formato è cambiato: run in `error`, catalogo invariato.
+  Così un solo prodotto sporco presso il fornitore non congela lo stock di
+  tutto il catalogo. Le quantità intere serializzate come decimali (`3.0`)
+  valgono come intere.
+- **JSON non standard** riparato con un avviso nella nota: BOM, `NaN` /
+  `Infinity` (che `json.dumps` di Python emette per i valori mancanti → `null`,
+  poi validati come qualsiasi valore mancante) e byte non UTF-8.
+- **Diagnostica**: quando la risposta non è il feed, la nota dell'errore dice
+  cosa è arrivato — stato HTTP, Content-Type, dimensione, redirect (host e
+  percorso finali, mai la query), chiavi e `detail` di un JSON d'errore,
+  titolo di una pagina HTML, inizio e fine di un JSON malformato. Una pagina
+  HTML dopo un redirect (login) o un `HTTP 401/403` indicano quasi sempre un
+  `FEED_BEARER_TOKEN` scaduto o revocato. Il token non compare mai nei
+  messaggi. In `/admin/sync` la nota si apre per intero con un clic; la
+  dashboard mostra la causa dell'ultimo errore.
 - Upsert per `sku` + replace dello stock taglie; i prodotti spariti dal feed vanno
   marcati `is_active = 0`, non cancellati (le richieste d'ordine passate li referenziano).
   Il sync lavora solo sui prodotti con `source = 'feed'`: i prodotti propri
@@ -109,9 +130,13 @@ fonte di verità al posto dell'euristica.
   creati/aggiornati/disattivati, errori. Uno SKU del feed che appartiene già a
   un prodotto proprio viene saltato (il prodotto proprio resta com'è) e il run
   lo segnala nel messaggio del log ("SKU del feed ignorati…").
-- Timeout HTTP ragionevole (es. 60s), retry singolo con backoff, User-Agent identificativo.
+- Timeout HTTP ragionevole (es. 60s), User-Agent identificativo, retry singolo
+  con backoff solo sugli errori transitori (rete, 5xx, 408/429): un
+  401/403/404 non cambia ritentando.
 - Gestire con grazia payload molto grandi (streaming/chunk se necessario; verificare
-  su Swagger se l'endpoint è paginato).
+  su Swagger se l'endpoint è paginato). Paginazione DRF `{results, next}`:
+  `next` si segue solo sull'host di `FEED_BASE_URL` e col suo schema (DRF
+  dietro un proxy genera spesso link `http://`), mai il token verso altri host.
 
 ## Prodotti propri (import admin, stesso formato)
 

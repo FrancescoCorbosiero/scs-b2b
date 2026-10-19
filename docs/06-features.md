@@ -421,5 +421,7 @@ Minimale, server-rendered (sempre in italiano):
     mai i prodotti del feed; nessun `size_id` del fornitore (l'`id` del file
     è ignorato), quindi mai ordinati a GoldenSneakers.
 - Ultimi sync (`sync_logs`) + pulsante "Sincronizza ora" (esegue il sync in
-  foreground con feedback, o accoda al container cron).
+  foreground con feedback, o accoda al container cron). La nota di ogni run
+  (righe scartate, causa di un errore con la risposta del fornitore, docs/03)
+  si apre per intero con un clic.
 - Toggle "Recommended" per SKU (ricerca per SKU → flag on/off).

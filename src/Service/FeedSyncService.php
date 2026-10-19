@@ -78,7 +78,8 @@ final class FeedSyncService
 
         try {
             // 1. Scarica e valida TUTTO prima di toccare il DB
-            $rows = $this->adapter->fetch();
+            $feed = $this->adapter->fetch();
+            $rows = $feed['rows'];
             $counters['rows_read'] = count($rows);
             if ($rows === []) {
                 throw new FeedException('Feed vuoto: sync abortito per sicurezza (il catalogo resta invariato)');
@@ -108,17 +109,20 @@ final class FeedSyncService
             }
             $this->pdo->commit();
 
-            // SKU del feed già usati da un prodotto proprio: non si toccano
-            // (l'admin decide se eliminare il prodotto proprio)
-            $message = null;
+            // avvisi che non fermano il run: righe del feed scartate o JSON
+            // riparato dall'adapter, SKU già usati da un prodotto proprio
+            // (non si toccano: l'admin decide se eliminare il prodotto proprio)
+            $notes = $feed['warnings'];
             if ($applied['skipped'] !== []) {
-                $message = sprintf(
+                $skippedNote = sprintf(
                     'SKU del feed ignorati perché già usati da prodotti propri (%d): %s',
                     count($applied['skipped']),
                     implode(', ', array_slice($applied['skipped'], 0, 20)) . (count($applied['skipped']) > 20 ? '…' : ''),
                 );
-                $this->logger->warning($message);
+                $this->logger->warning($skippedNote);
+                $notes[] = $skippedNote;
             }
+            $message = $notes === [] ? null : implode(' — ', $notes);
 
             $this->syncLogs->finish($logId, 'ok', $counters, $message);
             $this->logger->info('Sync feed completato', $counters);

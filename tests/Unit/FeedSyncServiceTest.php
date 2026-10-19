@@ -165,6 +165,27 @@ final class FeedSyncServiceTest extends TestCase
         self::assertSame('error', $log['status']);
     }
 
+    public function testFewInvalidRowsDoNotBlockTheSync(): void
+    {
+        $rows = json_decode((string) file_get_contents($this->realFixture()), true);
+        self::assertIsArray($rows);
+        $rows[] = ['sku' => 'BROKEN1', 'product_name' => 'Senza prezzo', 'size_eu' => '42', 'available_quantity' => 3];
+        file_put_contents($this->workDir . '/feed.json', json_encode($rows));
+
+        $result = $this->serviceFor($this->workDir . '/feed.json')->run();
+
+        self::assertSame('ok', $result['status'], (string) $result['message']);
+        self::assertSame($this->fixtureSkuCount(), $result['products_created']);
+        self::assertStringContainsString('sku BROKEN1', (string) $result['message']);
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM products WHERE sku = 'BROKEN1'");
+        self::assertSame(0, (int) ($stmt === false ? -1 : $stmt->fetchColumn()), 'La riga invalida non entra in catalogo');
+
+        $log = (new SyncLogRepository($this->pdo))->latest();
+        self::assertNotNull($log);
+        self::assertSame('ok', $log['status']);
+        self::assertStringContainsString('scartate perché non valide', (string) $log['message']);
+    }
+
     public function testEmptyFeedAbortsForSafety(): void
     {
         $this->serviceFor($this->realFixture())->run();

@@ -41,7 +41,14 @@
                         <td class="px-4 py-2.5 text-right">{{ log.products_created }}</td>
                         <td class="px-4 py-2.5 text-right">{{ log.products_updated }}</td>
                         <td class="px-4 py-2.5 text-right">{{ log.products_deactivated }}</td>
-                        <td class="px-4 py-2.5 text-xs text-neutral-500 max-w-xs truncate" title="{{ log.message }}">{{ log.message }}</td>
+                        <td class="px-4 py-2.5 text-xs text-neutral-500 max-w-md">
+                            {% if log.message %}
+                                {# il messaggio dice cosa ha risposto il fornitore: leggibile per intero con un clic #}
+                                <details class="group">
+                                    <summary class="cursor-pointer truncate group-open:whitespace-normal group-open:break-words">{{ log.message }}</summary>
+                                </details>
+                            {% endif %}
+                        </td>
                     </tr>
                 {% else %}
                     <tr><td colspan="8" class="px-4 py-8 text-center text-neutral-400">{{ t('admin.sync_never') }}</td></tr>

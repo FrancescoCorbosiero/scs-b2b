@@ -50,7 +50,7 @@ final class GoldenSneakersAdapterImageTest extends TestCase
             $env['FEED_BASE_URL'] = $feedBaseUrl;
         }
         $config = new Config($env);
-        $rows = (new GoldenSneakersAdapter($config, new NullLogger()))->fetch();
+        $rows = (new GoldenSneakersAdapter($config, new NullLogger()))->fetch()['rows'];
 
         return $rows[0]['image_url'];
     }
