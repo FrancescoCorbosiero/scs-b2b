@@ -339,7 +339,10 @@ Minimale, server-rendered (sempre in italiano):
 - **/admin/clienti — gestione account**: lista con stato (attivo / invito in
   attesa / disattivato), ultimo accesso e conteggio ordini; creazione con
   invio automatico dell'invito nella lingua del cliente; reinvio invito o
-  reset; disattivazione immediata (le sessioni attive decadono).
+  reset; disattivazione immediata (le sessioni attive decadono); **export
+  Excel** (`/admin/clienti/export.xlsx`) di tutti gli account con anagrafica,
+  P.IVA, indirizzo, paese/lingua, stato, date e conteggio richieste (mai
+  hash password o token).
 - Elenco richieste d'ordine (stato del ciclo con badge e filtro, data, cliente,
   paese/regime VAT, numero ricevuta, pezzi, imponibile, stato invio email) con
   paginazione; dashboard con contatore "in attesa di pagamento"; dettaglio con

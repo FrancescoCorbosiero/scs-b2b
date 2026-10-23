@@ -227,4 +227,32 @@ final class UserServiceTest extends TestCase
         self::assertTrue($this->service->changePassword($userId, 'password-sicura-123', 'nuova-password-456', 'nuova-password-456')['ok']);
         self::assertTrue($this->service->authenticate('bob@example.it', 'nuova-password-456', '10.0.0.2', false));
     }
+
+    /** Export /admin/clienti: stato come a schermo, mai l'hash della password. */
+    public function testExportTableListsAccountsWithStatusButNoPasswordHash(): void
+    {
+        $invited = $this->createUser('invitato@example.it');
+        $active = $this->createUser('attivo@example.it');
+        $this->users->setPasswordHash($active, password_hash('password-sicura-123', PASSWORD_DEFAULT));
+        $disabled = $this->createUser('disattivato@example.it');
+        $this->users->setActive($disabled, false);
+
+        $table = $this->service->exportTable();
+
+        self::assertCount(15, $table['headers']);
+        self::assertCount(3, $table['rows']);
+        $byId = [];
+        foreach ($table['rows'] as $row) {
+            self::assertCount(count($table['headers']), $row);
+            $byId[$row[0]] = $row;
+        }
+        self::assertSame('invitato@example.it', $byId[$invited][3]);
+        self::assertSame('IT01234567890', $byId[$invited][5]);
+        self::assertSame('Invito in attesa', $byId[$invited][11]);
+        self::assertSame('Attivo', $byId[$active][11]);
+        self::assertSame('Disattivato', $byId[$disabled][11]);
+
+        $flat = json_encode($table, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        self::assertStringNotContainsString('$2y$', $flat, 'Hash password mai nell\'export');
+    }
 }

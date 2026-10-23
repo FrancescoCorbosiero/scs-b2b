@@ -127,6 +127,7 @@ return static function (App $app): void {
         // gestione clienti: account con invito via email
         $group->get('/clienti', [AdminUserController::class, 'index']);
         $group->post('/clienti', [AdminUserController::class, 'create']);
+        $group->get('/clienti/export.xlsx', [AdminUserController::class, 'export']);
         $group->post('/clienti/{id:[0-9]+}/invito', [AdminUserController::class, 'sendLink']);
         $group->post('/clienti/{id:[0-9]+}/attiva', [AdminUserController::class, 'toggleActive']);
 

@@ -133,6 +133,63 @@ final class UserService
         }
     }
 
+    // ── Export da /admin/clienti ─────────────────────────────────────
+
+    /**
+     * Tabella per l'export XLSX della lista clienti (area admin, in italiano):
+     * stessi account e stesso stato mostrati a schermo. Mai password_hash né token.
+     *
+     * @return array{headers: list<string>, rows: list<list<string|int|null>>}
+     */
+    public function exportTable(): array
+    {
+        $headers = [
+            'ID',
+            $this->lang->t('users.export_name'),
+            $this->lang->t('users.export_company'),
+            $this->lang->t('users.export_email'),
+            $this->lang->t('users.export_phone'),
+            $this->lang->t('users.export_vat_number'),
+            $this->lang->t('users.export_street'),
+            $this->lang->t('users.export_city'),
+            $this->lang->t('users.export_zip'),
+            $this->lang->t('users.export_country'),
+            $this->lang->t('users.export_locale'),
+            $this->lang->t('users.col_status'),
+            $this->lang->t('users.export_created_at'),
+            $this->lang->t('users.col_last_login'),
+            $this->lang->t('admin.orders'),
+        ];
+
+        $rows = [];
+        foreach ($this->users->all() as $user) {
+            $status = match (true) {
+                !(bool) $user['is_active'] => 'users.status_disabled',
+                (string) ($user['password_hash'] ?? '') !== '' => 'users.status_active',
+                default => 'users.status_invited',
+            };
+            $rows[] = [
+                (int) $user['id'],
+                (string) $user['name'],
+                $user['company'] !== null ? (string) $user['company'] : null,
+                (string) $user['email'],
+                $user['phone'] !== null ? (string) $user['phone'] : null,
+                $user['vat_number'] !== null ? (string) $user['vat_number'] : null,
+                $user['address_street'] !== null ? (string) $user['address_street'] : null,
+                $user['address_city'] !== null ? (string) $user['address_city'] : null,
+                $user['address_zip'] !== null ? (string) $user['address_zip'] : null,
+                (string) $user['country_code'],
+                strtoupper((string) $user['locale']),
+                $this->lang->t($status),
+                (string) $user['created_at'],
+                $user['last_login_at'] !== null ? (string) $user['last_login_at'] : null,
+                (int) $user['orders_count'],
+            ];
+        }
+
+        return ['headers' => $headers, 'rows' => $rows];
+    }
+
     // ── Reset self-service (risposta SEMPRE neutra) ──────────────────
 
     public function requestReset(string $email): void

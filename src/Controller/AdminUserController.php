@@ -11,12 +11,14 @@ use App\Support\Http;
 use App\Support\Lang;
 use App\Support\Session;
 use App\Support\View;
+use App\Support\XlsxWriter;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * /admin/clienti: creazione account con invito via email (link monouso per
- * impostare la password — mai password in chiaro), reinvio link, attiva/disattiva.
+ * impostare la password — mai password in chiaro), reinvio link, attiva/disattiva,
+ * export XLSX della lista.
  */
 final class AdminUserController
 {
@@ -27,6 +29,7 @@ final class AdminUserController
         private readonly UserRepository $users,
         private readonly VatRateRepository $vatRates,
         private readonly Lang $lang,
+        private readonly XlsxWriter $xlsx,
     ) {
     }
 
@@ -36,6 +39,23 @@ final class AdminUserController
             'users' => $this->users->all(),
             'vat_countries' => $this->vatRates->all(),
         ]);
+    }
+
+    /** Download XLSX di tutti gli account (stesse colonne/stato della lista). */
+    public function export(Request $request, Response $response): Response
+    {
+        $table = $this->userService->exportTable();
+        $path = $this->xlsx->write('Clienti', $table['headers'], $table['rows']);
+        $content = (string) file_get_contents($path);
+        @unlink($path);
+
+        $response->getBody()->write($content);
+
+        return $response
+            ->withHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->withHeader('Content-Disposition', 'attachment; filename="clienti-' . date('Ymd-Hi') . '.xlsx"')
+            ->withHeader('Content-Length', (string) strlen($content))
+            ->withHeader('Cache-Control', 'no-store');
     }
 
     public function create(Request $request, Response $response): Response
