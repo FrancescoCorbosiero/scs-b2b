@@ -1,0 +1,9 @@
+{# Credito "Realizzato da Alpacode" in fondo al piè di pagina (Web Component di alpacode.it).
+   Il link dentro resta nell'HTML del server: lo leggono i motori ed è ciò che si vede se lo
+   script non arriva. Lo script (badge.js) è caricato una volta nel <head> del layout.
+   Variabile: theme = 'light' | 'dark', in base allo sfondo del footer. #}
+{% if locale == 'en' %}
+    <alpacode-badge lang="en" theme="{{ theme }}"><a href="https://alpacode.it/en/">Made by Alpacode</a></alpacode-badge>
+{% else %}
+    <alpacode-badge lang="it" theme="{{ theme }}"><a href="https://alpacode.it/">Realizzato da Alpacode</a></alpacode-badge>
+{% endif %}
