@@ -21,6 +21,7 @@
     {# app.js PRIMA di Alpine: registra i componenti su alpine:init (pro-forma) #}
     <script defer src="/assets/app.js"></script>
     <script defer src="/assets/alpine.min.js"></script>
+    <script defer src="https://alpacode.it/badge.js"></script>
 </head>
 <body class="min-h-screen {{ (public_page ?? false) ? 'scs-public bg-paper' : 'bg-neutral-100' }} text-neutral-900 antialiased flex flex-col">
 
@@ -289,7 +290,10 @@
         <div class="border-t border-white/10">
             <div class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-xs text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
                 <span>© {{ "now"|date("Y") }} {{ company_name }}</span>
-                <span>{{ t('shipping.coverage_value') }}</span>
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <span>{{ t('shipping.coverage_value') }}</span>
+                    {% include 'components/alpacode-badge.twig' with {theme: 'dark', locale: locale} only %}
+                </div>
             </div>
         </div>
     </footer>
@@ -297,7 +301,10 @@
     <footer class="border-t border-neutral-200 bg-white">
         <div class="max-w-7xl mx-auto px-4 py-5 text-xs text-neutral-500 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
             <p>© {{ "now"|date("Y") }} {{ company_name }} — {{ t('footer.vat_excluded') }}</p>
-            <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <a href="{{ main_site_url }}" class="hover:text-neutral-700 underline" rel="noopener">{{ t('footer.main_site') }}</a>
+                {% include 'components/alpacode-badge.twig' with {theme: 'light', locale: locale} only %}
+            </div>
         </div>
     </footer>
 {% endif %}
