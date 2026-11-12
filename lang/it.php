@@ -996,7 +996,7 @@ return [
     'home.steps_title' => 'Dalla registrazione alla consegna',
     'home.steps_subtitle' => 'Cinque passaggi, nessuna burocrazia: il catalogo resta un catalogo, l\'ordine lo confermiamo noi.',
     'home.steps_link' => 'Vedi tutti i passaggi',
-    'home.shipping_title' => 'Consegna in :min-:max giorni lavorativi',
+    'home.shipping_title' => "Consegna in :min-\u{2060}:max giorni lavorativi",
     'home.shipping_text' => 'Spediamo in tutta l\'Unione Europea, più Regno Unito e Svizzera. La spedizione è gratuita da :n paia in su; sotto la soglia costa :fee.',
     'home.shipping_link' => 'Dettagli spedizione',
     'home.shipping_fact_1' => 'Tempi di consegna',
@@ -1097,7 +1097,7 @@ return [
     // Pagina "Spedizioni"
     'shipping.meta_title' => 'Spedizioni in 4-5 giorni lavorativi — Catalogo B2B',
     'shipping.eyebrow' => 'Spedizioni',
-    'shipping.title' => 'Consegna in :min-:max giorni lavorativi',
+    'shipping.title' => "Consegna in :min-\u{2060}:max giorni lavorativi",
     'shipping.subtitle' => 'Spediamo in tutta l\'Unione Europea, più Regno Unito e Svizzera, con corriere tracciato.',
     'shipping.working_days' => 'giorni lavorativi',
     'shipping.free_from_value' => 'da :n paia in su',

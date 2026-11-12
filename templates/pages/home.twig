@@ -50,11 +50,11 @@
                                 {{ t('home.cta_browse') }}
                                 <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
                             </a>
-                            <a href="/richiedi-accesso" class="inline-flex flex-1 items-center justify-center rounded-full bg-white px-5 py-4 font-bold text-ink sm:flex-none sm:px-7 transition-all hover:bg-neutral-200 active:scale-[.98]">
+                            <a href="/richiedi-accesso" class="inline-flex flex-auto items-center justify-center whitespace-nowrap rounded-full bg-white px-6 py-4 font-bold text-ink sm:flex-none sm:px-7 transition-all hover:bg-neutral-200 active:scale-[.98]">
                                 {{ t('home.cta_primary') }}
                             </a>
                         {% endif %}
-                        <a href="/come-ordinare" class="inline-flex flex-1 items-center justify-center rounded-full border border-white/20 px-5 py-4 font-semibold text-white sm:flex-none sm:px-6 transition-colors hover:border-white/50 hover:bg-white/5">
+                        <a href="/come-ordinare" class="inline-flex flex-auto items-center justify-center whitespace-nowrap rounded-full border border-white/20 px-6 py-4 font-semibold text-white sm:flex-none sm:px-6 transition-colors hover:border-white/50 hover:bg-white/5">
                             {{ t('home.cta_secondary') }}
                         </a>
                     </div>
@@ -367,7 +367,7 @@
                         <div class="space-y-2 rounded-xl bg-white p-3 ring-1 ring-neutral-200">
                             <div class="flex items-center justify-between text-xs">
                                 <span class="font-semibold text-neutral-500">{{ t('home.mini_iban') }}</span>
-                                <span class="font-mono tracking-wider text-neutral-800">IT•• •••• •••• ••••</span>
+                                <span class="whitespace-nowrap font-mono tracking-wider text-neutral-800">IT•• •••• ••••<span class="hidden min-[400px]:inline"> ••••</span></span>
                             </div>
                             <div class="flex items-center justify-between gap-2 text-xs">
                                 <span class="font-semibold text-neutral-500">{{ t('home.mini_reference') }}</span>

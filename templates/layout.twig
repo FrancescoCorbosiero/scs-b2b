@@ -65,7 +65,7 @@
 {% elseif public_page ?? false %}
     {# ── Sito pubblico: header scuro "vetro", nessun dato riservato ── #}
     <header class="sticky top-0 z-40 border-b border-white/10 bg-ink/95 text-white backdrop-blur-xl" x-data="{ open: false }">
-        <div class="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+        <div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:gap-4">
             <a href="/" class="shrink-0">
                 <img src="/logo.png" alt="{{ company_name }}" class="h-8 w-auto sm:h-9">
             </a>
@@ -96,10 +96,10 @@
                     </select>
                 </form>
                 {% if is_catalog_authed %}
-                    <a href="/catalogo" class="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-amber-300">{{ t('nav.go_catalog') }}</a>
+                    <a href="/catalogo" class="whitespace-nowrap rounded-full bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink transition-colors hover:bg-amber-300 min-[360px]:px-4 min-[360px]:text-sm">{{ t('nav.go_catalog') }}</a>
                 {% else %}
                     <a href="/login" class="hidden rounded-full px-4 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-white/10 hover:text-white sm:block">{{ t('nav.login') }}</a>
-                    <a href="/richiedi-accesso" class="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-amber-300">{{ t('nav.request_access') }}</a>
+                    <a href="/richiedi-accesso" class="whitespace-nowrap rounded-full bg-amber-400 px-3 py-2 text-[13px] font-bold text-ink transition-colors hover:bg-amber-300 min-[360px]:px-4 min-[360px]:text-sm">{{ t('nav.request_access') }}</a>
                 {% endif %}
                 <button type="button" class="rounded-full p-2 hover:bg-white/10 md:hidden" @click="open = !open" :aria-expanded="open" aria-label="Menu">
                     <svg x-show="!open" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>

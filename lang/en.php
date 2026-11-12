@@ -490,7 +490,7 @@ return [
     'home.steps_title' => 'From sign-up to delivery',
     'home.steps_subtitle' => 'Five steps, no red tape: the catalog stays a catalog, we confirm the order.',
     'home.steps_link' => 'See all the steps',
-    'home.shipping_title' => 'Delivery in :min-:max working days',
+    'home.shipping_title' => "Delivery in :min-\u{2060}:max working days",
     'home.shipping_text' => 'We ship across the European Union, plus the UK and Switzerland. Shipping is free from :n pairs up; below that it costs :fee.',
     'home.shipping_link' => 'Shipping details',
     'home.shipping_fact_1' => 'Delivery time',
@@ -591,7 +591,7 @@ return [
     // "Shipping" page
     'shipping.meta_title' => 'Shipping in 4-5 working days — B2B catalog',
     'shipping.eyebrow' => 'Shipping',
-    'shipping.title' => 'Delivery in :min-:max working days',
+    'shipping.title' => "Delivery in :min-\u{2060}:max working days",
     'shipping.subtitle' => 'We ship across the European Union, plus the UK and Switzerland, with a tracked courier.',
     'shipping.working_days' => 'working days',
     'shipping.free_from_value' => 'from :n pairs up',
