@@ -74,8 +74,10 @@ form ordine) diventa un lockout globale**. Obbligatorio:
   le stesse regole; per le immagini ammette anche `shoesclothingstore.com`
   (`CustomProductService::IMAGE_DOMAINS`, da tenere allineato alla CSP).
 - Header nginx: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
-  `Referrer-Policy: same-origin`, CSP ragionevole (self + host immagini del
-  fornitore e del sito principale).
+  `Referrer-Policy: same-origin`. La CSP (self + host immagini del fornitore e
+  del sito principale + badge alpacode.it) la manda l'app:
+  `src/Middleware/ContentSecurityPolicyMiddleware.php`, così arriva in
+  produzione con il deploy normale senza ricaricare nginx.
 - Honeypot + rate limit sul form ordine (3/ora per IP) per lo spam.
 - Upload solo in area admin (dietro login admin + CSRF):
   - etichetta di spedizione per gli ordini dropship storici (PDF/immagine,

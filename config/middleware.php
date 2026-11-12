@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Middleware\ContentSecurityPolicyMiddleware;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\SessionMiddleware;
 use App\Support\Config;
@@ -20,7 +21,7 @@ return static function (App $app): void {
     }
     $config = $container->get(Config::class);
 
-    // Ordine di esecuzione: Error → Routing → Session → BodyParsing → CSRF → rotta
+    // Ordine di esecuzione: CSP → Error → Routing → Session → BodyParsing → CSRF → rotta
     $app->add(CsrfMiddleware::class);
     $app->addBodyParsingMiddleware();
     $app->add(SessionMiddleware::class);
@@ -57,4 +58,7 @@ return static function (App $app): void {
             }
         );
     }
+
+    // aggiunto per ultimo = il più esterno: la CSP vale anche per le pagine d'errore
+    $app->add(ContentSecurityPolicyMiddleware::class);
 };

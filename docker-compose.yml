@@ -17,7 +17,9 @@ services:
     depends_on:
       - php
     volumes:
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # cartella intera, non il singolo file: un file montato da solo resta
+      # quello vecchio dopo git pull (git lo sostituisce con un file nuovo)
+      - ./docker/nginx:/etc/nginx/conf.d:ro
       - ./:/var/www/html:ro
     networks:
       - caddy

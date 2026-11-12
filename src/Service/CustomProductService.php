@@ -36,7 +36,7 @@ final class CustomProductService
      * Domini ammessi per le immagini: quello del fornitore (come per il feed)
      * e il nostro sito principale, dove l'admin carica le foto dei prodotti
      * in sede (vale anche per i sottodomini, b2b compreso). Devono coincidere
-     * con img-src della Content-Security-Policy (docker/nginx/default.conf).
+     * con img-src della Content-Security-Policy (ContentSecurityPolicyMiddleware).
      */
     public const IMAGE_DOMAINS = [GoldenSneakersAdapter::IMAGE_DOMAIN, 'shoesclothingstore.com'];
 
