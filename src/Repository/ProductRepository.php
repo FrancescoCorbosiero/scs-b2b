@@ -388,7 +388,15 @@ final class ProductRepository
             'prezzo_asc' => 'p.min_price ASC, p.name ASC',
             'prezzo_desc' => 'p.min_price DESC, p.name ASC',
             'disponibilita' => 'p.total_quantity DESC, p.name ASC',
-            default => 'p.is_recommended DESC, p.name ASC',
+            // Rilevanza (anche l'atterraggio sul catalogo): prima la fascia di
+            // disponibilità (alta → media → bassa, stesse soglie del filtro),
+            // poi i consigliati e, a parità, chi ha più pezzi.
+            default => sprintf(
+                'CASE WHEN p.total_quantity >= %d THEN 0 WHEN p.total_quantity > %d THEN 1 ELSE 2 END ASC, '
+                . 'p.is_recommended DESC, p.total_quantity DESC, p.name ASC',
+                $highMin,
+                $lowMax,
+            ),
         };
         // Gli esauriti restano a catalogo (il fornitore li tiene nel feed a
         // quantità 0) ma vanno SEMPRE in fondo, qualunque sia l'ordinamento:

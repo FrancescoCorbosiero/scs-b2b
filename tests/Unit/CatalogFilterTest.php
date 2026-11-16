@@ -137,6 +137,28 @@ final class CatalogFilterTest extends TestCase
         }
     }
 
+    /**
+     * All'atterraggio (ordinamento "rilevanza") vengono prima i prodotti con
+     * disponibilità alta, poi media, poi bassa: un consigliato con pochi pezzi
+     * non scavalca un prodotto ben fornito.
+     */
+    public function testRelevanceSortPutsBestAvailabilityFirst(): void
+    {
+        TestDb::seedProduct($this->pdo, 'HI0001', 'Zz Alta disponibilità', 'Zeta', [
+            ['size_eu' => '42', 'quantity' => 70, 'price' => '100.00'],
+        ]);
+        TestDb::seedProduct($this->pdo, 'MD0001', 'Zz Media disponibilità', 'Zeta', [
+            ['size_eu' => '42', 'quantity' => 30, 'price' => '100.00'],
+        ]);
+        // NK1001 (7 pezzi, bassa) diventa consigliato: resta comunque dopo alta e media
+        $this->pdo->exec("UPDATE products SET is_recommended = 1 WHERE sku = 'NK1001'");
+
+        self::assertSame(
+            ['HI0001', 'MD0001', 'NK1001', 'AD2001', 'PM5001'],
+            $this->skus(['sort' => 'rilevanza']),
+        );
+    }
+
     public function testSoldOutProductsStillDisappearWithTheInStockFilter(): void
     {
         TestDb::seedProduct($this->pdo, 'ZZ0001', 'Esaurito', 'Zeta', [

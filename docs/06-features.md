@@ -220,7 +220,9 @@ resta interamente nella query string (URL condivisibili) senza annidare form:
 - Interruttori **Recommended** e **Solo disponibili**
 
 Toolbar sticky sopra la griglia: ricerca per nome/SKU (debounce 300ms, scorciatoia
-`/`), ordinamento (rilevanza/nome, prezzo ↑↓, disponibilità ↓), toggle taglie
+`/`), ordinamento (rilevanza/nome, prezzo ↑↓, disponibilità ↓; la rilevanza,
+default all'atterraggio, mette prima la disponibilità alta, poi media, poi bassa,
+e dentro ogni fascia i consigliati), toggle taglie
 **EU/US** e densità griglia **grande/media/compatta** (entrambi persistono in
 sessione), più i **chip dei filtri attivi**: ognuno si rimuove da solo con la
 sua × e c'è "Azzera filtri".
