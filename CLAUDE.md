@@ -23,6 +23,9 @@ formato del feed) da `/admin/prodotti-propri`: stanno in una sezione separata
 del catalogo ("Disponibili in sede") e non vengono mai ordinati al fornitore.
 Da `/admin/proforma` l'admin crea anche **pro-forma manuali** (stessa serie PF
 delle ricevute degli ordini), le scarica in PDF e le invia al cliente.
+Il listino netto esce anche verso i **siti collegati** dall'API catalogo
+`/api/v1/catalogo` (token Bearer, solo prodotti del feed, docs/10): oggi la usa
+il catalogo vetrina di ignaziodalto.alpacode.it, che ci aggiunge il proprio margine.
 Sito secondario del principale https://shoesclothingstore.com/ (WordPress, non toccarlo).
 
 ## Come usare questa documentazione
@@ -40,6 +43,7 @@ Leggi i file in `docs/` in ordine numerico PRIMA di scrivere codice:
 | `docs/07-security.md` | Auth, sessioni, hardening |
 | `docs/08-roadmap.md` | Milestone di sviluppo + domande aperte |
 | `docs/09-order-dropship.md` | Ordini GoldenSneakers con l'API ordini: crea, elenco, dettaglio (simulazione di default) |
+| `docs/10-catalog-api.md` | API catalogo `/api/v1/catalogo` (token Bearer) per i siti collegati, es. ignaziodalto.alpacode.it |
 
 Fixture reale del feed: `fixtures/goldensneakers-sample.json`.
 Variabili d'ambiente: `.env.example` (documentato riga per riga).
@@ -55,7 +59,7 @@ Variabili d'ambiente: `.env.example` (documentato riga per riga).
 
 1. **`offer_price` (prezzo wholesale del fornitore) non deve MAI raggiungere il client**:
    non in HTML, non in JSON, non in export, non in email al cliente, non nella
-   ricevuta pro-forma. L'unico prezzo esposto è il netto di listino precalcolato
+   ricevuta pro-forma, non nell'API catalogo. L'unico prezzo esposto è il netto di listino precalcolato
    con le regole margine admin (vedi `docs/04-pricing.md`).
 2. Il **catalogo e tutto ciò che mostra prezzi** stanno dietro login e sono
    **non indicizzabili** (noindex + robots.txt). Fanno eccezione le pagine

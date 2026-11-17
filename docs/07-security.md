@@ -42,7 +42,13 @@
 
 - `robots.txt`: `Allow` solo per le pagine pubbliche di presentazione,
   `Disallow` per tutto il resto (vetrina compresa).
-- Header `X-Robots-Tag: noindex, nofollow` su ogni risposta (nginx).
+- Header `X-Robots-Tag` su ogni risposta dell'app (`RobotsMiddleware`):
+  `index, follow` solo per le pagine pubbliche di presentazione (stesso elenco
+  di robots.txt), `noindex, nofollow` per tutto il resto. Fino a novembre 2026
+  lo mandava nginx con `noindex` su OGNI risposta, home compresa: le pagine
+  pubbliche erano di fatto escluse dai motori nonostante il meta `index`.
+- API catalogo (docs/10): token Bearer `CATALOG_API_TOKEN`, confronto in tempo
+  costante, nessuna sessione; API spenta se il token è vuoto.
 - Meta robots noindex nel layout come cintura+bretelle.
 
 ## IP reale del client dietro Caddy (critico per il rate limiting)

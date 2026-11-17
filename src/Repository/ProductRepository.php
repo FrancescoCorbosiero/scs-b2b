@@ -581,6 +581,69 @@ final class ProductRepository
     }
 
     /**
+     * Catalogo per l'API (docs/10): tutti i prodotti attivi del FEED (mai i
+     * prodotti propri) con le taglie, il prezzo netto di listino e lo stock.
+     * Come gli altri metodi lato client NON seleziona offer_price, né l'id
+     * riga del fornitore: escono solo i dati che il listino già mostra.
+     *
+     * @return list<array{sku: string, name: string, brand: string, size_mapper: string|null,
+     *   size_category: string, image_url: string|null, total_quantity: int, price_from: string|null,
+     *   updated_at: string, sizes: list<array{size_eu: string, size_us: string, barcode: string,
+     *   quantity: int, price: string}>}>
+     */
+    public function feedCatalogForApi(): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id, sku, name, brand, size_mapper, size_category, image_url, total_quantity,
+                    min_price, updated_at
+             FROM products WHERE is_active = 1 AND source = ? ORDER BY sku'
+        );
+        $stmt->execute([self::SOURCE_FEED]);
+        $products = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $products[(int) $row['id']] = [
+                'sku' => (string) $row['sku'],
+                'name' => (string) $row['name'],
+                'brand' => (string) $row['brand'],
+                'size_mapper' => $row['size_mapper'] !== null ? (string) $row['size_mapper'] : null,
+                'size_category' => (string) $row['size_category'],
+                'image_url' => $row['image_url'] !== null ? (string) $row['image_url'] : null,
+                'total_quantity' => (int) $row['total_quantity'],
+                'price_from' => $row['min_price'] !== null ? number_format((float) $row['min_price'], 2, '.', '') : null,
+                'updated_at' => (string) $row['updated_at'],
+                'sizes' => [],
+            ];
+        }
+        if ($products === []) {
+            return [];
+        }
+
+        // una sola query per tutte le taglie (niente N+1 su migliaia di prodotti)
+        $sizes = $this->pdo->prepare(
+            'SELECT s.product_id, s.size_eu, s.size_us, s.barcode, s.quantity, s.price
+             FROM product_sizes s INNER JOIN products p ON p.id = s.product_id
+             WHERE p.is_active = 1 AND p.source = ?
+             ORDER BY s.product_id, CAST(s.size_eu AS DECIMAL(6,2)), s.size_eu'
+        );
+        $sizes->execute([self::SOURCE_FEED]);
+        foreach ($sizes->fetchAll() as $row) {
+            $id = (int) $row['product_id'];
+            if (!isset($products[$id])) {
+                continue;
+            }
+            $products[$id]['sizes'][] = [
+                'size_eu' => (string) $row['size_eu'],
+                'size_us' => (string) $row['size_us'],
+                'barcode' => (string) $row['barcode'],
+                'quantity' => (int) $row['quantity'],
+                'price' => number_format((float) $row['price'], 2, '.', ''),
+            ];
+        }
+
+        return array_values($products);
+    }
+
+    /**
      * Prodotti attivi per sezione del catalogo: le schede "Catalogo" /
      * "Disponibili in sede" compaiono solo se la seconda ha prodotti.
      *

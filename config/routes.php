@@ -9,6 +9,7 @@ use App\Controller\AdminCustomProductController;
 use App\Controller\AdminProformaController;
 use App\Controller\AdminUserController;
 use App\Controller\CartController;
+use App\Controller\CatalogApiController;
 use App\Controller\CatalogController;
 use App\Controller\ContactController;
 use App\Controller\DropshipController;
@@ -26,6 +27,8 @@ return static function (App $app): void {
     $app->get('/', [PageController::class, 'home']);
     // vetrina: lo stesso catalogo SENZA prezzi, pubblica ma noindex (docs/06)
     $app->get('/vetrina', [CatalogController::class, 'showcase']);
+    // API catalogo per i siti collegati (docs/10): token Bearer, solo feed, mai offer_price
+    $app->get('/api/v1/catalogo', [CatalogApiController::class, 'catalog']);
     $app->get('/spedizioni', [PageController::class, 'shipping']);
     $app->get('/come-ordinare', [PageController::class, 'howToOrder']);
     $app->get('/richiedi-accesso', [PageController::class, 'signupForm']);

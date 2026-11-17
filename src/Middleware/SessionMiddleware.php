@@ -21,6 +21,10 @@ final class SessionMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        // l'API catalogo (docs/10) è server-to-server: niente sessione né cookie
+        if (str_starts_with($request->getUri()->getPath(), '/api/')) {
+            return $handler->handle($request);
+        }
         $this->session->start();
         // la lingua della richiesta segue la preferenza in sessione (default: it)
         $this->lang->setLocale($this->session->locale());

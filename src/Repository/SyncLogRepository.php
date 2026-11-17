@@ -60,4 +60,17 @@ final class SyncLogRepository
 
         return $rows[0] ?? null;
     }
+
+    /**
+     * Ultimo sync andato a buon fine (l'API catalogo ne espone l'orario, docs/10).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function latestOk(): ?array
+    {
+        $stmt = $this->pdo->query("SELECT * FROM sync_logs WHERE status = 'ok' ORDER BY id DESC LIMIT 1");
+        $row = $stmt === false ? false : $stmt->fetch();
+
+        return $row === false ? null : $row;
+    }
 }

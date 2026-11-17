@@ -39,7 +39,6 @@ Conseguenze vincolanti per il nostro `docker-compose.yml`:
       labels:
         caddy: b2b.shoesclothingstore.com
         caddy.reverse_proxy: "{{upstreams 80}}"
-        caddy.header.X-Robots-Tag: "noindex, nofollow"
   ```
 
 - TLS, redirect HTTP→HTTPS e HTTP/3 sono gestiti da Caddy: non configurarli in nginx.

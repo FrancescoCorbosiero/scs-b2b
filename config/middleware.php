@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Middleware\ContentSecurityPolicyMiddleware;
 use App\Middleware\CsrfMiddleware;
+use App\Middleware\RobotsMiddleware;
 use App\Middleware\SessionMiddleware;
 use App\Support\Config;
 use App\Support\View;
@@ -61,4 +62,6 @@ return static function (App $app): void {
 
     // aggiunto per ultimo = il più esterno: la CSP vale anche per le pagine d'errore
     $app->add(ContentSecurityPolicyMiddleware::class);
+    // X-Robots-Tag: indicizzabili solo le pagine pubbliche di presentazione
+    $app->add(RobotsMiddleware::class);
 };
